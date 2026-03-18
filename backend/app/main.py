@@ -13,7 +13,7 @@ from app.middleware.rate_limit import RateLimitMiddleware
 
 logger = logging.getLogger(__name__)
 
-# Sentry initialisation (no-op when SENTRY_DSN is empty)
+# Sentry initialization (no-op when SENTRY_DSN is empty)
 if settings.SENTRY_DSN:
     sentry_sdk.init(
         dsn=settings.SENTRY_DSN,

@@ -78,14 +78,25 @@ class HubSpotService:
             return ""
 
     async def log_activity(
-        self, lead_id: UUID, activity_type: str, description: str
+        self,
+        lead_id: UUID,
+        activity_type: str,
+        description: str,
+        hs_contact_id: str = "",
     ) -> None:
-        """Log an engagement activity against a HubSpot contact."""
+        """
+        Log an engagement activity against a HubSpot contact.
+
+        Pass hs_contact_id (returned by sync_lead) to associate the engagement
+        with the correct contact timeline. Without it the engagement is created
+        but will not appear on any contact record.
+        """
         if not settings.HUBSPOT_API_KEY:
             return
+        contact_ids = [int(hs_contact_id)] if hs_contact_id else []
         payload = {
             "engagement": {"active": True, "type": activity_type.upper()},
-            "associations": {"contactIds": []},
+            "associations": {"contactIds": contact_ids},
             "metadata": {"body": description},
         }
         try:
@@ -93,6 +104,8 @@ class HubSpotService:
         except Exception as exc:
             logger.error("HubSpot log_activity error: %s", exc)
 
-    async def create_note(self, lead_id: UUID, content: str) -> None:
+    async def create_note(
+        self, lead_id: UUID, content: str, hs_contact_id: str = ""
+    ) -> None:
         """Create a note engagement in HubSpot."""
-        await self.log_activity(lead_id, "NOTE", content)
+        await self.log_activity(lead_id, "NOTE", content, hs_contact_id=hs_contact_id)

@@ -13,15 +13,6 @@ from app.workers.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 
-def _run_async(coro):
-    """Run an async coroutine from a sync Celery task."""
-    loop = asyncio.new_event_loop()
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
-
-
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
 def process_lead_enrichment(self, lead_id: str) -> dict:
     """
@@ -50,7 +41,7 @@ def process_lead_enrichment(self, lead_id: str) -> dict:
             return {"status": "ok", "source": data.get("source", "none")}
 
     try:
-        return _run_async(_enrich())
+        return asyncio.run(_enrich())
     except Exception as exc:
         logger.error("process_lead_enrichment failed for %s: %s", lead_id, exc)
         raise self.retry(exc=exc)
@@ -96,7 +87,7 @@ def send_sequence_step(
             return {"status": "sent"}
 
     try:
-        return _run_async(_send())
+        return asyncio.run(_send())
     except Exception as exc:
         logger.error("send_sequence_step failed: %s", exc)
         raise self.retry(exc=exc)
@@ -137,7 +128,7 @@ def run_warmup_step(self, inbox_id: str) -> dict:
             return {"status": "ok", "emails_sent": warmup.emails_sent}
 
     try:
-        return _run_async(_warmup())
+        return asyncio.run(_warmup())
     except Exception as exc:
         logger.error("run_warmup_step failed for inbox %s: %s", inbox_id, exc)
         raise self.retry(exc=exc)
