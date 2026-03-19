@@ -1,126 +1,215 @@
-import Link from "next/link";
-import { Shield, Plus, Activity, Play, Pause } from "lucide-react";
+"use client";
 
-const MOCK_SEQUENCES = [
-  {
-    id: "1",
-    name: "Cold Outreach - SaaS",
-    steps: 5,
-    enrolled: 0,
-    status: "draft",
-    channels: ["email", "linkedin"],
-  },
-  {
-    id: "2",
-    name: "Follow-up Sequence",
-    steps: 3,
-    enrolled: 0,
-    status: "draft",
-    channels: ["email"],
-  },
-];
+import { useState } from "react";
+import Link from "next/link";
+import { Plus, GitBranch, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { useSequences } from "@/lib/hooks";
+import { sequencesApi } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
+
+const STATUS_COLORS: Record<string, string> = {
+  draft: "bg-gray-100 text-gray-700",
+  active: "bg-green-100 text-green-700",
+  paused: "bg-yellow-100 text-yellow-700",
+  archived: "bg-red-100 text-red-700",
+};
+
+function SequenceSkeleton() {
+  return (
+    <Card className="animate-pulse">
+      <CardHeader>
+        <div className="h-5 w-32 bg-gray-200 rounded" />
+        <div className="h-3 w-48 bg-gray-100 rounded mt-2" />
+      </CardHeader>
+      <CardContent>
+        <div className="h-4 w-20 bg-gray-100 rounded" />
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function SequencesPage() {
+  const [page, setPage] = useState(1);
+  const pageSize = 12;
+  const { data, isLoading, error } = useSequences(page, pageSize);
+  const queryClient = useQueryClient();
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  const totalPages = data ? Math.ceil(data.total / data.page_size) : 1;
+
+  const handleCreate = async () => {
+    if (!newName.trim()) return;
+    setCreating(true);
+    try {
+      await sequencesApi.create({
+        name: newName.trim(),
+        description: newDesc.trim() || undefined,
+      });
+      queryClient.invalidateQueries({ queryKey: ["sequences"] });
+      setNewName("");
+      setNewDesc("");
+      setDialogOpen(false);
+    } catch {
+      // keep dialog open on error
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div className="flex items-center gap-3">
-            <Shield className="w-8 h-8 text-blue-600" />
-            <span className="text-xl font-bold text-gray-900">FortressFlow</span>
-          </div>
-          <div className="flex items-center gap-6 text-sm font-medium text-gray-600">
-            <Link href="/">Dashboard</Link>
-            <Link href="/leads">Leads</Link>
-            <Link href="/sequences" className="text-blue-600">
-              Sequences
-            </Link>
-            <Link href="/compliance">Compliance</Link>
-            <Link href="/analytics">Analytics</Link>
-          </div>
-        </div>
-      </nav>
-
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Sequences</h1>
-            <p className="text-gray-500 mt-1">
-              Build and manage multi-touch outreach flows
-            </p>
-          </div>
-          <Link
-            href="/sequences/new"
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-          >
-            <Plus className="w-4 h-4" />
-            New Sequence
-          </Link>
-        </div>
-
-        <div className="grid gap-4">
-          {MOCK_SEQUENCES.map((seq) => (
-            <div
-              key={seq.id}
-              className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm flex items-center justify-between"
-            >
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-purple-50 rounded-lg">
-                  <Activity className="w-6 h-6 text-purple-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">{seq.name}</h3>
-                  <p className="text-sm text-gray-500">
-                    {seq.steps} steps · {seq.enrolled} enrolled ·{" "}
-                    {seq.channels.join(", ")}
-                  </p>
-                </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Sequences</h1>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button size="sm">
+              <Plus className="h-4 w-4 mr-1" /> New Sequence
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create Sequence</DialogTitle>
+              <DialogDescription>
+                Set up a new outreach sequence. You can add steps after creating it.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="seq-name">Name</Label>
+                <Input
+                  id="seq-name"
+                  placeholder="e.g. Q4 Enterprise Outreach"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                />
               </div>
-              <div className="flex items-center gap-3">
-                <span
-                  className={`text-xs font-medium px-2 py-1 rounded-full ${
-                    seq.status === "active"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  {seq.status}
-                </span>
-                <button className="p-2 rounded-lg hover:bg-gray-100 text-gray-500">
-                  {seq.status === "active" ? (
-                    <Pause className="w-4 h-4" />
-                  ) : (
-                    <Play className="w-4 h-4" />
-                  )}
-                </button>
-                <Link
-                  href={`/sequences/${seq.id}`}
-                  className="text-sm font-medium text-blue-600 hover:text-blue-700"
-                >
-                  Edit
-                </Link>
+              <div className="space-y-2">
+                <Label htmlFor="seq-desc">Description (optional)</Label>
+                <Textarea
+                  id="seq-desc"
+                  placeholder="Describe the goal of this sequence…"
+                  value={newDesc}
+                  onChange={(e) => setNewDesc(e.target.value)}
+                  rows={3}
+                />
               </div>
             </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleCreate} disabled={!newName.trim() || creating}>
+                {creating ? "Creating…" : "Create"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SequenceSkeleton key={i} />
           ))}
         </div>
-
-        {MOCK_SEQUENCES.length === 0 && (
-          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center shadow-sm">
-            <Activity className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-            <p className="font-medium text-gray-700">No sequences yet</p>
-            <p className="text-sm text-gray-500 mt-1 mb-4">
-              Create your first outreach sequence to get started
+      ) : error ? (
+        <Card>
+          <CardContent className="py-10 text-center text-red-500 text-sm">
+            Failed to load sequences. Please try again.
+          </CardContent>
+        </Card>
+      ) : !data?.items.length ? (
+        <Card>
+          <CardContent className="py-16 text-center">
+            <GitBranch className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-500 font-medium">No sequences yet</p>
+            <p className="text-sm text-gray-400 mt-1">
+              Create your first outreach sequence to get started.
             </p>
-            <Link
-              href="/sequences/new"
-              className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-            >
-              <Plus className="w-4 h-4" />
-              New Sequence
-            </Link>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {data.items.map((seq) => (
+              <Link key={seq.id} href={`/sequences/${seq.id}`}>
+                <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between">
+                      <CardTitle className="text-base">{seq.name}</CardTitle>
+                      <Badge className={STATUS_COLORS[seq.status] ?? "bg-gray-100"}>
+                        {seq.status}
+                      </Badge>
+                    </div>
+                    {seq.description && (
+                      <CardDescription className="line-clamp-2">
+                        {seq.description}
+                      </CardDescription>
+                    )}
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-4 text-sm text-gray-500">
+                      <span>{seq.steps?.length ?? 0} steps</span>
+                      <span>{seq.enrolled_count} enrolled</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
           </div>
-        )}
-      </main>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-500">
+                Page {page} of {totalPages}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
