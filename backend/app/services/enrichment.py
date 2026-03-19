@@ -119,14 +119,8 @@ class EnrichmentService:
                 self._apollo.enrich_person, lead.email
             )
             if apollo_data:
-                # Merge: prefer ZoomInfo data where available, fill gaps with Apollo
                 if data:
-                    merged_inner = {**apollo_data.get("data", {}), **{k: v for k, v in data.get("data", {}).items() if v}}
-                    data = {
-                        "source": "zoominfo+apollo",
-                        "data": merged_inner,
-                        "enriched_at": datetime.now(UTC).isoformat(),
-                    }
+                    data = self._merge_enrichment_data(data, apollo_data)
                 else:
                     data = apollo_data
 
@@ -211,6 +205,21 @@ class EnrichmentService:
         return datetime.now(UTC) - last_enriched_at < timedelta(
             days=settings.ENRICHMENT_TTL_DAYS
         )
+
+    @staticmethod
+    def _merge_enrichment_data(primary: dict, fallback: dict) -> dict:
+        """Merge enrichment data from two sources, preferring primary non-empty values."""
+        primary_inner = primary.get("data", {})
+        fallback_inner = fallback.get("data", {})
+        merged = {
+            **fallback_inner,
+            **{k: v for k, v in primary_inner.items() if v},
+        }
+        return {
+            "source": "zoominfo+apollo",
+            "data": merged,
+            "enriched_at": datetime.now(UTC).isoformat(),
+        }
 
     async def validate_email(self, email: str) -> bool:
         """Validate email using local validator (no external call)."""
