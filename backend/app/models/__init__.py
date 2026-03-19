@@ -10,6 +10,7 @@ from app.models.sequence import (
     StepType,
     EnrollmentStatus,
 )
+from app.models.template import Template, TemplateCategory, TemplateChannel
 from app.models.touch_log import TouchLog, TouchAction
 from app.models.warmup import WarmupQueue
 
@@ -26,6 +27,9 @@ __all__ = [
     "SequenceStep",
     "SequenceStatus",
     "StepType",
+    "Template",
+    "TemplateCategory",
+    "TemplateChannel",
     "TouchLog",
     "TouchAction",
     "WarmupQueue",

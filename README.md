@@ -61,7 +61,83 @@ docker-compose exec backend alembic upgrade head
 - **RabbitMQ**: http://localhost:15672 (fortressflow/fortressflow_dev)
 - **Grafana**: http://localhost:3001 (admin/admin)
 
+## Multi-Channel Outreach
+
+FortressFlow supports three outreach channels, all gated behind compliance:
+
+### Email (Amazon SES)
+- HTML + plain text composition with template engine
+- Tracking pixel injection for open tracking
+- RFC 8058 one-click unsubscribe headers
+- Bounce/complaint webhook processing
+- 4-week warmup schedule (5 → 400 emails/day)
+
+### SMS (Twilio)
+- 10DLC-compliant SMS delivery
+- STOP keyword auto-DNC processing
+- Segment counting (160 char limit awareness)
+- Status callback webhook handling
+
+### LinkedIn
+- Connection request with personalized note (300 char limit)
+- InMail composition with subject/body
+- Direct message to existing connections
+- CSV export for manual execution workflows
+- Rate limiting (25/day safe limit)
+
+## Template Engine
+
+All outreach content uses `{{variable}}` interpolation:
+
+| Variable | Description |
+|----------|-------------|
+| `{{first_name}}` | Lead's first name |
+| `{{last_name}}` | Lead's last name |
+| `{{company}}` | Lead's company |
+| `{{title}}` | Lead's job title |
+| `{{sender_name}}` | Your name |
+| `{{sender_company}}` | Your company |
+| `{{unsubscribe_url}}` | HMAC-signed unsubscribe link |
+
+## Gengyve Sequence Presets
+
+Three pre-built outreach sequences targeting dental offices and DSOs:
+
+1. **Cold Outreach** (9 steps, ~14 days) — Multi-channel introduction: educational email hook → LinkedIn connect → value-add follow-up → SMS → breakup email
+2. **Post-Meeting Follow-up** (6 steps, ~10 days) — Warm relationship sequence: thank-you + sample offer → LinkedIn connect → sample check-in → SMS
+3. **Re-engagement Nurture** (7 steps, ~21 days) — Education-first re-warming: clinical research share → case study → LinkedIn value-add → open door final touch
+
+Deploy any preset with one API call: `POST /api/v1/presets/{index}/deploy`
+
+## Sequence Engine
+
+The sequence engine runs every 15 minutes (configurable via `SEQUENCE_ENGINE_INTERVAL_MINUTES`) and:
+
+1. Finds all active enrollments where the next step delay has elapsed
+2. Checks compliance gate (consent + DNC + daily limits)
+3. Loads and renders the step's template with lead data
+4. Dispatches via the appropriate channel service
+5. Logs the touch and advances the enrollment
+
 ## API Reference
+
+### Template Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/templates/` | Create a template |
+| `GET` | `/api/v1/templates/` | List templates (filterable) |
+| `GET` | `/api/v1/templates/{id}` | Get template details |
+| `PUT` | `/api/v1/templates/{id}` | Update a template |
+| `DELETE` | `/api/v1/templates/{id}` | Deactivate a template |
+| `POST` | `/api/v1/templates/preview` | Preview with sample data |
+
+### Preset Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/presets/` | List available presets |
+| `POST` | `/api/v1/presets/{index}/deploy` | Deploy a preset (creates sequence + templates) |
 
 ### Compliance Endpoints
 

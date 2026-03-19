@@ -6,7 +6,9 @@ import {
   complianceApi,
   deliverabilityApi,
   leadsApi,
+  presetsApi,
   sequencesApi,
+  templatesApi,
 } from "@/lib/api";
 
 // ── Leads ──────────────────────────────────────────────
@@ -97,5 +99,31 @@ export function useAuditTrail(leadId: string) {
     queryKey: ["audit-trail", leadId],
     queryFn: () => complianceApi.audit(leadId).then((r) => r.data),
     enabled: !!leadId,
+  });
+}
+
+// ── Templates ─────────────────────────────────────────
+
+export function useTemplates(page = 1, pageSize = 20, channel?: string, category?: string) {
+  return useQuery({
+    queryKey: ["templates", page, pageSize, channel, category],
+    queryFn: () => templatesApi.list(page, pageSize, channel, category).then((r) => r.data),
+  });
+}
+
+export function useTemplate(id: string) {
+  return useQuery({
+    queryKey: ["template", id],
+    queryFn: () => templatesApi.get(id).then((r) => r.data),
+    enabled: !!id,
+  });
+}
+
+// ── Presets ───────────────────────────────────────────
+
+export function usePresets() {
+  return useQuery({
+    queryKey: ["presets"],
+    queryFn: () => presetsApi.list().then((r) => r.data),
   });
 }

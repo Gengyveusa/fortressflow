@@ -135,6 +135,64 @@ export interface AuditTrail {
   dnc_records: Record<string, unknown>[];
 }
 
+// ── Template Types ────────────────────────────────────
+
+export interface MessageTemplate {
+  id: string;
+  name: string;
+  channel: string;
+  category: string;
+  subject: string | null;
+  html_body: string | null;
+  plain_body: string;
+  linkedin_action: string | null;
+  variables: string[] | null;
+  variant_group: string | null;
+  variant_label: string | null;
+  is_system: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TemplateListResponse {
+  items: MessageTemplate[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface TemplatePreview {
+  rendered_subject: string | null;
+  rendered_plain_body: string;
+  rendered_html_body: string | null;
+  variables_used: string[];
+  warnings: string[];
+}
+
+export interface SequencePreset {
+  name: string;
+  description: string;
+  category: string;
+  steps: {
+    step_type: string;
+    position: number;
+    delay_hours: number;
+    has_template: boolean;
+    template_name: string | null;
+    channel: string | null;
+  }[];
+}
+
+export interface PresetDeployResult {
+  sequence_id: string;
+  sequence_name: string;
+  templates_created: number;
+  steps_created: number;
+  templates: { id: string; name: string }[];
+  status: string;
+}
+
 // ── API Functions ──────────────────────────────────────
 
 export const leadsApi = {
@@ -194,6 +252,32 @@ export const deliverabilityApi = {
   addDomain: (domain: string) =>
     api.post<Domain>("/deliverability/domains", { domain }),
   warmupStatus: () => api.get<WarmupStatus[]>("/deliverability/warmup"),
+};
+
+export const templatesApi = {
+  list: (page = 1, pageSize = 20, channel?: string, category?: string) => {
+    const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+    if (channel) params.set("channel", channel);
+    if (category) params.set("category", category);
+    return api.get<TemplateListResponse>(`/templates/?${params.toString()}`);
+  },
+  get: (id: string) => api.get<MessageTemplate>(`/templates/${id}`),
+  create: (data: Partial<MessageTemplate>) => api.post<MessageTemplate>("/templates/", data),
+  update: (id: string, data: Partial<MessageTemplate>) =>
+    api.put<MessageTemplate>(`/templates/${id}`, data),
+  delete: (id: string) => api.delete(`/templates/${id}`),
+  preview: (data: {
+    template_id?: string;
+    plain_body?: string;
+    html_body?: string;
+    subject?: string;
+    context?: Record<string, string>;
+  }) => api.post<TemplatePreview>("/templates/preview", data),
+};
+
+export const presetsApi = {
+  list: () => api.get<SequencePreset[]>("/presets/"),
+  deploy: (index: number) => api.post<PresetDeployResult>(`/presets/${index}/deploy`),
 };
 
 export default api;

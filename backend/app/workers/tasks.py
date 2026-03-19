@@ -176,6 +176,30 @@ def send_sequence_step(
         raise self.retry(exc=exc)
 
 
+@celery_app.task(bind=True, max_retries=1, default_retry_delay=60)
+def run_sequence_engine(self) -> dict:
+    """
+    Main sequence engine tick.
+
+    Finds all due enrollments and advances them through their sequence steps.
+    Should be called by Celery Beat every 15 minutes.
+    """
+    async def _run():
+        from app.database import AsyncSessionLocal
+        from app.services.sequence_executor import run_sequence_engine as engine_run
+
+        async with AsyncSessionLocal() as db:
+            result = await engine_run(db)
+            await db.commit()
+            return result
+
+    try:
+        return asyncio.run(_run())
+    except Exception as exc:
+        logger.error("run_sequence_engine failed: %s", exc)
+        raise self.retry(exc=exc)
+
+
 @celery_app.task(bind=True, max_retries=2, default_retry_delay=120)
 def run_warmup_step(self, inbox_id: str) -> dict:
     """

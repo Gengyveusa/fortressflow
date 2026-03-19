@@ -21,6 +21,17 @@ class Settings(BaseSettings):
     ENRICHMENT_TTL_DAYS: int = 90
     ZOOMINFO_RATE_LIMIT: int = 25
     APOLLO_RATE_LIMIT: int = 50
+    # Twilio SMS
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""
+    TWILIO_PHONE_NUMBER: str = ""
+    # AWS SES
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_REGION: str = "us-east-1"
+    SES_FROM_EMAIL: str = ""
+    # Sequence engine
+    SEQUENCE_ENGINE_INTERVAL_MINUTES: int = 15
 
     model_config = SettingsConfigDict(env_file=".env")
 
