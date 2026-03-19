@@ -64,11 +64,29 @@ export default function LeadsPage() {
     });
   };
 
+  const escapeCsvField = (value: string) => {
+    const str = String(value);
+    if (str.includes('"') || str.includes(",") || str.includes("\n")) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return `"${str}"`;
+  };
+
   const exportCsv = () => {
     if (!filtered.length) return;
     const header = "Name,Email,Company,Source,Verified\n";
     const rows = filtered
-      .map((l) => `"${l.first_name} ${l.last_name}","${l.email}","${l.company}","${l.source}","${l.meeting_verified}"`)
+      .map((l) =>
+        [
+          `${l.first_name} ${l.last_name}`,
+          l.email,
+          l.company,
+          l.source,
+          String(l.meeting_verified),
+        ]
+          .map(escapeCsvField)
+          .join(",")
+      )
       .join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);

@@ -100,7 +100,7 @@ function stepsToFlow(steps: SequenceStep[]): { nodes: Node[]; edges: Edge[] } {
     id: s.id,
     type: "stepNode",
     position: { x: 250, y: i * 120 },
-    data: { stepType: s.step_type, label: (s.config as Record<string, string>)?.subject ?? "" },
+    data: { stepType: s.step_type, label: typeof s.config?.subject === "string" ? s.config.subject : "" },
   }));
   const edges: Edge[] = sorted.slice(1).map((s, i) => ({
     id: `e-${sorted[i].id}-${s.id}`,

@@ -119,7 +119,15 @@ export default function LeadsImportPage() {
       setImportedCount(rows.length);
       setStatus("success");
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Import failed. Please try again.";
+      let message = "Import failed. Please try again.";
+      if (err && typeof err === "object" && "response" in err) {
+        const resp = (err as { response?: { data?: { detail?: string }; status?: number } }).response;
+        if (resp?.data?.detail) message = resp.data.detail;
+        else if (resp?.status === 400) message = "Invalid CSV format. Check that required columns are present.";
+        else if (resp?.status === 409) message = "Some leads already exist. Duplicates were skipped.";
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
       setErrorMsg(message);
       setStatus("error");
     }
