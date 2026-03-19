@@ -31,7 +31,7 @@ const handler = NextAuth({
   session: {
     strategy: "jwt",
   },
-  secret: process.env.NEXTAUTH_SECRET || "dev-nextauth-secret",
+  secret: process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === "production" ? undefined : "dev-nextauth-secret"),
 });
 
 export { handler as GET, handler as POST };
