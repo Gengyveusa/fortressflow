@@ -579,3 +579,130 @@ FortressFlow implements a comprehensive deliverability fortress:
 ## License
 
 MIT
+
+## Phase 5: Multi-Channel Logic + Reply Detection + SMS/Twilio
+
+### Architecture
+
+Phase 5 deepens multi-channel orchestration, adds robust reply detection,
+completes Twilio SMS as a high-value channel, refines LinkedIn for safe
+hole-filling, and closes the AI feedback loop.
+
+#### New Services
+- **Reply Service** (`reply_service.py`) — IMAP polling + webhook-based reply ingestion,
+  sender/thread matching, NLP sentiment analysis, AI-powered reply analysis via HubSpot
+  Breeze + Apollo AI + ZoomInfo Copilot
+- **Channel Orchestrator** (`channel_orchestrator.py`) — Central dispatch with failover
+  chains, global rate limit enforcement (400 email/30 SMS/25 LinkedIn per day), retry logic
+- **AI Feedback Service** (`ai_feedback_service.py`) — Metrics aggregation and push-back
+  to all AI platforms for continuous learning
+
+#### Enhanced Services
+- **SMS Service** — Full Twilio production: timezone gating (8AM-9PM recipient TZ), TCPA
+  consent verification, smart body formatting, delivery metrics
+- **LinkedIn Service** — AI-personalized connection notes (Breeze + Copilot), safe queue
+  with human-like timing (45-120s delays), OAuth stub, manual export fallback
+
+### Reply Detection Setup
+
+1. **IMAP Polling** (recommended):
+   ```env
+   IMAP_HOST=imap.gmail.com
+   IMAP_USER=hello@gengyveusa.com
+   IMAP_PASSWORD=app-specific-password
+   IMAP_FOLDER=INBOX
+   IMAP_POLL_INTERVAL_MINUTES=5
+   ```
+   The `poll_imap_replies_task` runs every 5 minutes via Celery Beat.
+
+2. **Webhook-based** (Parsio or custom):
+   ```env
+   REPLY_WEBHOOK_SECRET=your-webhook-secret
+   ```
+   POST replies to `/api/v1/webhooks/email/reply` with `X-Webhook-Secret` header.
+
+### Twilio Webhook Configuration
+
+1. In your Twilio console, set the webhook URL for your phone number:
+   - **Incoming Messages**: `https://your-domain.com/api/v1/webhooks/twilio/sms`
+   - **Status Callback**: Same URL (handles both inbound and status)
+
+2. Required environment variables:
+   ```env
+   TWILIO_ACCOUNT_SID=your-sid
+   TWILIO_AUTH_TOKEN=your-token
+   TWILIO_PHONE_NUMBER=+1234567890
+   ```
+
+### LinkedIn OAuth Guidance
+
+LinkedIn API access requires OAuth 2.0 application approval:
+
+1. Create a LinkedIn Developer Application
+2. Request the `w_member_social` scope for connection requests
+3. Configure:
+   ```env
+   LINKEDIN_OAUTH_CLIENT_ID=your-client-id
+   LINKEDIN_OAUTH_CLIENT_SECRET=your-secret
+   LINKEDIN_OAUTH_REDIRECT_URI=https://your-domain.com/auth/linkedin/callback
+   ```
+4. For cloud automation, set `LINKEDIN_PROXY_ENDPOINT` to your proxy service URL.
+5. Fallback: export queue to CSV via the API for manual browser extension execution.
+
+### AI Feedback Loop
+
+After sequence completion or reply detection, FortressFlow automatically:
+1. Aggregates performance metrics (reply rate, open rate, best channel/template)
+2. Pushes outcomes to HubSpot Breeze, ZoomInfo Copilot, and Apollo AI
+3. These platforms use the feedback to improve:
+   - Future sequence generation (template selection, timing)
+   - Lead scoring accuracy
+   - Channel recommendations
+
+### Example: Reply Detection Flow
+
+```
+Inbound email reply received (IMAP or webhook)
+  ↓
+Parse sender, subject, body, thread_id
+  ↓
+Match to enrollment (thread_id → sender email → subject pattern)
+  ↓
+Analyze sentiment (NLP keywords → positive/negative/neutral)
+  ↓
+AI Analysis (parallel):
+  ├── HubSpot Breeze: engagement context + next-step recommendation
+  ├── Apollo AI: agentic next-action workflow
+  └── ZoomInfo Copilot: account update + intent signals
+  ↓
+FSM Transition: sent/opened → replied → paused (auto-pause)
+  ↓
+Log to reply_logs + touch_history + HubSpot Note
+  ↓
+AI Suggestion: "Schedule demo" / "Send case study" / "Manual follow-up"
+```
+
+### New Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/sequences/{id}/monitor` | Full sequence monitoring view |
+| GET | `/sequences/replies/inbox` | Reply inbox with AI suggestions |
+| GET | `/sequences/{id}/channel-health` | Per-channel health metrics |
+| POST | `/webhooks/twilio/sms` | Twilio SMS webhooks |
+| POST | `/webhooks/email/reply` | Email reply webhooks |
+| POST | `/webhooks/ses/events` | SES event notifications |
+
+### New Celery Tasks
+
+| Task | Schedule | Description |
+|------|----------|-------------|
+| `poll_imap_replies_task` | Every 5 min | Poll IMAP inbox for replies |
+| `execute_linkedin_queue_task` | Every 30 min | Execute pending LinkedIn queue |
+| `aggregate_channel_metrics_task` | Hourly | Aggregate channel health metrics |
+| `push_ai_feedback_task` | On completion | Push metrics to AI platforms |
+
+### Database (Migration 006)
+
+New tables: `reply_logs`, `reply_webhook_events`, `linkedin_queue`, `channel_metrics`
+New indexes on `sequence_enrollments.last_touch_at`, `touch_logs(channel, created_at)`

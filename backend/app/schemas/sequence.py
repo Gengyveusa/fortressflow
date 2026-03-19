@@ -237,3 +237,85 @@ class VisualConfigResponse(BaseModel):
     sequence_id: UUID
     visual_config: dict[str, Any] | None = None
     steps: list[SequenceStepResponse] = []
+
+
+# ── Phase 5: Reply Detection + Monitor Schemas ───────────────────────
+
+
+class ReplyLogResponse(BaseModel):
+    """Reply log entry for the reply inbox."""
+
+    id: UUID
+    enrollment_id: UUID | None = None
+    sequence_id: UUID | None = None
+    lead_id: UUID | None = None
+    lead_name: str | None = None
+    lead_email: str | None = None
+    channel: str
+    subject: str | None = None
+    body_snippet: str | None = None
+    sentiment: str | None = None
+    sentiment_confidence: float = 0.0
+    ai_analysis: dict[str, Any] | None = None
+    ai_suggested_action: str | None = None
+    received_at: datetime
+    processed_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class ReplyListResponse(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    items: list[ReplyLogResponse]
+
+
+class EnrollmentMonitorResponse(BaseModel):
+    """Enrollment detail for the monitor page."""
+
+    id: UUID
+    lead_id: UUID
+    lead_name: str
+    lead_email: str
+    lead_company: str
+    current_step: int
+    total_steps: int
+    status: str
+    enrolled_at: datetime
+    last_touch_at: datetime | None = None
+    last_state_change_at: datetime | None = None
+    hole_filler_triggered: bool = False
+    escalation_channel: str | None = None
+    touch_history: list[dict[str, Any]] = []
+    reply_snippets: list[dict[str, Any]] = []
+
+    model_config = {"from_attributes": True}
+
+
+class SequenceMonitorResponse(BaseModel):
+    """Full monitor view for a sequence."""
+
+    sequence_id: UUID
+    sequence_name: str
+    status: str
+    total_enrolled: int
+    active: int
+    completed: int
+    replied: int
+    failed: int
+    enrollments: list[EnrollmentMonitorResponse]
+    channel_breakdown: dict[str, int] = {}
+    daily_send_count: dict[str, int] = {}
+
+
+class ChannelHealthResponse(BaseModel):
+    """Channel health metrics."""
+
+    channel: str
+    sent_today: int
+    limit: int
+    utilization: float
+    bounce_rate: float
+    reply_rate: float
+    last_failure: datetime | None = None

@@ -11,6 +11,7 @@ import {
   BarChart3,
   FileText,
   Rocket,
+  Inbox,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +19,7 @@ const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/leads", label: "Leads", icon: Users },
   { href: "/sequences", label: "Sequences", icon: GitBranch },
+  { href: "/sequences/replies", label: "Reply Inbox", icon: Inbox },
   { href: "/templates", label: "Templates", icon: FileText },
   { href: "/presets", label: "Presets", icon: Rocket },
   { href: "/compliance", label: "Compliance", icon: Shield },

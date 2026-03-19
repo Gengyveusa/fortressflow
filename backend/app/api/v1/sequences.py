@@ -3,6 +3,7 @@ Sequence API — enhanced for Phase 4 visual builder, AI generation,
 conditional branching, A/B testing, and state machine.
 """
 
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -22,13 +23,18 @@ from app.models.sequence import (
 from app.models.touch_log import TouchLog
 from app.schemas.sequence import (
     ABVariantAnalytics,
+    ChannelHealthResponse,
+    EnrollmentMonitorResponse,
     EnrollmentResponse,
     EnrollRequest,
+    ReplyListResponse,
+    ReplyLogResponse,
     SequenceAnalyticsResponse,
     SequenceCreate,
     SequenceGenerateRequest,
     SequenceGenerateResponse,
     SequenceListResponse,
+    SequenceMonitorResponse,
     SequenceResponse,
     SequenceStepCreate,
     SequenceStepResponse,
@@ -682,3 +688,424 @@ async def get_sequence_analytics(
         steps=step_analytics,
         ab_results=ab_results,
     )
+
+
+# ── Phase 5: Reply Inbox (MUST be before /{sequence_id} routes) ────────
+# FastAPI matches routes in declaration order. These fixed-path routes
+# must be declared before any /{sequence_id}/... routes to avoid
+# "replies" being interpreted as a sequence_id UUID segment.
+
+
+@router.get("/replies/inbox", response_model=ReplyListResponse)
+async def get_reply_inbox(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    sentiment: str | None = Query(None),
+    channel: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+) -> ReplyListResponse:
+    """
+    List parsed replies with AI-suggested actions.
+
+    Returns a paginated list of reply log entries from all sequences,
+    optionally filtered by sentiment (positive/negative/neutral/out_of_office/unsubscribe)
+    or channel (email/sms/linkedin).
+    """
+    from sqlalchemy import desc, text
+
+    # Query reply_logs table with optional filters.
+    # The reply_logs table is managed by the ReplyService (raw SQL via text()).
+    # We join with leads to enrich with names/email where not stored inline.
+
+    # Build dynamic filter clauses
+    filters: list[str] = []
+    bind_params: dict = {}
+
+    if sentiment:
+        filters.append("rl.sentiment = :sentiment")
+        bind_params["sentiment"] = sentiment
+
+    if channel:
+        filters.append("rl.channel = :channel")
+        bind_params["channel"] = channel
+
+    where_clause = "WHERE " + " AND ".join(filters) if filters else ""
+
+    # Count total
+    count_sql = text(
+        f"SELECT COUNT(*) FROM reply_logs rl {where_clause}"
+    )
+    total_result = await db.execute(count_sql, bind_params)
+    total = total_result.scalar_one() or 0
+
+    # Fetch page
+    offset = (page - 1) * page_size
+    rows_sql = text(
+        f"""
+        SELECT
+            rl.id,
+            rl.enrollment_id,
+            rl.sequence_id,
+            rl.lead_id,
+            COALESCE(l.first_name || ' ' || l.last_name, l.email) AS lead_name,
+            l.email AS lead_email,
+            rl.channel,
+            rl.subject,
+            rl.body_snippet,
+            rl.sentiment,
+            rl.sentiment_confidence,
+            rl.ai_analysis,
+            rl.ai_suggested_action,
+            rl.received_at,
+            rl.processed_at
+        FROM reply_logs rl
+        LEFT JOIN leads l ON l.id = rl.lead_id
+        {where_clause}
+        ORDER BY rl.received_at DESC
+        LIMIT :limit OFFSET :offset
+        """
+    )
+    bind_params["limit"] = page_size
+    bind_params["offset"] = offset
+
+    try:
+        rows_result = await db.execute(rows_sql, bind_params)
+        rows = rows_result.mappings().all()
+    except Exception as exc:
+        import logging as _log
+        _log.getLogger(__name__).warning(
+            "reply_inbox: reply_logs table query failed (table may not exist yet): %s", exc
+        )
+        rows = []
+        total = 0
+
+    items: list[ReplyLogResponse] = []
+    for row in rows:
+        items.append(
+            ReplyLogResponse(
+                id=row["id"],
+                enrollment_id=row.get("enrollment_id"),
+                sequence_id=row.get("sequence_id"),
+                lead_id=row.get("lead_id"),
+                lead_name=row.get("lead_name"),
+                lead_email=row.get("lead_email"),
+                channel=row["channel"],
+                subject=row.get("subject"),
+                body_snippet=row.get("body_snippet"),
+                sentiment=row.get("sentiment"),
+                sentiment_confidence=float(row.get("sentiment_confidence") or 0.0),
+                ai_analysis=row.get("ai_analysis"),
+                ai_suggested_action=row.get("ai_suggested_action"),
+                received_at=row["received_at"],
+                processed_at=row.get("processed_at"),
+            )
+        )
+
+    return ReplyListResponse(
+        total=total,
+        page=page,
+        page_size=page_size,
+        items=items,
+    )
+
+
+# ── Phase 5: Sequence Monitor ────────────────────────────────────────
+
+
+@router.get("/{sequence_id}/monitor", response_model=SequenceMonitorResponse)
+async def get_sequence_monitor(
+    sequence_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> SequenceMonitorResponse:
+    """
+    Get full monitoring view for a sequence.
+
+    Returns enrollment states, touch history, reply snippets, per-channel
+    breakdown, and daily send counts. Designed for the operations monitor
+    dashboard to observe live sequence execution.
+    """
+    from datetime import date, timedelta, UTC, datetime as dt
+    from sqlalchemy import text
+
+    result = await db.execute(select(Sequence).where(Sequence.id == sequence_id))
+    seq = result.scalar_one_or_none()
+    if seq is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sequence not found")
+
+    # Load enrollments with lead data
+    enr_result = await db.execute(
+        select(SequenceEnrollment).where(SequenceEnrollment.sequence_id == sequence_id)
+    )
+    enrollments = enr_result.scalars().unique().all()
+
+    total_steps = len(seq.steps)
+
+    # Enrollment status counts
+    active_statuses = {
+        EnrollmentStatus.active,
+        EnrollmentStatus.pending,
+        EnrollmentStatus.sent,
+        EnrollmentStatus.opened,
+    }
+    active_count = sum(1 for e in enrollments if e.status in active_statuses)
+    completed_count = sum(1 for e in enrollments if e.status == EnrollmentStatus.completed)
+    replied_count = sum(1 for e in enrollments if e.status == EnrollmentStatus.replied)
+    failed_count = sum(1 for e in enrollments if e.status in (
+        EnrollmentStatus.failed, EnrollmentStatus.bounced,
+    ))
+
+    # Channel breakdown from touch_logs for this sequence
+    channel_breakdown: dict[str, int] = {}
+    try:
+        cb_result = await db.execute(
+            select(TouchLog.channel, func.count(TouchLog.id))
+            .where(
+                and_(
+                    TouchLog.sequence_id == sequence_id,
+                    TouchLog.action == "sent",
+                )
+            )
+            .group_by(TouchLog.channel)
+        )
+        for ch, cnt in cb_result.all():
+            channel_breakdown[ch] = cnt
+    except Exception as exc:
+        import logging as _log
+        _log.getLogger(__name__).warning("monitor: channel breakdown query failed: %s", exc)
+
+    # Daily send count for the last 7 days
+    daily_send_count: dict[str, int] = {}
+    try:
+        seven_days_ago = dt.now(UTC) - timedelta(days=7)
+        ds_result = await db.execute(
+            text(
+                """
+                SELECT DATE(created_at) as send_date, COUNT(*) as send_count
+                FROM touch_logs
+                WHERE sequence_id = :seq_id
+                  AND action = 'sent'
+                  AND created_at >= :cutoff
+                GROUP BY DATE(created_at)
+                ORDER BY send_date
+                """
+            ),
+            {"seq_id": str(sequence_id), "cutoff": seven_days_ago},
+        )
+        for send_date, send_count in ds_result.all():
+            daily_send_count[str(send_date)] = send_count
+    except Exception as exc:
+        import logging as _log
+        _log.getLogger(__name__).warning("monitor: daily send count query failed: %s", exc)
+
+    # Build per-enrollment monitor responses
+    enrollment_responses: list[EnrollmentMonitorResponse] = []
+    for enr in enrollments:
+        # Load lead
+        lead_result = await db.execute(select(Lead).where(Lead.id == enr.lead_id))
+        lead = lead_result.scalar_one_or_none()
+
+        lead_name = ""
+        lead_email = ""
+        lead_company = ""
+        if lead:
+            first = getattr(lead, "first_name", "") or ""
+            last = getattr(lead, "last_name", "") or ""
+            lead_name = (f"{first} {last}").strip() or lead.email
+            lead_email = lead.email or ""
+            lead_company = getattr(lead, "company", "") or ""
+
+        # Touch history for this enrollment (lead + sequence)
+        touch_history: list[dict] = []
+        try:
+            th_result = await db.execute(
+                select(TouchLog)
+                .where(
+                    and_(
+                        TouchLog.lead_id == enr.lead_id,
+                        TouchLog.sequence_id == sequence_id,
+                    )
+                )
+                .order_by(TouchLog.created_at.desc())
+                .limit(20)
+            )
+            for tl in th_result.scalars().all():
+                touch_history.append(
+                    {
+                        "id": str(tl.id),
+                        "channel": tl.channel,
+                        "action": tl.action.value
+                        if hasattr(tl.action, "value")
+                        else str(tl.action),
+                        "step_number": tl.step_number,
+                        "created_at": tl.created_at.isoformat(),
+                    }
+                )
+        except Exception as exc:
+            import logging as _log
+            _log.getLogger(__name__).warning(
+                "monitor: touch history query failed for enr %s: %s", enr.id, exc
+            )
+
+        # Reply snippets from reply_logs
+        reply_snippets: list[dict] = []
+        try:
+            rs_result = await db.execute(
+                text(
+                    """
+                    SELECT id, channel, subject, body_snippet, sentiment,
+                           received_at, ai_suggested_action
+                    FROM reply_logs
+                    WHERE lead_id = :lead_id AND sequence_id = :seq_id
+                    ORDER BY received_at DESC
+                    LIMIT 5
+                    """
+                ),
+                {"lead_id": str(enr.lead_id), "seq_id": str(sequence_id)},
+            )
+            for rs_row in rs_result.mappings().all():
+                reply_snippets.append(
+                    {
+                        "id": str(rs_row["id"]),
+                        "channel": rs_row["channel"],
+                        "subject": rs_row.get("subject"),
+                        "body_snippet": rs_row.get("body_snippet"),
+                        "sentiment": rs_row.get("sentiment"),
+                        "received_at": rs_row["received_at"].isoformat()
+                        if rs_row.get("received_at")
+                        else None,
+                        "ai_suggested_action": rs_row.get("ai_suggested_action"),
+                    }
+                )
+        except Exception as exc:
+            import logging as _log
+            _log.getLogger(__name__).warning(
+                "monitor: reply snippets query failed for enr %s: %s", enr.id, exc
+            )
+
+        enrollment_responses.append(
+            EnrollmentMonitorResponse(
+                id=enr.id,
+                lead_id=enr.lead_id,
+                lead_name=lead_name,
+                lead_email=lead_email,
+                lead_company=lead_company,
+                current_step=enr.current_step,
+                total_steps=total_steps,
+                status=enr.status.value
+                if hasattr(enr.status, "value")
+                else str(enr.status),
+                enrolled_at=enr.enrolled_at,
+                last_touch_at=enr.last_touch_at,
+                last_state_change_at=enr.last_state_change_at,
+                hole_filler_triggered=enr.hole_filler_triggered,
+                escalation_channel=enr.escalation_channel,
+                touch_history=touch_history,
+                reply_snippets=reply_snippets,
+            )
+        )
+
+    return SequenceMonitorResponse(
+        sequence_id=seq.id,
+        sequence_name=seq.name,
+        status=seq.status.value if hasattr(seq.status, "value") else str(seq.status),
+        total_enrolled=len(enrollments),
+        active=active_count,
+        completed=completed_count,
+        replied=replied_count,
+        failed=failed_count,
+        enrollments=enrollment_responses,
+        channel_breakdown=channel_breakdown,
+        daily_send_count=daily_send_count,
+    )
+
+
+@router.get("/{sequence_id}/channel-health", response_model=list[ChannelHealthResponse])
+async def get_channel_health(
+    sequence_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> list[ChannelHealthResponse]:
+    """
+    Get per-channel health metrics for a sequence.
+
+    Returns sent-today count, daily limit, utilization, bounce rate,
+    and reply rate for each channel used by the sequence.
+    Uses the ChannelOrchestrator's health aggregation.
+    """
+    from datetime import UTC, datetime as dt, timedelta
+
+    result = await db.execute(select(Sequence).where(Sequence.id == sequence_id))
+    seq = result.scalar_one_or_none()
+    if seq is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sequence not found")
+
+    try:
+        from app.services.channel_orchestrator import ChannelOrchestrator, CHANNEL_DAILY_LIMITS
+
+        orchestrator = ChannelOrchestrator(db)
+        global_health = await orchestrator.get_channel_health()
+    except Exception as exc:
+        import logging as _log
+        _log.getLogger(__name__).error("channel_health: orchestrator failed: %s", exc)
+        global_health = {}
+
+    # Determine channels actually used in this sequence's steps
+    sequence_channels = {
+        step.step_type.value
+        for step in seq.steps
+        if hasattr(step.step_type, "value")
+        and step.step_type.value in ("email", "sms", "linkedin")
+    }
+    if not sequence_channels:
+        sequence_channels = {"email"}  # Default fallback
+
+    # Compute last failure timestamp per channel from touch_logs (bounced/complained)
+    last_failure_by_channel: dict[str, Any] = {}
+    try:
+        cutoff = dt.now(UTC) - timedelta(days=7)
+        for ch in sequence_channels:
+            lf_result = await db.execute(
+                select(func.max(TouchLog.created_at)).where(
+                    and_(
+                        TouchLog.sequence_id == sequence_id,
+                        TouchLog.channel == ch,
+                        TouchLog.action.in_(["bounced", "complained"]),
+                        TouchLog.created_at >= cutoff,
+                    )
+                )
+            )
+            last_failure_by_channel[ch] = lf_result.scalar_one_or_none()
+    except Exception as exc:
+        import logging as _log
+        _log.getLogger(__name__).warning("channel_health: last failure query failed: %s", exc)
+
+    health_responses: list[ChannelHealthResponse] = []
+    for channel in sorted(sequence_channels):
+        ch_data = global_health.get(channel, {})
+
+        # sent_today: use global health data or fall back to touch_log count
+        sent_today = ch_data.get("sent_24h", 0)
+        bounce_rate = float(ch_data.get("bounce_rate", 0.0))
+        reply_rate = float(ch_data.get("reply_rate", 0.0))
+
+        try:
+            from app.services.channel_orchestrator import CHANNEL_DAILY_LIMITS
+
+            daily_limit = CHANNEL_DAILY_LIMITS.get(channel, 100)
+        except Exception:
+            daily_limit = 100
+
+        utilization = round(sent_today / max(1, daily_limit), 4)
+
+        health_responses.append(
+            ChannelHealthResponse(
+                channel=channel,
+                sent_today=sent_today,
+                limit=daily_limit,
+                utilization=utilization,
+                bounce_rate=bounce_rate,
+                reply_rate=reply_rate,
+                last_failure=last_failure_by_channel.get(channel),
+            )
+        )
+
+    return health_responses

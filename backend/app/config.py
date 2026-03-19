@@ -87,6 +87,28 @@ class Settings(BaseSettings):
     WARMUP_RAMP_MULTIPLIER: float = 1.15  # Daily ramp multiplier (15% increase)
     WARMUP_INITIAL_DAILY_VOLUME: int = 5  # Start at 5 emails/day per identity
 
+    # ── Phase 5: Reply Detection + Multi-Channel ─────────────────────────
+    # IMAP settings for reply detection
+    IMAP_HOST: str = ""
+    IMAP_USER: str = ""
+    IMAP_PASSWORD: str = ""
+    IMAP_FOLDER: str = "INBOX"
+    IMAP_POLL_INTERVAL_MINUTES: int = 5
+    REPLY_WEBHOOK_SECRET: str = ""
+
+    # LinkedIn OAuth/Proxy
+    LINKEDIN_OAUTH_CLIENT_ID: str = ""
+    LINKEDIN_OAUTH_CLIENT_SECRET: str = ""
+    LINKEDIN_OAUTH_REDIRECT_URI: str = ""
+    LINKEDIN_PROXY_ENDPOINT: str = ""  # Cloud automation proxy URL
+
+    # Channel orchestrator
+    GLOBAL_DAILY_EMAIL_LIMIT: int = 400  # 300-400 target
+    GLOBAL_DAILY_SMS_LIMIT: int = 30
+    GLOBAL_DAILY_LINKEDIN_LIMIT: int = 25
+    MAX_TOUCH_RETRIES: int = 3
+    RETRY_BACKOFF_MINUTES: int = 30
+
     model_config = SettingsConfigDict(env_file=".env")
 
 

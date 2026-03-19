@@ -199,6 +199,75 @@ export interface AuditTrail {
   dnc_records: Record<string, unknown>[];
 }
 
+// ── Phase 5: Reply + Monitor Types ────────────────────
+
+export interface ReplyLog {
+  id: string;
+  enrollment_id: string | null;
+  sequence_id: string | null;
+  lead_id: string | null;
+  lead_name: string | null;
+  lead_email: string | null;
+  channel: string;
+  subject: string | null;
+  body_snippet: string | null;
+  sentiment: string | null;
+  sentiment_confidence: number;
+  ai_analysis: Record<string, unknown> | null;
+  ai_suggested_action: string | null;
+  received_at: string;
+  processed_at: string | null;
+}
+
+export interface ReplyListResponse {
+  items: ReplyLog[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface EnrollmentMonitor {
+  id: string;
+  lead_id: string;
+  lead_name: string;
+  lead_email: string;
+  lead_company: string;
+  current_step: number;
+  total_steps: number;
+  status: string;
+  enrolled_at: string;
+  last_touch_at: string | null;
+  last_state_change_at: string | null;
+  hole_filler_triggered: boolean;
+  escalation_channel: string | null;
+  touch_history: Record<string, unknown>[];
+  reply_snippets: Record<string, unknown>[];
+}
+
+export interface SequenceMonitor {
+  sequence_id: string;
+  sequence_name: string;
+  status: string;
+  total_enrolled: number;
+  active: number;
+  completed: number;
+  replied: number;
+  failed: number;
+  enrollments: EnrollmentMonitor[];
+  channel_breakdown: Record<string, number>;
+  daily_send_count: Record<string, number>;
+}
+
+export interface ChannelHealth {
+  channel: string;
+  sent_today: number;
+  limit: number;
+  utilization: number;
+  bounce_rate: number;
+  reply_rate: number;
+  last_failure: string | null;
+}
+
 // ── Template Types ────────────────────────────────────
 
 export interface MessageTemplate {
@@ -324,6 +393,16 @@ export const sequencesApi = {
     api.post(`/sequences/${sequenceId}/enrollments/${enrollmentId}/pause`),
   resumeEnrollment: (sequenceId: string, enrollmentId: string) =>
     api.post(`/sequences/${sequenceId}/enrollments/${enrollmentId}/resume`),
+  // Phase 5: Monitor + Reply
+  monitor: (id: string) =>
+    api.get<SequenceMonitor>(`/sequences/${id}/monitor`),
+  channelHealth: (id: string) =>
+    api.get<ChannelHealth[]>(`/sequences/${id}/channel-health`),
+  replyInbox: (page = 1, pageSize = 20, sentiment?: string) => {
+    const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+    if (sentiment) params.set("sentiment", sentiment);
+    return api.get<ReplyListResponse>(`/sequences/replies/inbox?${params.toString()}`);
+  },
 };
 
 export const analyticsApi = {

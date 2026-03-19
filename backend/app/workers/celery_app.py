@@ -38,6 +38,12 @@ celery_app.conf.update(
         # Phase 4: Sequence AI + Reply Detection
         "app.workers.tasks.process_reply_signal_task": {"queue": "sequences"},
         "app.workers.tasks.generate_ai_sequence_task": {"queue": "sequences"},
+        # Phase 5: Reply Detection + Multi-Channel + AI Feedback
+        "app.workers.tasks.poll_imap_replies_task": {"queue": "sequences"},
+        "app.workers.tasks.process_reply_full_task": {"queue": "sequences"},
+        "app.workers.tasks.execute_linkedin_queue_task": {"queue": "sequences"},
+        "app.workers.tasks.push_ai_feedback_task": {"queue": "warmup"},
+        "app.workers.tasks.aggregate_channel_metrics_task": {"queue": "warmup"},
     },
     beat_schedule={
         # Enrichment: re-verify stale leads daily at 2 AM UTC
@@ -74,6 +80,21 @@ celery_app.conf.update(
         "recalculate-health-scores": {
             "task": "app.workers.tasks.recalculate_health_scores_task",
             "schedule": crontab(hour="*/6", minute=15),
+        },
+        # Phase 5: Poll IMAP inbox for replies every 5 minutes
+        "poll-imap-replies": {
+            "task": "app.workers.tasks.poll_imap_replies_task",
+            "schedule": crontab(minute="*/5"),
+        },
+        # Phase 5: Execute LinkedIn queue every 30 minutes (at :00 and :30)
+        "execute-linkedin-queue": {
+            "task": "app.workers.tasks.execute_linkedin_queue_task",
+            "schedule": crontab(minute="0,30"),
+        },
+        # Phase 5: Aggregate channel health metrics every hour at :45
+        "aggregate-channel-metrics": {
+            "task": "app.workers.tasks.aggregate_channel_metrics_task",
+            "schedule": crontab(minute=45),
         },
     },
 )

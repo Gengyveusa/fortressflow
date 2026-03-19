@@ -436,3 +436,269 @@ def generate_ai_sequence_task(
     except Exception as exc:
         logger.error("generate_ai_sequence_task failed: %s", exc)
         raise self.retry(exc=exc)
+
+
+# ── Phase 5: Reply Detection + Multi-Channel + AI Feedback ────────────
+
+
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
+def poll_imap_replies_task(self) -> dict:
+    """
+    Poll IMAP inbox for new replies. Runs every 5 minutes via Celery Beat.
+
+    Fetches UNSEEN messages, creates ReplySignal for each, and processes
+    through the full reply pipeline (sentiment → AI analysis → FSM transition).
+    """
+    async def _poll():
+        import sentry_sdk
+        from app.database import AsyncSessionLocal
+        from app.services.reply_service import ReplyService
+
+        stats = {"polled": 0, "processed": 0, "failed": 0}
+
+        async with AsyncSessionLocal() as db:
+            svc = ReplyService(db)
+            try:
+                signals = await svc.poll_imap_inbox()
+            except Exception as exc:
+                logger.error("poll_imap_replies_task: IMAP poll error: %s", exc)
+                sentry_sdk.capture_exception(exc)
+                raise
+
+            stats["polled"] = len(signals)
+
+            for signal in signals:
+                try:
+                    result = await svc.process_reply(signal)
+                    stats["processed"] += 1
+                    logger.info(
+                        "IMAP reply processed: enrollment=%s sentiment=%s",
+                        result.matched_enrollment_id,
+                        result.sentiment,
+                    )
+                except Exception as exc:
+                    logger.error(
+                        "poll_imap_replies_task: reply processing failed: %s", exc
+                    )
+                    sentry_sdk.capture_exception(exc)
+                    stats["failed"] += 1
+
+            await db.commit()
+
+        logger.info("poll_imap_replies_task: %s", stats)
+        return stats
+
+    try:
+        return asyncio.run(_poll())
+    except Exception as exc:
+        logger.error("poll_imap_replies_task failed: %s", exc)
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(bind=True, max_retries=2, default_retry_delay=120)
+def process_reply_full_task(self, reply_data: dict) -> dict:
+    """
+    Full reply processing: match enrollment, analyze sentiment, AI analysis, FSM transition.
+
+    Called from webhook handlers with raw reply data dict. Reconstructs a ReplySignal
+    and runs the complete ReplyService.process_reply() pipeline.
+
+    Args:
+        reply_data: dict with keys: channel, body, sender_email, sender_phone,
+                    subject, thread_id, message_id, raw_headers, received_at (ISO string)
+    """
+    async def _process():
+        import sentry_sdk
+        from datetime import datetime, UTC
+        from app.database import AsyncSessionLocal
+        from app.services.reply_service import ReplyService, ReplySignal
+
+        # Parse received_at from ISO string
+        received_at_raw = reply_data.get("received_at")
+        try:
+            received_at = (
+                datetime.fromisoformat(received_at_raw)
+                if received_at_raw
+                else datetime.now(UTC)
+            )
+        except (ValueError, TypeError):
+            received_at = datetime.now(UTC)
+
+        signal = ReplySignal(
+            channel=reply_data.get("channel", "email"),
+            body=reply_data.get("body", ""),
+            sender_email=reply_data.get("sender_email") or None,
+            sender_phone=reply_data.get("sender_phone") or None,
+            subject=reply_data.get("subject") or None,
+            thread_id=reply_data.get("thread_id") or None,
+            message_id=reply_data.get("message_id") or None,
+            raw_headers=reply_data.get("raw_headers") or {},
+            received_at=received_at,
+        )
+
+        async with AsyncSessionLocal() as db:
+            svc = ReplyService(db)
+            try:
+                result = await svc.process_reply(signal)
+                await db.commit()
+            except Exception as exc:
+                logger.error(
+                    "process_reply_full_task: process_reply failed for channel=%s from=%s: %s",
+                    signal.channel,
+                    signal.sender_email or signal.sender_phone,
+                    exc,
+                )
+                sentry_sdk.capture_exception(exc)
+                await db.rollback()
+                raise
+
+        logger.info(
+            "process_reply_full_task: enrollment=%s sentiment=%s channel=%s",
+            result.matched_enrollment_id,
+            result.sentiment,
+            signal.channel,
+        )
+        return {
+            "matched_enrollment_id": str(result.matched_enrollment_id)
+            if result.matched_enrollment_id
+            else None,
+            "matched_sequence_id": str(result.matched_sequence_id)
+            if result.matched_sequence_id
+            else None,
+            "sentiment": result.sentiment,
+            "confidence": result.confidence,
+            "channel": signal.channel,
+        }
+
+    try:
+        return asyncio.run(_process())
+    except Exception as exc:
+        logger.error("process_reply_full_task failed: %s", exc)
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(bind=True, max_retries=1, default_retry_delay=300)
+def execute_linkedin_queue_task(self) -> dict:
+    """
+    Execute pending LinkedIn queue items. Runs every 30 minutes.
+
+    Processes the LinkedIn action queue respecting the daily 25-action limit
+    and human-like random delays (45-120s) between actions.
+    """
+    async def _execute():
+        import sentry_sdk
+        from app.database import AsyncSessionLocal
+        from app.services.linkedin_service import LinkedInService
+
+        async with AsyncSessionLocal() as db:
+            svc = LinkedInService(db)
+            try:
+                results = await svc.execute_queue()
+                await db.commit()
+            except Exception as exc:
+                logger.error(
+                    "execute_linkedin_queue_task: queue execution failed: %s", exc
+                )
+                sentry_sdk.capture_exception(exc)
+                await db.rollback()
+                raise
+
+        executed = len([r for r in results if r.get("status") == "executed"])
+        failed = len([r for r in results if r.get("status") == "failed"])
+        skipped = len([r for r in results if r.get("status") not in ("executed", "failed")])
+
+        stats = {
+            "total": len(results),
+            "executed": executed,
+            "failed": failed,
+            "skipped": skipped,
+        }
+        logger.info("execute_linkedin_queue_task: %s", stats)
+        return stats
+
+    try:
+        return asyncio.run(_execute())
+    except Exception as exc:
+        logger.error("execute_linkedin_queue_task failed: %s", exc)
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(bind=True, max_retries=1, default_retry_delay=300)
+def push_ai_feedback_task(self, sequence_id: str) -> dict:
+    """
+    Push sequence metrics to AI platforms after completion.
+
+    Aggregates performance data (reply rates, open rates, bounce rates)
+    and pushes back to HubSpot Breeze, ZoomInfo Copilot, and Apollo AI
+    to close the bi-directional learning loop.
+    """
+    async def _push():
+        import sentry_sdk
+        from uuid import UUID
+        from app.database import AsyncSessionLocal
+        from app.services.ai_feedback_service import AIFeedbackService
+
+        async with AsyncSessionLocal() as db:
+            svc = AIFeedbackService(db)
+            try:
+                result = await svc.push_completion_feedback(UUID(sequence_id))
+                await db.commit()
+            except Exception as exc:
+                logger.error(
+                    "push_ai_feedback_task: feedback push failed for sequence %s: %s",
+                    sequence_id,
+                    exc,
+                )
+                sentry_sdk.capture_exception(exc)
+                await db.rollback()
+                raise
+
+        logger.info(
+            "push_ai_feedback_task: sequence=%s result=%s",
+            sequence_id,
+            result,
+        )
+        return result
+
+    try:
+        return asyncio.run(_push())
+    except Exception as exc:
+        logger.error("push_ai_feedback_task failed for sequence %s: %s", sequence_id, exc)
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(bind=True, max_retries=1, default_retry_delay=300)
+def aggregate_channel_metrics_task(self) -> dict:
+    """
+    Aggregate channel health metrics for monitoring. Runs hourly.
+
+    Collects per-channel stats (sent/bounced/replied/delivered) over the last 24h
+    and logs a consolidated health snapshot for dashboards and alerting.
+    """
+    async def _aggregate():
+        import sentry_sdk
+        from app.database import AsyncSessionLocal
+        from app.services.channel_orchestrator import ChannelOrchestrator
+
+        async with AsyncSessionLocal() as db:
+            orchestrator = ChannelOrchestrator(db)
+            try:
+                health = await orchestrator.get_channel_health()
+                # Commit any metric writes (orchestrator may update counters)
+                await db.commit()
+            except Exception as exc:
+                logger.error(
+                    "aggregate_channel_metrics_task: health aggregation failed: %s", exc
+                )
+                sentry_sdk.capture_exception(exc)
+                await db.rollback()
+                raise
+
+        logger.info("aggregate_channel_metrics_task: %s", health)
+        return health
+
+    try:
+        return asyncio.run(_aggregate())
+    except Exception as exc:
+        logger.error("aggregate_channel_metrics_task failed: %s", exc)
+        raise self.retry(exc=exc)
