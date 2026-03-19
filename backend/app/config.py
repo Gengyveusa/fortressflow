@@ -10,28 +10,82 @@ class Settings(BaseSettings):
     DAILY_EMAIL_LIMIT: int = 100
     DAILY_SMS_LIMIT: int = 30
     DAILY_LINKEDIN_LIMIT: int = 25
+
+    # HubSpot
     HUBSPOT_API_KEY: str = ""
     HUBSPOT_APP_ID: str = ""
+
+    # ZoomInfo
     ZOOMINFO_CLIENT_ID: str = ""
     ZOOMINFO_CLIENT_SECRET: str = ""
     ZOOMINFO_API_KEY: str = ""
+
+    # Apollo
     APOLLO_API_KEY: str = ""
+
+    # Sentry
     SENTRY_DSN: str = ""
     ENVIRONMENT: str = "development"
+
+    # Enrichment
     ENRICHMENT_TTL_DAYS: int = 90
     ZOOMINFO_RATE_LIMIT: int = 25
     APOLLO_RATE_LIMIT: int = 50
+
     # Twilio SMS
     TWILIO_ACCOUNT_SID: str = ""
     TWILIO_AUTH_TOKEN: str = ""
     TWILIO_PHONE_NUMBER: str = ""
+
     # AWS SES
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""
     AWS_REGION: str = "us-east-1"
     SES_FROM_EMAIL: str = ""
+
     # Sequence engine
     SEQUENCE_ENGINE_INTERVAL_MINUTES: int = 15
+
+    # ── Phase 3: Deliverability Fortress ────────────────────────────────
+    # Sending infrastructure
+    SENDING_SUBDOMAIN: str = ""  # e.g. "mail.gengyveusa.com"
+    DEDICATED_IP_POOL: str = ""  # SES dedicated IP pool name
+    MAX_SENDING_IDENTITIES: int = 10  # Rotate 5-10 identities
+    DAILY_WARMUP_VOLUME_CAP: int = 400  # 300-400 email touches/day target
+    WARMUP_DURATION_WEEKS: int = 6  # 4-6 week warmup ramp
+
+    # SES Configuration Set for tracking
+    SES_CONFIGURATION_SET: str = "fortressflow-tracking"
+    SES_FEEDBACK_FORWARDING_EMAIL: str = ""
+
+    # Reputation thresholds
+    BOUNCE_RATE_PAUSE_THRESHOLD: float = 0.05  # Pause at 5% bounce rate
+    SPAM_RATE_PAUSE_THRESHOLD: float = 0.001  # Pause at 0.1% spam rate
+    OPEN_RATE_MIN_THRESHOLD: float = 0.15  # Alert if open rate < 15%
+
+    # HubSpot Breeze AI
+    HUBSPOT_BREEZE_ENABLED: bool = False
+    HUBSPOT_BREEZE_DATA_AGENT: bool = True  # Breeze Data Agent for insights
+    HUBSPOT_BREEZE_PROSPECTING_AGENT: bool = True  # Breeze Prospecting Agent
+    HUBSPOT_BREEZE_CONTENT_AGENT: bool = True  # Breeze Content Agent
+    HUBSPOT_BREEZE_STUDIO_ENABLED: bool = True  # Breeze Studio
+
+    # ZoomInfo Copilot
+    ZOOMINFO_COPILOT_ENABLED: bool = False
+    ZOOMINFO_GTM_WORKSPACE: bool = True  # GTM Workspace
+    ZOOMINFO_CONTEXT_GRAPH: bool = True  # GTM Context Graph
+
+    # Apollo AI (2026 agentic)
+    APOLLO_AI_ENABLED: bool = False
+    APOLLO_AI_SCORING: bool = True  # Enhanced AI scoring
+    APOLLO_WATERFALL_ENRICHMENT: bool = True  # Waterfall enrichment
+    APOLLO_MCP_INTEGRATION: bool = True  # MCP + Claude integration
+
+    # Warmup AI tuning
+    WARMUP_AI_SEED_BATCH_SIZE: int = 50  # Seeds per AI request
+    WARMUP_AI_LEARNING_WINDOW_DAYS: int = 7  # Look-back window for learning loops
+    WARMUP_RAMP_MULTIPLIER: float = 1.15  # Daily ramp multiplier (15% increase)
+    WARMUP_INITIAL_DAILY_VOLUME: int = 5  # Start at 5 emails/day per identity
 
     model_config = SettingsConfigDict(env_file=".env")
 

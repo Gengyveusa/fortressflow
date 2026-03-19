@@ -20,22 +20,57 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     task_routes={
+        # Phase 2: Enrichment
         "app.workers.tasks.process_lead_enrichment": {"queue": "enrichment"},
         "app.workers.tasks.enrich_lead_task": {"queue": "enrichment"},
         "app.workers.tasks.bulk_enrich_task": {"queue": "enrichment"},
         "app.workers.tasks.re_verify_stale_leads": {"queue": "enrichment"},
+        # Phase 3 (prev session): Sequences
         "app.workers.tasks.send_sequence_step": {"queue": "sequences"},
         "app.workers.tasks.run_sequence_engine": {"queue": "sequences"},
+        # Phase 3: Warmup & Deliverability
         "app.workers.tasks.run_warmup_step": {"queue": "warmup"},
+        "app.workers.tasks.run_warmup_cycle_task": {"queue": "warmup"},
+        "app.workers.tasks.process_warmup_feedback_task": {"queue": "warmup"},
+        "app.workers.tasks.reset_daily_counters_task": {"queue": "warmup"},
+        "app.workers.tasks.update_domain_metrics_task": {"queue": "warmup"},
+        "app.workers.tasks.recalculate_health_scores_task": {"queue": "warmup"},
     },
     beat_schedule={
+        # Enrichment: re-verify stale leads daily at 2 AM UTC
         "re-verify-stale-leads-daily": {
             "task": "app.workers.tasks.re_verify_stale_leads",
-            "schedule": crontab(hour=2, minute=0),  # Run daily at 2:00 AM UTC
+            "schedule": crontab(hour=2, minute=0),
         },
+        # Sequences: run engine every 15 minutes
         "run-sequence-engine": {
             "task": "app.workers.tasks.run_sequence_engine",
             "schedule": crontab(minute=f"*/{settings.SEQUENCE_ENGINE_INTERVAL_MINUTES}"),
+        },
+        # Warmup: run AI warmup cycle daily at 6 AM UTC (before business hours)
+        "run-warmup-cycle": {
+            "task": "app.workers.tasks.run_warmup_cycle_task",
+            "schedule": crontab(hour=6, minute=0),
+        },
+        # Warmup: process feedback loop daily at 7 AM UTC
+        "process-warmup-feedback": {
+            "task": "app.workers.tasks.process_warmup_feedback_task",
+            "schedule": crontab(hour=7, minute=0),
+        },
+        # Deliverability: reset daily counters at midnight UTC
+        "reset-daily-counters": {
+            "task": "app.workers.tasks.reset_daily_counters_task",
+            "schedule": crontab(hour=0, minute=0),
+        },
+        # Deliverability: update domain metrics every hour
+        "update-domain-metrics": {
+            "task": "app.workers.tasks.update_domain_metrics_task",
+            "schedule": crontab(minute=30),
+        },
+        # Deliverability: recalculate health scores every 6 hours
+        "recalculate-health-scores": {
+            "task": "app.workers.tasks.recalculate_health_scores_task",
+            "schedule": crontab(hour="*/6", minute=15),
         },
     },
 )

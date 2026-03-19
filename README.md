@@ -15,6 +15,7 @@ FortressFlow is a legitimate B2B outreach tool — NOT a blackhat scraper. All l
 - **Auth**: NextAuth
 - **Infra**: Docker + docker-compose
 - **Monitoring**: Sentry + Prometheus + Grafana
+- **AI Platforms**: HubSpot Breeze AI + ZoomInfo Copilot + Apollo AI (2026)
 
 ## Quick Start
 
@@ -61,6 +62,108 @@ docker-compose exec backend alembic upgrade head
 - **RabbitMQ**: http://localhost:15672 (fortressflow/fortressflow_dev)
 - **Grafana**: http://localhost:3001 (admin/admin)
 
+## Phase 3: Deliverability Fortress
+
+### Architecture Overview
+
+Phase 3 implements a production-grade email deliverability system with AI-powered warmup:
+
+```
+┌──────────────────────────────────────────────────────┐
+│                  Deliverability Router                 │
+│  Round-robin rotation across 5-10 sending identities  │
+│  Health-aware routing · Daily cap: 300-400 touches    │
+└────────────────┬─────────────────────────────────────┘
+                 │
+    ┌────────────┴────────────┐
+    │    Sending Identities   │
+    │  outreach1@mail.domain  │
+    │  outreach2@mail.domain  │
+    │  outreach3@mail.domain  │
+    │  ... up to 10 inboxes   │
+    └────────────┬────────────┘
+                 │
+    ┌────────────┴────────────┐
+    │    Amazon SES (v2)      │
+    │  Dedicated IP Pool      │
+    │  Configuration Set      │
+    │  Event Tracking         │
+    └────────────┬────────────┘
+                 │
+    ┌────────────┴──────────────────────────┐
+    │  DNS Authentication Layer              │
+    │  SPF · DKIM · DMARC · BIMI            │
+    │  Strict alignment · Dedicated subdomain│
+    └───────────────────────────────────────┘
+```
+
+### AI-Powered Warmup System
+
+The warmup engine uses a 4-6 week progressive ramp with AI-selected seeds:
+
+| Week | Daily Volume | Cumulative | Strategy |
+|------|-------------|------------|----------|
+| 1 | 5-8 | ~50 | AI-selected high-engagement seeds |
+| 2 | 9-15 | ~120 | Expand to medium-engagement contacts |
+| 3 | 16-25 | ~260 | Widen audience with health monitoring |
+| 4 | 26-35 | ~470 | Full monitoring, auto-pause if unhealthy |
+| 5 | 36-45 | ~750 | Approaching target volume |
+| 6 | 46-50 | ~1,090 | Full production capacity |
+
+**Safety thresholds (auto-pause triggers):**
+- Bounce rate > 5%
+- Spam/complaint rate > 0.1%
+- Open rate < 15% (after 50+ sends)
+
+### Platform AI Integration
+
+FortressFlow maximizes three paid AI platforms for smarter outreach:
+
+#### HubSpot Breeze AI
+- **Data Agent**: Contact-level engagement insights and predictive scoring
+- **Prospecting Agent**: Identifies ideal warmup seeds by engagement likelihood
+- **Content Agent**: Subject line optimization and personalization suggestions
+- **Breeze Studio**: Advanced workflow orchestration
+
+#### ZoomInfo Copilot
+- **GTM Workspace**: Account-level intelligence (tech stack, org hierarchy, funding)
+- **GTM Context Graph**: Intent signals and buying behavior scoring
+
+#### Apollo AI (2026 Agentic)
+- **AI Scoring**: Enhanced lead scoring with MCP + Claude integration
+- **Waterfall Enrichment**: Cascading data sources for maximum coverage
+- **Agentic Workflows**: Natural language-driven automation
+
+#### Bi-Directional Learning Loops
+
+```
+Platform AI recommends seeds → FortressFlow sends warmup emails
+    → Tracks outcomes (opens, replies, bounces)
+        → Feeds results back to platforms
+            → Platforms refine scoring models
+                → Better seed recommendations next cycle
+```
+
+### Sending Identity Rotation
+
+FortressFlow rotates across 5-10 verified sending identities:
+
+```bash
+# Add sending identities via API
+POST /api/v1/deliverability/inboxes
+{
+  "email_address": "outreach1@mail.gengyveusa.com",
+  "display_name": "Thad - Gengyve USA",
+  "domain": "mail.gengyveusa.com"
+}
+```
+
+The deliverability router automatically:
+1. Round-robin selects the next healthy inbox
+2. Checks daily per-inbox and total volume caps
+3. Skips inboxes with health_score < 50
+4. Updates reputation metrics on SES events (bounce, complaint, open)
+
 ## Multi-Channel Outreach
 
 FortressFlow supports three outreach channels, all gated behind compliance:
@@ -70,7 +173,7 @@ FortressFlow supports three outreach channels, all gated behind compliance:
 - Tracking pixel injection for open tracking
 - RFC 8058 one-click unsubscribe headers
 - Bounce/complaint webhook processing
-- 4-week warmup schedule (5 → 400 emails/day)
+- AI-powered 4-6 week warmup with platform AI seed selection
 
 ### SMS (Twilio)
 - 10DLC-compliant SMS delivery
@@ -121,6 +224,23 @@ The sequence engine runs every 15 minutes (configurable via `SEQUENCE_ENGINE_INT
 
 ## API Reference
 
+### Deliverability Endpoints (Phase 3)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/deliverability/domains` | List sending domains |
+| `POST` | `/api/v1/deliverability/domains` | Add domain (triggers SES verification) |
+| `GET` | `/api/v1/deliverability/domains/{name}/dns` | DNS setup instructions |
+| `GET` | `/api/v1/deliverability/inboxes` | List sending inboxes |
+| `POST` | `/api/v1/deliverability/inboxes` | Create inbox (auto-warmup config) |
+| `POST` | `/api/v1/deliverability/inboxes/{id}/pause` | Pause inbox |
+| `POST` | `/api/v1/deliverability/inboxes/{id}/resume` | Resume inbox |
+| `GET` | `/api/v1/deliverability/warmup` | Warmup queue status |
+| `GET` | `/api/v1/deliverability/warmup/config/{id}` | Warmup config for inbox |
+| `PUT` | `/api/v1/deliverability/warmup/config/{id}` | Update warmup config |
+| `GET` | `/api/v1/deliverability/warmup/ramp-schedule` | Preview ramp schedule |
+| `GET` | `/api/v1/deliverability/dashboard` | Full deliverability dashboard |
+
 ### Template Endpoints
 
 | Method | Path | Description |
@@ -137,7 +257,7 @@ The sequence engine runs every 15 minutes (configurable via `SEQUENCE_ENGINE_INT
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/v1/presets/` | List available presets |
-| `POST` | `/api/v1/presets/{index}/deploy` | Deploy a preset (creates sequence + templates) |
+| `POST` | `/api/v1/presets/{index}/deploy` | Deploy a preset |
 
 ### Compliance Endpoints
 
@@ -158,6 +278,18 @@ The sequence engine runs every 15 minutes (configurable via `SEQUENCE_ENGINE_INT
 | `GET` | `/api/v1/leads/{id}` | Get lead details |
 | `POST` | `/api/v1/leads/import/csv` | Bulk CSV import |
 | `POST` | `/api/v1/leads/{id}/touch` | Log an outreach touch |
+
+## Celery Beat Schedule
+
+| Task | Schedule | Description |
+|------|----------|-------------|
+| Re-verify stale leads | Daily 2:00 AM UTC | Re-enrich leads older than 90 days |
+| Sequence engine | Every 15 min | Advance enrolled leads through steps |
+| Warmup cycle | Daily 6:00 AM UTC | AI-powered warmup for all inboxes |
+| Warmup feedback loop | Daily 7:00 AM UTC | Send outcomes to AI platforms |
+| Reset daily counters | Daily midnight UTC | Reset per-inbox send counters |
+| Domain metrics | Hourly (:30) | Aggregate inbox → domain metrics |
+| Health score recalc | Every 6 hours (:15) | Recalculate inbox health scores |
 
 ## Development
 
@@ -214,20 +346,36 @@ FortressFlow implements a **hard-gate compliance system**:
 
 ## Integration Setup
 
-### HubSpot
+### HubSpot (with Breeze AI)
 
 1. Create a Private App in HubSpot with `crm.objects.contacts.write` and `crm.objects.notes.write` scopes
 2. Copy the API key to `HUBSPOT_API_KEY` in `.env`
+3. **Enable Breeze AI**: Set `HUBSPOT_BREEZE_ENABLED=true` in `.env`
+4. Ensure your HubSpot plan includes Breeze AI features (Professional+ required)
+5. Breeze agents used:
+   - **Data Agent**: Provides contact engagement insights for warmup seed selection
+   - **Prospecting Agent**: Identifies high-engagement contacts as warmup seeds
+   - **Content Agent**: Optimizes email subject lines and personalization
+   - **Breeze Studio**: Orchestrates advanced AI workflows
 
-### ZoomInfo
+### ZoomInfo (with Copilot)
 
 1. Obtain API credentials from ZoomInfo
 2. Set `ZOOMINFO_CLIENT_ID` and `ZOOMINFO_CLIENT_SECRET` in `.env`
+3. **Enable Copilot**: Set `ZOOMINFO_COPILOT_ENABLED=true` in `.env`
+4. Copilot features used:
+   - **GTM Workspace**: Account intelligence (tech stack, org chart, funding)
+   - **GTM Context Graph**: Intent signals and buyer behavior scoring
 
-### Apollo.io
+### Apollo.io (with AI Assistant)
 
 1. Get API key from Apollo.io settings
 2. Set `APOLLO_API_KEY` in `.env`
+3. **Enable AI**: Set `APOLLO_AI_ENABLED=true` in `.env`
+4. Apollo AI features used:
+   - **Enhanced AI Scoring**: Lead quality scoring with MCP + Claude
+   - **Waterfall Enrichment**: Cascading data sources for maximum coverage
+   - **Agentic Workflows**: Natural language automation
 
 ### Twilio (SMS)
 
@@ -236,24 +384,45 @@ FortressFlow implements a **hard-gate compliance system**:
 
 ### Amazon SES (Email)
 
-1. Verify your sending domain in AWS SES
-2. Configure SPF/DKIM/DMARC records
-3. Set `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `SES_FROM_EMAIL` in `.env`
+1. Use FortressFlow's DNS setup endpoint to get required records:
+   ```
+   GET /api/v1/deliverability/domains/{domain}/dns
+   ```
+2. Add the returned DNS records to your domain (SPF, DKIM CNAMEs, DMARC, BIMI)
+3. Configure in `.env`:
+   ```
+   AWS_ACCESS_KEY_ID=your-key
+   AWS_SECRET_ACCESS_KEY=your-secret
+   AWS_REGION=us-east-1
+   SES_FROM_EMAIL=outreach@mail.gengyveusa.com
+   SENDING_SUBDOMAIN=mail.gengyveusa.com
+   SES_CONFIGURATION_SET=fortressflow-tracking
+   DEDICATED_IP_POOL=fortressflow-pool
+   ```
+4. Add sending identities via the API:
+   ```
+   POST /api/v1/deliverability/inboxes
+   ```
 
 ## Email Deliverability
 
-FortressFlow includes a warmup system:
+FortressFlow implements a comprehensive deliverability fortress:
 
-- 4-week ramp schedule (5 → 400 emails/day)
-- Automatic pause on bounce rate > 2% or spam rate > 0.1%
-- Rotate 5-10 inboxes/domains
-- Full SPF/DKIM/DMARC/BIMI configuration
+- **Dedicated subdomain**: Full SPF/DKIM/DMARC/BIMI on `mail.gengyveusa.com`
+- **AI-powered 4-6 week warmup**: Platform AI selects high-engagement seeds
+- **Identity rotation**: 5-10 sending identities with round-robin routing
+- **Health monitoring**: Auto-pause on bounce > 5% or spam > 0.1%
+- **Daily volume cap**: 300-400 email touches/day across all identities
+- **Bi-directional learning**: Warmup outcomes feed back to AI platforms
+- **SES event tracking**: Real-time bounce/complaint/open/click processing
+- **Dedicated IP pool**: Managed IP allocation for consistent reputation
 
 ## Monitoring
 
 - **Prometheus** scrapes `/metrics` every 15 seconds
 - **Grafana** dashboards for delivery rates, bounce rates, consent stats
 - **Sentry** for error tracking (set `SENTRY_DSN` in `.env`)
+- **Deliverability Dashboard**: `GET /api/v1/deliverability/dashboard` for real-time inbox/domain health
 
 ## License
 

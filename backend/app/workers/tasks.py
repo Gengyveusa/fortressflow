@@ -210,6 +210,7 @@ def run_warmup_step(self, inbox_id: str) -> dict:
         from datetime import date
         from app.database import AsyncSessionLocal
         from app.models.warmup import WarmupQueue
+        from app.models.sending_inbox import SendingInbox
         from sqlalchemy import select, and_
 
         async with AsyncSessionLocal() as db:
@@ -230,6 +231,15 @@ def run_warmup_step(self, inbox_id: str) -> dict:
             warmup.emails_sent += 1
             if warmup.emails_sent >= warmup.emails_target:
                 warmup.status = "completed"
+
+            # Update inbox daily counter
+            inbox_result = await db.execute(
+                select(SendingInbox).where(SendingInbox.id == inbox_id)
+            )
+            inbox = inbox_result.scalar_one_or_none()
+            if inbox:
+                inbox.daily_sent = warmup.emails_sent
+
             await db.commit()
             logger.info("Warmup step for inbox %s: %d/%d", inbox_id, warmup.emails_sent, warmup.emails_target)
             return {"status": "ok", "emails_sent": warmup.emails_sent}
@@ -238,4 +248,119 @@ def run_warmup_step(self, inbox_id: str) -> dict:
         return asyncio.run(_warmup())
     except Exception as exc:
         logger.error("run_warmup_step failed for inbox %s: %s", inbox_id, exc)
+        raise self.retry(exc=exc)
+
+
+# ── Phase 3: New warmup + deliverability tasks ────────────────────────
+
+
+@celery_app.task(bind=True, max_retries=1, default_retry_delay=300)
+def run_warmup_cycle_task(self) -> dict:
+    """
+    Run the AI-powered warmup cycle for all warming inboxes.
+
+    Runs daily via Celery Beat:
+    1. Advances each inbox's warmup schedule
+    2. Selects AI-scored seeds
+    3. Creates warmup queue entries
+    4. Checks health metrics and pauses unhealthy inboxes
+    """
+    async def _cycle():
+        from app.database import AsyncSessionLocal
+        from app.services.warmup_ai import run_warmup_cycle
+
+        async with AsyncSessionLocal() as db:
+            result = await run_warmup_cycle(db)
+            await db.commit()
+            return result
+
+    try:
+        return asyncio.run(_cycle())
+    except Exception as exc:
+        logger.error("run_warmup_cycle_task failed: %s", exc)
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(bind=True, max_retries=1, default_retry_delay=300)
+def process_warmup_feedback_task(self) -> dict:
+    """
+    Process warmup outcomes and send feedback to AI platforms.
+
+    Runs daily via Celery Beat (after warmup cycle):
+    - Finds seed logs with tracked outcomes
+    - Pushes data back to HubSpot Breeze / ZoomInfo Copilot / Apollo AI
+    - Closes the bi-directional learning loop
+    """
+    async def _feedback():
+        from app.database import AsyncSessionLocal
+        from app.services.warmup_ai import process_warmup_feedback
+
+        async with AsyncSessionLocal() as db:
+            result = await process_warmup_feedback(db)
+            await db.commit()
+            return result
+
+    try:
+        return asyncio.run(_feedback())
+    except Exception as exc:
+        logger.error("process_warmup_feedback_task failed: %s", exc)
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(bind=True, max_retries=1, default_retry_delay=60)
+def reset_daily_counters_task(self) -> dict:
+    """Reset daily_sent counters for all sending inboxes. Runs at midnight UTC."""
+    async def _reset():
+        from app.database import AsyncSessionLocal
+        from app.services.deliverability_router import DeliverabilityRouter
+
+        async with AsyncSessionLocal() as db:
+            router = DeliverabilityRouter(db)
+            count = await router.reset_daily_counters()
+            await db.commit()
+            return {"reset_count": count}
+
+    try:
+        return asyncio.run(_reset())
+    except Exception as exc:
+        logger.error("reset_daily_counters_task failed: %s", exc)
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(bind=True, max_retries=1, default_retry_delay=120)
+def update_domain_metrics_task(self) -> dict:
+    """Aggregate inbox metrics to domain level. Runs hourly."""
+    async def _update():
+        from app.database import AsyncSessionLocal
+        from app.services.deliverability_router import DeliverabilityRouter
+
+        async with AsyncSessionLocal() as db:
+            router = DeliverabilityRouter(db)
+            count = await router.update_domain_metrics()
+            await db.commit()
+            return {"domains_updated": count}
+
+    try:
+        return asyncio.run(_update())
+    except Exception as exc:
+        logger.error("update_domain_metrics_task failed: %s", exc)
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(bind=True, max_retries=1, default_retry_delay=120)
+def recalculate_health_scores_task(self) -> dict:
+    """Recalculate health scores for all inboxes. Runs every 6 hours."""
+    async def _recalc():
+        from app.database import AsyncSessionLocal
+        from app.services.warmup_ai import recalculate_inbox_health_scores
+
+        async with AsyncSessionLocal() as db:
+            count = await recalculate_inbox_health_scores(db)
+            await db.commit()
+            return {"inboxes_updated": count}
+
+    try:
+        return asyncio.run(_recalc())
+    except Exception as exc:
+        logger.error("recalculate_health_scores_task failed: %s", exc)
         raise self.retry(exc=exc)
