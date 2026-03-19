@@ -164,6 +164,153 @@ The deliverability router automatically:
 3. Skips inboxes with health_score < 50
 4. Updates reputation metrics on SES events (bounce, complaint, open)
 
+## Phase 4: Sequencer Engine + Visual Builder + State Machine
+
+### Architecture Overview
+
+Phase 4 transforms the sequence engine into a production-grade FSM-driven orchestrator with visual drag-drop building and AI-powered sequence generation:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              Visual Drag-Drop Builder (React Flow)           │
+│  Email · LinkedIn · SMS · Wait · Conditional · A/B · End    │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+┌──────────────────────────┴──────────────────────────────────┐
+│              AI Sequence Generation Service                  │
+│  HubSpot Breeze Content + ZoomInfo Context + Apollo Agentic │
+│  Natural language → Full sequence config + visual layout     │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+┌──────────────────────────┴──────────────────────────────────┐
+│              FSM State Machine (Enrollment Lifecycle)        │
+│  pending→active→sent→opened→replied→paused→completed       │
+│  Idempotent dispatches · No double-sends · Restart-safe     │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+┌──────────────────────────┴──────────────────────────────────┐
+│              Enhanced Sequence Engine (Celery)               │
+│  Conditional branches · A/B testing · Hole-filler logic     │
+│  SES rotation dispatch via DeliverabilityRouter             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### State Machine (FSM)
+
+Every enrollment follows a strict finite state machine that prevents double-sends and handles restarts:
+
+```
+pending ──→ active ──→ sent ──→ opened ──→ replied ──→ paused
+   │          │         │         │                      │
+   │          │         │         └───→ completed         │
+   │          │         │         └───→ escalated         │
+   │          │         └───→ failed (bounce)             │
+   │          └───→ completed                             │
+   │          └───→ escalated (hole-filler)               │
+   └───→ paused                       active ←──── resume │
+   └───→ failed                                           │
+```
+
+**Key properties:**
+- Only `active` and `escalated` states allow dispatching a touch
+- `completed`, `failed`, `bounced`, `unsubscribed` are terminal (no exit)
+- Reply detection auto-transitions: sent/opened → replied → paused
+- Every dispatch generates a unique `dispatch_id` for idempotency
+
+### Conditional Branching
+
+Sequence steps can include conditional (if/else) nodes that route leads based on engagement:
+
+| Condition | Description |
+|-----------|-------------|
+| `opened` | Lead opened the previous email |
+| `not_opened` | Lead did NOT open the previous email |
+| `replied` | Lead replied to any email in the sequence |
+| `not_replied` | Lead has not replied |
+| `clicked` | Lead clicked a link |
+| `bounced` | Email bounced |
+
+Conditions can be scoped to a specific step via `step_position` and a time window via `within_hours`.
+
+### A/B Testing
+
+Any step can be configured as an A/B split with weighted variant assignment:
+
+```json
+{
+  "step_type": "ab_split",
+  "is_ab_test": true,
+  "ab_variants": {
+    "A": {"template_id": "...", "weight": 50, "channel": "email"},
+    "B": {"template_id": "...", "weight": 50, "channel": "email"}
+  }
+}
+```
+
+- Variant assignment is deterministic per enrollment (idempotent on restart)
+- Analytics endpoint returns per-variant open/reply/bounce rates
+- Variants tracked in `ab_variant_assignments` JSONB on the enrollment
+
+### Hole-Filler Escalation
+
+When a lead hasn't engaged after 2+ email touches, the engine automatically escalates:
+
+1. Check: 2+ emails sent, zero opens or replies
+2. Escalate to LinkedIn (if lead has a profile) or SMS (if lead has a phone)
+3. Mark enrollment as `escalated`, record `escalation_channel`
+4. Hole-filler only fires once per enrollment
+
+### AI-Powered Sequence Generation
+
+```bash
+POST /api/v1/sequences/generate
+{
+  "prompt": "Create a 7-step outreach sequence for dental offices",
+  "target_industry": "dental",
+  "channels": ["email", "linkedin", "sms"],
+  "include_ab_test": true,
+  "include_conditionals": true
+}
+```
+
+The AI generation service consults all three platforms in parallel:
+- **HubSpot Breeze Content Agent**: Optimizes email subject lines and body copy
+- **ZoomInfo Copilot GTM Context Graph**: Industry context and optimal send timing
+- **Apollo AI Agentic Workflows**: Sequence structure, step count, and timing
+
+Returns a complete sequence with steps + React Flow visual config, ready for the builder.
+
+### Visual Builder (React Flow)
+
+Access the drag-drop sequence builder at `/sequences/builder/{id}`:
+
+- **Node types**: Start, Email, SMS, LinkedIn, Wait, Conditional, A/B Split, End
+- **Drag-drop**: Add nodes from the palette, connect with edges
+- **Properties panel**: Edit labels, delay times, condition types per node
+- **AI generation**: Click "AI Generate" to create a sequence from a prompt
+- **Save/load**: Visual config persisted as JSONB on the sequence
+
+### Phase 4 API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/sequences/generate` | AI-powered sequence generation |
+| `GET` | `/api/v1/sequences/{id}/visual` | Load visual builder config |
+| `PUT` | `/api/v1/sequences/{id}/visual` | Save visual builder config |
+| `POST` | `/api/v1/sequences/{id}/enrollments/{eid}/pause` | Pause enrollment |
+| `POST` | `/api/v1/sequences/{id}/enrollments/{eid}/resume` | Resume enrollment |
+| `DELETE` | `/api/v1/sequences/{id}/steps/{sid}` | Delete a step |
+| `GET` | `/api/v1/sequences/{id}/analytics` | Analytics with A/B results |
+
+### Phase 4 Database Migration
+
+Migration `005_sequence_engine_phase4` adds:
+- `step_type` enum: `conditional`, `ab_split`, `end`
+- `enrollment_status` enum: `pending`, `sent`, `opened`, `replied`, `escalated`, `failed`
+- `sequences`: `visual_config`, `ai_generated`, `ai_generation_prompt`, `ai_generation_metadata`
+- `sequence_steps`: `condition`, `true_next_position`, `false_next_position`, `ab_variants`, `is_ab_test`, `node_id`
+- `sequence_enrollments`: `last_touch_at`, `last_state_change_at`, `ab_variant_assignments`, `hole_filler_triggered`, `escalation_channel`, `last_dispatch_id`
+
 ## Multi-Channel Outreach
 
 FortressFlow supports three outreach channels, all gated behind compliance:
@@ -214,13 +361,18 @@ Deploy any preset with one API call: `POST /api/v1/presets/{index}/deploy`
 
 ## Sequence Engine
 
-The sequence engine runs every 15 minutes (configurable via `SEQUENCE_ENGINE_INTERVAL_MINUTES`) and:
+The Phase 4 sequence engine runs every 15 minutes (configurable via `SEQUENCE_ENGINE_INTERVAL_MINUTES`) and:
 
-1. Finds all active enrollments where the next step delay has elapsed
-2. Checks compliance gate (consent + DNC + daily limits)
-3. Loads and renders the step's template with lead data
-4. Dispatches via the appropriate channel service
-5. Logs the touch and advances the enrollment
+1. Finds all sendable enrollments (FSM state: `active` or `pending`) where delay has elapsed
+2. Activates pending enrollments (`pending` → `active`)
+3. Checks hole-filler trigger (2+ unanswered emails → escalate to LinkedIn/SMS)
+4. Routes through conditional/A/B nodes (branch evaluation, variant assignment)
+5. Checks compliance gate (consent + DNC + daily limits)
+6. Resolves template (with A/B variant if applicable)
+7. Dispatches via SES rotation (DeliverabilityRouter) for email, Twilio for SMS, LinkedIn prep
+8. Generates idempotent `dispatch_id` to prevent double-sends on restart
+9. Transitions FSM state: `active` → `sent`
+10. Logs the touch and advances the enrollment
 
 ## API Reference
 

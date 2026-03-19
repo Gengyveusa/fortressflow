@@ -364,3 +364,75 @@ def recalculate_health_scores_task(self) -> dict:
     except Exception as exc:
         logger.error("recalculate_health_scores_task failed: %s", exc)
         raise self.retry(exc=exc)
+
+
+# ── Phase 4: Sequence AI + Reply Detection ────────────────────────────
+
+
+@celery_app.task(bind=True, max_retries=1, default_retry_delay=60)
+def process_reply_signal_task(
+    self, lead_id: str, sequence_id: str
+) -> dict:
+    """
+    Handle a reply signal for an enrollment.
+
+    Transitions enrollment: sent/opened → replied → paused (auto-pause).
+    Called by webhook or IMAP polling when a lead replies.
+    """
+    async def _process():
+        from app.database import AsyncSessionLocal
+        from app.services.sequence_executor import process_reply_signal
+
+        async with AsyncSessionLocal() as db:
+            result = await process_reply_signal(
+                lead_id=UUID(lead_id),
+                sequence_id=UUID(sequence_id),
+                db=db,
+            )
+            await db.commit()
+            return result
+
+    try:
+        return asyncio.run(_process())
+    except Exception as exc:
+        logger.error(
+            "process_reply_signal_task failed for lead %s: %s",
+            lead_id, exc,
+        )
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(bind=True, max_retries=2, default_retry_delay=120)
+def generate_ai_sequence_task(
+    self,
+    prompt: str,
+    target_industry: str = "dental",
+    channels: list[str] | None = None,
+) -> dict:
+    """
+    Generate an AI-powered sequence from a natural-language prompt.
+
+    Uses HubSpot Breeze, ZoomInfo Copilot, and Apollo AI platforms.
+    Returns the sequence ID and generation metadata.
+    """
+    async def _generate():
+        from app.database import AsyncSessionLocal
+        from app.services.sequence_ai_service import SequenceAIService
+
+        ai_svc = SequenceAIService()
+        result = await ai_svc.generate_sequence(
+            prompt=prompt,
+            target_industry=target_industry,
+            channels=channels or ["email", "linkedin", "sms"],
+        )
+        return {
+            "success": result.success,
+            "steps_generated": len(result.sequence_config.get("steps", [])),
+            "error": result.error,
+        }
+
+    try:
+        return asyncio.run(_generate())
+    except Exception as exc:
+        logger.error("generate_ai_sequence_task failed: %s", exc)
+        raise self.retry(exc=exc)

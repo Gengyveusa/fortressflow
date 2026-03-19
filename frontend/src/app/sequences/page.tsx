@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Plus, GitBranch, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, GitBranch, ChevronLeft, ChevronRight, Sparkles, Pencil } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -173,10 +173,25 @@ export default function SequencesPage() {
                     )}
                   </CardHeader>
                   <CardContent>
-                    <div className="flex items-center gap-4 text-sm text-gray-500">
-                      <span>{seq.steps?.length ?? 0} steps</span>
-                      <span>{seq.enrolled_count} enrolled</span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4 text-sm text-gray-500">
+                        <span>{seq.steps?.length ?? 0} steps</span>
+                        <span>{seq.enrolled_count} enrolled</span>
+                      </div>
+                      <Link
+                        href={`/sequences/builder/${seq.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Button variant="ghost" size="sm" className="h-7 px-2">
+                          <Pencil className="h-3.5 w-3.5 mr-1" /> Builder
+                        </Button>
+                      </Link>
                     </div>
+                    {seq.ai_generated && (
+                      <div className="flex items-center gap-1 text-xs text-purple-500 mt-1">
+                        <Sparkles className="h-3 w-3" /> AI Generated
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </Link>

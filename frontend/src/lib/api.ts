@@ -41,7 +41,66 @@ export interface SequenceStep {
   position: number;
   config: Record<string, unknown> | null;
   delay_hours: number;
+  condition: Record<string, unknown> | null;
+  true_next_position: number | null;
+  false_next_position: number | null;
+  ab_variants: Record<string, unknown> | null;
+  is_ab_test: boolean;
+  node_id: string | null;
   created_at: string;
+}
+
+export interface VisualNode {
+  id: string;
+  type: string;
+  position: { x: number; y: number };
+  data: Record<string, unknown>;
+}
+
+export interface VisualEdge {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle?: string;
+  label?: string;
+  style?: Record<string, unknown>;
+}
+
+export interface VisualConfig {
+  nodes: VisualNode[];
+  edges: VisualEdge[];
+  viewport: { x: number; y: number; zoom: number };
+}
+
+export interface SequenceGenerateRequest {
+  prompt: string;
+  target_industry?: string;
+  num_steps?: number;
+  channels?: string[];
+  include_ab_test?: boolean;
+  include_conditionals?: boolean;
+}
+
+export interface SequenceGenerateResponse {
+  success: boolean;
+  sequence_id: string | null;
+  sequence_name: string | null;
+  steps_generated: number;
+  channels_used: string[];
+  ai_platforms_consulted: string[];
+  visual_config: VisualConfig | null;
+  error: string | null;
+}
+
+export interface ABVariantAnalytics {
+  step_position: number;
+  variant: string;
+  sent: number;
+  opened: number;
+  replied: number;
+  bounced: number;
+  open_rate: number;
+  reply_rate: number;
 }
 
 export interface Sequence {
@@ -53,6 +112,10 @@ export interface Sequence {
   updated_at: string;
   steps: SequenceStep[];
   enrolled_count: number;
+  visual_config: VisualConfig | null;
+  ai_generated: boolean;
+  ai_generation_prompt: string | null;
+  ai_generation_metadata: Record<string, unknown> | null;
 }
 
 export interface SequenceListResponse {
@@ -126,6 +189,7 @@ export interface SequenceAnalytics {
   active: number;
   completed: number;
   steps: StepAnalytics[];
+  ab_results: ABVariantAnalytics[];
 }
 
 export interface AuditTrail {
@@ -227,17 +291,39 @@ export const sequencesApi = {
   list: (page = 1, pageSize = 20) =>
     api.get<SequenceListResponse>(`/sequences/?page=${page}&page_size=${pageSize}`),
   get: (id: string) => api.get<Sequence>(`/sequences/${id}`),
-  create: (data: { name: string; description?: string; status?: string }) =>
+  create: (data: { name: string; description?: string; status?: string; visual_config?: VisualConfig }) =>
     api.post<Sequence>("/sequences/", data),
-  update: (id: string, data: { name?: string; description?: string; status?: string }) =>
+  update: (id: string, data: { name?: string; description?: string; status?: string; visual_config?: VisualConfig }) =>
     api.put<Sequence>(`/sequences/${id}`, data),
   delete: (id: string) => api.delete(`/sequences/${id}`),
-  addStep: (id: string, data: { step_type: string; position: number; config?: object; delay_hours?: number }) =>
-    api.post<SequenceStep>(`/sequences/${id}/steps`, data),
+  addStep: (id: string, data: {
+    step_type: string; position: number; config?: object; delay_hours?: number;
+    condition?: object; true_next_position?: number; false_next_position?: number;
+    ab_variants?: object; is_ab_test?: boolean; node_id?: string;
+  }) => api.post<SequenceStep>(`/sequences/${id}/steps`, data),
+  deleteStep: (sequenceId: string, stepId: string) =>
+    api.delete(`/sequences/${sequenceId}/steps/${stepId}`),
   enroll: (id: string, lead_ids: string[]) =>
     api.post(`/sequences/${id}/enroll`, { lead_ids }),
   analytics: (id: string) =>
     api.get<SequenceAnalytics>(`/sequences/${id}/analytics`),
+  // Phase 4: AI generation
+  generate: (data: SequenceGenerateRequest) =>
+    api.post<SequenceGenerateResponse>("/sequences/generate", data),
+  // Phase 4: Visual builder
+  getVisualConfig: (id: string) =>
+    api.get<{ sequence_id: string; visual_config: VisualConfig | null; steps: SequenceStep[] }>(
+      `/sequences/${id}/visual`
+    ),
+  saveVisualConfig: (id: string, data: { visual_config: VisualConfig; steps?: SequenceStep[] }) =>
+    api.put<{ sequence_id: string; visual_config: VisualConfig | null; steps: SequenceStep[] }>(
+      `/sequences/${id}/visual`, data
+    ),
+  // Phase 4: Enrollment management
+  pauseEnrollment: (sequenceId: string, enrollmentId: string) =>
+    api.post(`/sequences/${sequenceId}/enrollments/${enrollmentId}/pause`),
+  resumeEnrollment: (sequenceId: string, enrollmentId: string) =>
+    api.post(`/sequences/${sequenceId}/enrollments/${enrollmentId}/resume`),
 };
 
 export const analyticsApi = {

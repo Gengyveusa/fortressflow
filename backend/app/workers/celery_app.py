@@ -35,6 +35,9 @@ celery_app.conf.update(
         "app.workers.tasks.reset_daily_counters_task": {"queue": "warmup"},
         "app.workers.tasks.update_domain_metrics_task": {"queue": "warmup"},
         "app.workers.tasks.recalculate_health_scores_task": {"queue": "warmup"},
+        # Phase 4: Sequence AI + Reply Detection
+        "app.workers.tasks.process_reply_signal_task": {"queue": "sequences"},
+        "app.workers.tasks.generate_ai_sequence_task": {"queue": "sequences"},
     },
     beat_schedule={
         # Enrichment: re-verify stale leads daily at 2 AM UTC
