@@ -1,0 +1,54 @@
+# ============================================================
+# Backend .dockerignore
+# Context: ./backend  (used by backend/Dockerfile)
+# ============================================================
+
+# Python artefacts
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+.pytest_cache
+.mypy_cache
+.ruff_cache
+*.egg-info
+dist/
+build/
+
+# Test files (not needed in production image)
+tests/
+.coverage
+coverage.xml
+htmlcov/
+
+# Environment files (secrets must NOT be baked in)
+.env
+.env.*
+*.env
+
+# Documentation
+*.md
+*.rst
+LICENSE
+CHANGELOG
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Docker files themselves (already inside the context)
+Dockerfile*
+.dockerignore
+
+# Git
+.git
+.gitignore
+
+# Alembic migration scripts are intentionally INCLUDED
+# so `alembic upgrade head` can be run at deploy time.

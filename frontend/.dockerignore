@@ -1,0 +1,53 @@
+# ============================================================
+# Frontend .dockerignore
+# Context: ./frontend  (used by frontend/Dockerfile)
+# ============================================================
+
+# Next.js build output (builder stage re-generates this)
+.next
+out/
+
+# Node modules (builder stage runs npm ci from scratch)
+node_modules
+
+# Test artefacts
+coverage/
+*.lcov
+e2e/
+playwright-report/
+test-results/
+
+# Environment files (NEVER bake secrets into images)
+.env
+.env.*
+*.env
+.env.local
+.env.development
+.env.production
+
+# Documentation
+*.md
+*.rst
+LICENSE
+CHANGELOG
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Docker files themselves
+Dockerfile*
+.dockerignore
+
+# Storybook / other tooling output
+storybook-static/
+.turbo/

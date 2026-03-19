@@ -1,0 +1,261 @@
+name: Weekly Security Scan
+
+on:
+  schedule:
+    # Monday at 9:00 AM UTC
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for manual trigger"
+        required: false
+        default: "Manual security audit"
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "20"
+
+jobs:
+  # ============================================================
+  # Job 1: Dependency Vulnerability Audit
+  # ============================================================
+  dependency-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── Backend: pip-audit ────────────────────────────────
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Backend dependency audit (pip-audit)
+        working-directory: backend
+        id: pip-audit
+        run: |
+          set +e
+          pip-audit \
+            --requirement requirements.txt \
+            --output json \
+            --format json \
+            > pip-audit-results.json
+          PIP_AUDIT_EXIT=$?
+          set -e
+
+          # Print a readable summary
+          pip-audit \
+            --requirement requirements.txt \
+            --desc on \
+            || true
+
+          echo "pip_audit_exit=$PIP_AUDIT_EXIT" >> $GITHUB_OUTPUT
+
+      - name: Upload pip-audit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit-results
+          path: backend/pip-audit-results.json
+          retention-days: 90
+
+      # ── Frontend: npm audit ───────────────────────────────
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --legacy-peer-deps
+
+      - name: Frontend dependency audit (npm audit)
+        working-directory: frontend
+        id: npm-audit
+        run: |
+          set +e
+          npm audit \
+            --json > npm-audit-results.json
+          NPM_AUDIT_EXIT=$?
+          set -e
+
+          # Print readable summary
+          npm audit --audit-level=moderate || true
+
+          echo "npm_audit_exit=$NPM_AUDIT_EXIT" >> $GITHUB_OUTPUT
+
+      - name: Upload npm audit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-results
+          path: frontend/npm-audit-results.json
+          retention-days: 90
+
+      # ── Container: Trivy full scan ────────────────────────
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image for scanning
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          target: production
+          push: false
+          load: true
+          tags: fortressflow/backend:security-scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trivy scan — backend image (all severities)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: fortressflow/backend:security-scan
+          format: sarif
+          output: trivy-backend-weekly.sarif
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          exit-code: "0"
+
+      - name: Upload Trivy backend SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-backend-weekly.sarif
+          category: trivy-backend-weekly
+
+      - name: Build frontend image for scanning
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: false
+          load: true
+          tags: fortressflow/frontend:security-scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trivy scan — frontend image (all severities)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: fortressflow/frontend:security-scan
+          format: sarif
+          output: trivy-frontend-weekly.sarif
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          exit-code: "0"
+
+      - name: Upload Trivy frontend SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-frontend-weekly.sarif
+          category: trivy-frontend-weekly
+
+      - name: Trivy scan — filesystem (source code)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-fs-weekly.sarif
+          severity: HIGH,CRITICAL
+          exit-code: "0"
+
+      - name: Upload Trivy filesystem SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-fs-weekly.sarif
+          category: trivy-filesystem-weekly
+
+      - name: Audit summary
+        if: always()
+        run: |
+          echo "### Weekly Dependency Audit Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Tool | Target | Exit Code |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|-----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| pip-audit | backend/requirements.txt | ${{ steps.pip-audit.outputs.pip_audit_exit || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| npm audit | frontend/package.json | ${{ steps.npm-audit.outputs.npm_audit_exit || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| trivy | backend image | see Security tab |" >> $GITHUB_STEP_SUMMARY
+          echo "| trivy | frontend image | see Security tab |" >> $GITHUB_STEP_SUMMARY
+          echo "| trivy | filesystem | see Security tab |" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================
+  # Job 2: Secret Scanning (Gitleaks)
+  # ============================================================
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+
+    steps:
+      - name: Checkout code (full history for secret detection)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Gitleaks — fast, configurable secret scanner
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+        with:
+          args: |
+            detect
+            --source .
+            --log-level warn
+            --redact
+            --no-git
+            --exit-code 1
+            --report-format sarif
+            --report-path gitleaks-report.sarif
+
+      - name: Upload Gitleaks SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: gitleaks-report.sarif
+          category: gitleaks
+
+      - name: Upload Gitleaks report artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.sarif
+          retention-days: 90
+
+      # TruffleHog — deep entropy + pattern-based scan
+      - name: Run TruffleHog (commit history scan)
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: |
+            --debug
+            --only-verified
+
+      - name: Secret scan summary
+        if: always()
+        run: |
+          echo "### Secret Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Scanner | Scope | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Gitleaks | Full repository | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| TruffleHog | Commit history | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> Check the Security tab for detailed findings." >> $GITHUB_STEP_SUMMARY
