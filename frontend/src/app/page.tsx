@@ -1,159 +1,179 @@
-import Link from "next/link";
-import { Users, Shield, Activity, TrendingUp } from "lucide-react";
+"use client";
 
-export default function Dashboard() {
-  const stats = [
+import Link from "next/link";
+import {
+  Users,
+  ShieldCheck,
+  Send,
+  TrendingUp,
+  Upload,
+  GitBranch,
+  ClipboardCheck,
+  AlertTriangle,
+  Activity,
+} from "lucide-react";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { useDashboardStats, useDeliverabilityStats } from "@/lib/hooks";
+
+const recentActivity = [
+  { id: 1, text: "New lead imported: jane@acme.com", time: "2 min ago", icon: Users },
+  { id: 2, text: "Sequence 'Q4 Outreach' enrolled 12 leads", time: "18 min ago", icon: GitBranch },
+  { id: 3, text: "Consent granted for john@corp.io (email)", time: "1 h ago", icon: ShieldCheck },
+  { id: 4, text: "Bounce detected: bad@invalid.net", time: "3 h ago", icon: AlertTriangle },
+  { id: 5, text: "Warmup completed for sales@example.com", time: "5 h ago", icon: Activity },
+];
+
+function StatSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
+      </CardHeader>
+      <CardContent>
+        <div className="h-8 w-16 bg-gray-200 rounded animate-pulse" />
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function DashboardPage() {
+  const { data: stats, isLoading: statsLoading, error: statsError } = useDashboardStats();
+  const { data: deliv, isLoading: delivLoading, error: delivError } = useDeliverabilityStats();
+
+  const statCards = [
+    { label: "Total Leads", value: stats?.total_leads, icon: Users, color: "text-blue-600 bg-blue-50" },
+    { label: "Active Consents", value: stats?.active_consents, icon: ShieldCheck, color: "text-green-600 bg-green-50" },
+    { label: "Touches Sent", value: stats?.touches_sent, icon: Send, color: "text-purple-600 bg-purple-50" },
     {
-      title: "Total Leads",
-      value: "0",
-      icon: Users,
-      color: "text-blue-600",
-      bg: "bg-blue-50",
-    },
-    {
-      title: "Consents Active",
-      value: "0",
-      icon: Shield,
-      color: "text-green-600",
-      bg: "bg-green-50",
-    },
-    {
-      title: "Touches Sent",
-      value: "0",
-      icon: Activity,
-      color: "text-purple-600",
-      bg: "bg-purple-50",
-    },
-    {
-      title: "Response Rate",
-      value: "0%",
+      label: "Response Rate",
+      value: stats?.response_rate != null ? `${(stats.response_rate * 100).toFixed(1)}%` : undefined,
       icon: TrendingUp,
-      color: "text-orange-600",
-      bg: "bg-orange-50",
+      color: "text-orange-600 bg-orange-50",
     },
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div className="flex items-center gap-3">
-            <Shield className="w-8 h-8 text-blue-600" />
-            <span className="text-xl font-bold text-gray-900">FortressFlow</span>
-          </div>
-          <div className="flex items-center gap-6 text-sm font-medium text-gray-600">
-            <Link href="/" className="text-blue-600">
-              Dashboard
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {statsLoading
+          ? Array.from({ length: 4 }).map((_, i) => <StatSkeleton key={i} />)
+          : statCards.map((s) => (
+              <Card key={s.label}>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardDescription className="text-sm font-medium">{s.label}</CardDescription>
+                  <div className={`p-2 rounded-lg ${s.color}`}>
+                    <s.icon className="h-4 w-4" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-bold">
+                    {statsError ? "—" : (s.value ?? "—")}
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">Recent Activity</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {recentActivity.map((a) => (
+              <div key={a.id} className="flex items-start gap-3">
+                <div className="p-1.5 rounded-md bg-gray-100 mt-0.5">
+                  <a.icon className="h-4 w-4 text-gray-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-gray-700 truncate">{a.text}</p>
+                  <p className="text-xs text-gray-400">{a.time}</p>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Deliverability Health</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {delivLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-4 bg-gray-200 rounded animate-pulse" />
+                ))}
+              </div>
+            ) : delivError ? (
+              <p className="text-sm text-red-500">Failed to load deliverability data.</p>
+            ) : deliv ? (
+              <>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Bounce Rate</span>
+                  <span className="font-medium">{(deliv.bounce_rate * 100).toFixed(1)}%</span>
+                </div>
+                <Progress value={Math.min(deliv.bounce_rate * 100, 100)} className="h-2" />
+
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Spam Rate</span>
+                  <span className="font-medium">{(deliv.spam_rate * 100).toFixed(1)}%</span>
+                </div>
+                <Progress value={Math.min(deliv.spam_rate * 100, 100)} className="h-2" />
+
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Emails Sent</span>
+                  <span className="font-medium">{deliv.total_sent.toLocaleString()}</span>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <Badge variant={deliv.warmup_active > 0 ? "default" : "secondary"}>
+                    {deliv.warmup_active} warming up
+                  </Badge>
+                  <Badge variant="outline">{deliv.warmup_completed} completed</Badge>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-gray-400">No data yet.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Quick Actions</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-3">
+          <Button asChild>
+            <Link href="/leads/import">
+              <Upload className="h-4 w-4 mr-2" />
+              Import Leads
             </Link>
-            <Link href="/leads">Leads</Link>
-            <Link href="/sequences">Sequences</Link>
-            <Link href="/compliance">Compliance</Link>
-            <Link href="/analytics">Analytics</Link>
-          </div>
-        </div>
-      </nav>
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-500 mt-1">
-            Compliance-first B2B outreach platform
-          </p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {stats.map((stat) => (
-            <div
-              key={stat.title}
-              className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-sm font-medium text-gray-500">
-                  {stat.title}
-                </span>
-                <div className={`p-2 rounded-lg ${stat.bg}`}>
-                  <stat.icon className={`w-5 h-5 ${stat.color}`} />
-                </div>
-              </div>
-              <div className="text-3xl font-bold text-gray-900">
-                {stat.value}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Quick Actions
-            </h2>
-            <div className="space-y-3">
-              <Link
-                href="/leads/import"
-                className="flex items-center gap-3 p-3 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors"
-              >
-                <Users className="w-5 h-5 text-blue-600" />
-                <div>
-                  <div className="font-medium text-blue-900">Import Leads</div>
-                  <div className="text-xs text-blue-600">
-                    Upload CSV with verified contacts
-                  </div>
-                </div>
-              </Link>
-              <Link
-                href="/sequences/new"
-                className="flex items-center gap-3 p-3 rounded-lg bg-purple-50 hover:bg-purple-100 transition-colors"
-              >
-                <Activity className="w-5 h-5 text-purple-600" />
-                <div>
-                  <div className="font-medium text-purple-900">
-                    Create Sequence
-                  </div>
-                  <div className="text-xs text-purple-600">
-                    Build a multi-touch outreach flow
-                  </div>
-                </div>
-              </Link>
-              <Link
-                href="/compliance"
-                className="flex items-center gap-3 p-3 rounded-lg bg-green-50 hover:bg-green-100 transition-colors"
-              >
-                <Shield className="w-5 h-5 text-green-600" />
-                <div>
-                  <div className="font-medium text-green-900">
-                    Compliance Check
-                  </div>
-                  <div className="text-xs text-green-600">
-                    Verify consent and DNC status
-                  </div>
-                </div>
-              </Link>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Compliance Status
-            </h2>
-            <div className="space-y-3">
-              {[
-                { label: "Email consent gate", status: "active" },
-                { label: "SMS consent gate", status: "active" },
-                { label: "LinkedIn consent gate", status: "active" },
-                { label: "DNC checks enabled", status: "active" },
-                { label: "Audit logging active", status: "active" },
-                { label: "One-click unsubscribe", status: "active" },
-              ].map((item) => (
-                <div
-                  key={item.label}
-                  className="flex items-center justify-between"
-                >
-                  <span className="text-sm text-gray-600">{item.label}</span>
-                  <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded-full">
-                    ✓ {item.status}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </main>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/sequences">
+              <GitBranch className="h-4 w-4 mr-2" />
+              Create Sequence
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/compliance">
+              <ClipboardCheck className="h-4 w-4 mr-2" />
+              Compliance Check
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -1,67 +1,235 @@
-import Link from "next/link";
-import { Shield, TrendingUp, BarChart2, Activity } from "lucide-react";
+"use client";
+
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RTooltip,
+  Legend,
+} from "recharts";
+import { useSequencesAnalytics } from "@/lib/hooks";
+
+/* ── mock time-series for response rate trends ───────── */
+const RESPONSE_TREND = [
+  { week: "W1", rate: 4.2 },
+  { week: "W2", rate: 5.1 },
+  { week: "W3", rate: 4.8 },
+  { week: "W4", rate: 6.3 },
+  { week: "W5", rate: 7.1 },
+  { week: "W6", rate: 6.8 },
+  { week: "W7", rate: 8.2 },
+  { week: "W8", rate: 7.5 },
+];
+
+/* ── mock channel breakdown ──────────────────────────── */
+const CHANNEL_DATA = [
+  { name: "Email", value: 65 },
+  { name: "LinkedIn", value: 25 },
+  { name: "SMS", value: 10 },
+];
+
+const CHANNEL_COLORS = ["#3b82f6", "#0ea5e9", "#22c55e"];
+
+function ChartSkeleton() {
+  return (
+    <div className="h-64 flex items-center justify-center">
+      <div className="h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
 export default function AnalyticsPage() {
+  const { data, isLoading, error } = useSequencesAnalytics();
+  const sequences = data?.sequences ?? [];
+
+  // build comparison chart data
+  const comparisonData = sequences.map((s) => ({
+    name: s.sequence_name.length > 18 ? s.sequence_name.slice(0, 18) + "…" : s.sequence_name,
+    enrolled: s.enrolled,
+    "Open %": +(s.open_rate * 100).toFixed(1),
+    "Reply %": +(s.reply_rate * 100).toFixed(1),
+    "Bounce %": +(s.bounce_rate * 100).toFixed(1),
+  }));
+
+  // top performers sorted by reply rate
+  const topPerformers = [...sequences].sort((a, b) => b.reply_rate - a.reply_rate).slice(0, 5);
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div className="flex items-center gap-3">
-            <Shield className="w-8 h-8 text-blue-600" />
-            <span className="text-xl font-bold text-gray-900">FortressFlow</span>
-          </div>
-          <div className="flex items-center gap-6 text-sm font-medium text-gray-600">
-            <Link href="/">Dashboard</Link>
-            <Link href="/leads">Leads</Link>
-            <Link href="/sequences">Sequences</Link>
-            <Link href="/compliance">Compliance</Link>
-            <Link href="/analytics" className="text-blue-600">
-              Analytics
-            </Link>
-          </div>
-        </div>
-      </nav>
+    <div className="space-y-6">
+      <h1 className="text-xl font-semibold">Analytics</h1>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
-          <p className="text-gray-500 mt-1">
-            Delivery rates, response rates, and compliance metrics
-          </p>
-        </div>
+      {error && (
+        <Card>
+          <CardContent className="py-8 text-center text-red-500 text-sm">
+            Failed to load analytics data. Please try again.
+          </CardContent>
+        </Card>
+      )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {[
-            { label: "Open Rate", value: "—", icon: Activity, color: "text-blue-600", bg: "bg-blue-50" },
-            { label: "Reply Rate", value: "—", icon: TrendingUp, color: "text-green-600", bg: "bg-green-50" },
-            { label: "Bounce Rate", value: "—", icon: BarChart2, color: "text-red-600", bg: "bg-red-50" },
-          ].map((stat) => (
-            <div
-              key={stat.label}
-              className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-sm font-medium text-gray-500">
-                  {stat.label}
-                </span>
-                <div className={`p-2 rounded-lg ${stat.bg}`}>
-                  <stat.icon className={`w-5 h-5 ${stat.color}`} />
-                </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* ── Sequence Performance Comparison ─────────── */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">Sequence Performance Comparison</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <ChartSkeleton />
+            ) : comparisonData.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-10">
+                No sequence data available yet.
+              </p>
+            ) : (
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={comparisonData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" fontSize={11} />
+                    <YAxis fontSize={12} />
+                    <RTooltip />
+                    <Legend />
+                    <Bar dataKey="Open %" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Reply %" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Bounce %" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
-              <div className="text-3xl font-bold text-gray-900">{stat.value}</div>
-              <p className="text-xs text-gray-400 mt-2">Connect backend to see live data</p>
-            </div>
-          ))}
-        </div>
+            )}
+          </CardContent>
+        </Card>
 
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm text-center">
-          <BarChart2 className="w-16 h-16 mx-auto mb-4 text-gray-200" />
-          <p className="text-gray-600 font-medium">Analytics data will appear here</p>
-          <p className="text-sm text-gray-400 mt-1">
-            Start sending sequences to track performance metrics
-          </p>
-        </div>
-      </main>
+        {/* ── Channel Breakdown PieChart ──────────────── */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Channel Breakdown</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={CHANNEL_DATA}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={90}
+                    label={({ name, percent }) =>
+                      `${name} ${(percent * 100).toFixed(0)}%`
+                    }
+                  >
+                    {CHANNEL_DATA.map((_, i) => (
+                      <Cell key={i} fill={CHANNEL_COLORS[i % CHANNEL_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <RTooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Response Rate Trends LineChart ──────────── */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Response Rate Trends</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={RESPONSE_TREND}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="week" fontSize={12} />
+                  <YAxis fontSize={12} unit="%" />
+                  <RTooltip formatter={(v: number) => `${v}%`} />
+                  <Line
+                    type="monotone"
+                    dataKey="rate"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    dot={{ r: 4 }}
+                    name="Response Rate"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Top Performing Sequences ──────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Top Performing Sequences</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-6 space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-8 bg-gray-100 rounded animate-pulse" />
+              ))}
+            </div>
+          ) : topPerformers.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-10">
+              No sequence performance data yet.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Sequence</TableHead>
+                  <TableHead className="text-right">Enrolled</TableHead>
+                  <TableHead className="text-right">Open Rate</TableHead>
+                  <TableHead className="text-right">Reply Rate</TableHead>
+                  <TableHead className="text-right">Bounce Rate</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {topPerformers.map((s) => (
+                  <TableRow key={s.sequence_id}>
+                    <TableCell className="font-medium">{s.sequence_name}</TableCell>
+                    <TableCell className="text-right">{s.enrolled}</TableCell>
+                    <TableCell className="text-right">
+                      {(s.open_rate * 100).toFixed(1)}%
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Badge variant={s.reply_rate >= 0.05 ? "default" : "secondary"}>
+                        {(s.reply_rate * 100).toFixed(1)}%
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {(s.bounce_rate * 100).toFixed(1)}%
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

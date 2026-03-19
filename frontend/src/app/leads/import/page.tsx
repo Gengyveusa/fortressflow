@@ -1,50 +1,92 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import Link from "next/link";
-import { Shield, Upload, FileText, CheckCircle, AlertCircle, ArrowLeft } from "lucide-react";
 import Papa from "papaparse";
+import { Upload, ArrowLeft, FileSpreadsheet, Check, AlertCircle } from "lucide-react";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { leadsApi } from "@/lib/api";
 
-const REQUIRED_COLUMNS = ["email"];
-const OPTIONAL_COLUMNS = ["first_name", "last_name", "company", "title", "phone", "source"];
-const ALL_COLUMNS = [...REQUIRED_COLUMNS, ...OPTIONAL_COLUMNS];
+const LEAD_FIELDS = [
+  { key: "skip", label: "— Skip —" },
+  { key: "email", label: "Email" },
+  { key: "first_name", label: "First Name" },
+  { key: "last_name", label: "Last Name" },
+  { key: "company", label: "Company" },
+  { key: "title", label: "Title" },
+  { key: "phone", label: "Phone" },
+  { key: "source", label: "Source" },
+];
 
-interface ParsedRow {
-  [key: string]: string;
-}
+type ImportStatus = "idle" | "parsed" | "importing" | "success" | "error";
 
-export default function ImportPage() {
+export default function LeadsImportPage() {
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<ParsedRow[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
-  const [columnMap, setColumnMap] = useState<Record<string, string>>({});
-  const [status, setStatus] = useState<"idle" | "parsing" | "ready" | "uploading" | "done" | "error">("idle");
-  const [message, setMessage] = useState("");
-  const dropRef = useRef<HTMLDivElement>(null);
+  const [rows, setRows] = useState<string[][]>([]);
+  const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [status, setStatus] = useState<ImportStatus>("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [importedCount, setImportedCount] = useState(0);
+  const [dragOver, setDragOver] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const parseFile = useCallback((f: File) => {
     setFile(f);
-    setStatus("parsing");
-    Papa.parse<ParsedRow>(f, {
-      header: true,
-      preview: 5,
-      complete: (results) => {
-        const cols = results.meta.fields ?? [];
-        setHeaders(cols);
-        setPreview(results.data);
-        // Auto-map columns with matching names
-        const map: Record<string, string> = {};
-        ALL_COLUMNS.forEach((col) => {
-          const match = cols.find((c) => c.toLowerCase().replace(/[\s-]/g, "_") === col);
-          if (match) map[col] = match;
+    setStatus("idle");
+    setErrorMsg("");
+
+    Papa.parse(f, {
+      header: false,
+      skipEmptyLines: true,
+      complete(results) {
+        const data = results.data as string[][];
+        if (data.length < 2) {
+          setErrorMsg("CSV must have a header row and at least one data row.");
+          return;
+        }
+        const hdrs = data[0];
+        setHeaders(hdrs);
+        setRows(data.slice(1));
+
+        // auto-map by header name similarity
+        const autoMap: Record<string, string> = {};
+        hdrs.forEach((h) => {
+          const lower = h.toLowerCase().replace(/[^a-z]/g, "");
+          const match = LEAD_FIELDS.find(
+            (f) => f.key !== "skip" && f.key.replace("_", "").includes(lower)
+          );
+          if (match) autoMap[h] = match.key;
         });
-        setColumnMap(map);
-        setStatus("ready");
+        setMapping(autoMap);
+        setStatus("parsed");
       },
-      error: () => {
-        setStatus("error");
-        setMessage("Failed to parse CSV. Please check the file format.");
+      error() {
+        setErrorMsg("Failed to parse CSV file.");
       },
     });
   }, []);
@@ -52,194 +94,208 @@ export default function ImportPage() {
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
+      setDragOver(false);
       const f = e.dataTransfer.files[0];
       if (f && f.name.endsWith(".csv")) parseFile(f);
+      else setErrorMsg("Please upload a .csv file.");
     },
     [parseFile]
   );
 
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) parseFile(f);
-  };
+  const handleFileInput = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const f = e.target.files?.[0];
+      if (f) parseFile(f);
+    },
+    [parseFile]
+  );
 
-  const handleUpload = async () => {
+  const handleImport = async () => {
     if (!file) return;
-    setStatus("uploading");
+    setStatus("importing");
+    setErrorMsg("");
     try {
       await leadsApi.import(file);
-      setStatus("done");
-      setMessage("Leads imported successfully!");
-    } catch {
+      setImportedCount(rows.length);
+      setStatus("success");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Import failed. Please try again.";
+      setErrorMsg(message);
       setStatus("error");
-      setMessage("Import failed. Please check the backend is running.");
     }
   };
 
+  const previewRows = rows.slice(0, 5);
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div className="flex items-center gap-3">
-            <Shield className="w-8 h-8 text-blue-600" />
-            <span className="text-xl font-bold text-gray-900">FortressFlow</span>
-          </div>
-          <div className="flex items-center gap-6 text-sm font-medium text-gray-600">
-            <Link href="/">Dashboard</Link>
-            <Link href="/leads" className="text-blue-600">Leads</Link>
-            <Link href="/sequences">Sequences</Link>
-            <Link href="/compliance">Compliance</Link>
-            <Link href="/analytics">Analytics</Link>
-          </div>
-        </div>
-      </nav>
-
-      <main className="max-w-4xl mx-auto px-6 py-8">
-        <div className="mb-6">
-          <Link href="/leads" className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-4">
-            <ArrowLeft className="w-4 h-4" />
-            Back to Leads
+    <div className="space-y-4 max-w-4xl">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="sm" asChild>
+          <Link href="/leads">
+            <ArrowLeft className="h-4 w-4 mr-1" /> Back to Leads
           </Link>
-          <h1 className="text-2xl font-bold text-gray-900">Import Leads</h1>
-          <p className="text-gray-500 mt-1">
-            Upload a CSV file with verified professional contacts. Only
-            legitimate B2B contacts should be imported.
-          </p>
-        </div>
+        </Button>
+      </div>
 
-        {/* Drop zone */}
-        {status === "idle" || status === "parsing" ? (
-          <div
-            ref={dropRef}
-            onDrop={handleDrop}
-            onDragOver={(e) => e.preventDefault()}
-            className="border-2 border-dashed border-gray-300 rounded-xl p-12 text-center hover:border-blue-400 transition-colors bg-white"
-          >
-            <Upload className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-            <p className="text-lg font-medium text-gray-700 mb-2">
-              Drop your CSV file here
-            </p>
-            <p className="text-sm text-gray-500 mb-4">
-              Required: <code className="bg-gray-100 px-1 rounded">email</code>{" "}
-              — Optional: first_name, last_name, company, title, phone, source
-            </p>
-            <label className="cursor-pointer bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">
-              Browse File
+      <h1 className="text-xl font-semibold">Import Leads</h1>
+
+      {/* Success State */}
+      {status === "success" && (
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="flex items-center gap-3 py-6">
+            <Check className="h-6 w-6 text-green-600" />
+            <div>
+              <p className="font-medium text-green-800">
+                Successfully imported {importedCount} leads!
+              </p>
+              <Link href="/leads" className="text-sm text-green-700 underline">
+                View your leads →
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Error State */}
+      {errorMsg && status !== "success" && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="flex items-center gap-3 py-4">
+            <AlertCircle className="h-5 w-5 text-red-500 shrink-0" />
+            <p className="text-sm text-red-700">{errorMsg}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Upload Zone */}
+      {status !== "success" && (
+        <Card>
+          <CardContent className="pt-6">
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              onClick={() => inputRef.current?.click()}
+              className={`border-2 border-dashed rounded-lg p-10 text-center cursor-pointer transition-colors ${
+                dragOver
+                  ? "border-blue-400 bg-blue-50"
+                  : "border-gray-300 hover:border-gray-400"
+              }`}
+            >
               <input
+                ref={inputRef}
                 type="file"
                 accept=".csv"
-                onChange={handleFileInput}
                 className="hidden"
+                onChange={handleFileInput}
               />
-            </label>
-          </div>
-        ) : null}
-
-        {/* Column mapping */}
-        {(status === "ready" || status === "uploading") && (
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-            <div className="p-4 border-b border-gray-200 flex items-center gap-3">
-              <FileText className="w-5 h-5 text-blue-600" />
-              <div>
-                <p className="font-medium text-gray-900">{file?.name}</p>
-                <p className="text-xs text-gray-500">
-                  {preview.length} rows previewed
-                </p>
-              </div>
+              <Upload className="h-10 w-10 text-gray-400 mx-auto mb-3" />
+              <p className="text-sm font-medium text-gray-600">
+                Drag & drop a CSV file here, or click to browse
+              </p>
+              <p className="text-xs text-gray-400 mt-1">Supports .csv files</p>
+              {file && (
+                <Badge variant="secondary" className="mt-3">
+                  <FileSpreadsheet className="h-3 w-3 mr-1" />
+                  {file.name} ({rows.length} rows)
+                </Badge>
+              )}
             </div>
+          </CardContent>
+        </Card>
+      )}
 
-            <div className="p-4">
-              <h3 className="font-medium text-gray-900 mb-3">Column Mapping</h3>
-              <div className="grid grid-cols-2 gap-3 mb-6">
-                {ALL_COLUMNS.map((col) => (
-                  <div key={col} className="flex items-center gap-3">
-                    <span className="text-sm text-gray-600 w-28 shrink-0">
-                      {col}
-                      {col === "email" && (
-                        <span className="text-red-500 ml-1">*</span>
-                      )}
-                    </span>
-                    <select
-                      value={columnMap[col] ?? ""}
-                      onChange={(e) =>
-                        setColumnMap((m) => ({ ...m, [col]: e.target.value }))
-                      }
-                      className="flex-1 border border-gray-200 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">— skip —</option>
-                      {headers.map((h) => (
-                        <option key={h} value={h}>
-                          {h}
-                        </option>
+      {/* Column Mapping */}
+      {(status === "parsed" || status === "importing") && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Map Columns</CardTitle>
+            <CardDescription>
+              Match your CSV columns to lead fields.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {headers.map((h) => (
+                <div key={h} className="flex items-center gap-3">
+                  <span className="text-sm font-medium text-gray-700 w-32 truncate">
+                    {h}
+                  </span>
+                  <Select
+                    value={mapping[h] ?? "skip"}
+                    onValueChange={(v) =>
+                      setMapping((prev) => ({ ...prev, [h]: v }))
+                    }
+                  >
+                    <SelectTrigger className="flex-1 h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LEAD_FIELDS.map((f) => (
+                        <SelectItem key={f.key} value={f.key}>
+                          {f.label}
+                        </SelectItem>
                       ))}
-                    </select>
-                  </div>
-                ))}
-              </div>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-              <h3 className="font-medium text-gray-900 mb-3">Preview (first 5 rows)</h3>
-              <div className="overflow-x-auto rounded-lg border border-gray-200 mb-6">
-                <table className="w-full text-xs">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      {headers.map((h) => (
-                        <th key={h} className="text-left px-3 py-2 font-medium text-gray-600">
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {preview.map((row, i) => (
-                      <tr key={i} className="border-t border-gray-100">
-                        {headers.map((h) => (
-                          <td key={h} className="px-3 py-2 text-gray-700">
-                            {row[h] ?? ""}
-                          </td>
-                        ))}
-                      </tr>
+      {/* Preview Table */}
+      {(status === "parsed" || status === "importing") && previewRows.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Preview (first 5 rows)</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0 overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {headers.map((h) => (
+                    <TableHead key={h} className="text-xs whitespace-nowrap">
+                      {h}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {previewRows.map((row, i) => (
+                  <TableRow key={i}>
+                    {row.map((cell, j) => (
+                      <TableCell key={j} className="text-xs whitespace-nowrap">
+                        {cell}
+                      </TableCell>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <button
-                onClick={handleUpload}
-                disabled={!columnMap["email"] || status === "uploading"}
-                className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {status === "uploading" ? "Uploading..." : "Import Leads"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {status === "done" && (
-          <div className="bg-white rounded-xl border border-green-200 p-6 text-center shadow-sm">
-            <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-600" />
-            <p className="text-lg font-medium text-gray-900">{message}</p>
-            <Link
-              href="/leads"
-              className="mt-4 inline-block bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+          <CardFooter className="justify-end gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setFile(null);
+                setHeaders([]);
+                setRows([]);
+                setMapping({});
+                setStatus("idle");
+              }}
             >
-              View Leads
-            </Link>
-          </div>
-        )}
-
-        {status === "error" && (
-          <div className="bg-white rounded-xl border border-red-200 p-6 text-center shadow-sm">
-            <AlertCircle className="w-12 h-12 mx-auto mb-3 text-red-500" />
-            <p className="text-lg font-medium text-gray-900">{message}</p>
-            <button
-              onClick={() => setStatus("idle")}
-              className="mt-4 bg-gray-100 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
-            >
-              Try Again
-            </button>
-          </div>
-        )}
-      </main>
+              Cancel
+            </Button>
+            <Button onClick={handleImport} disabled={status === "importing"}>
+              {status === "importing" ? "Importing…" : `Import ${rows.length} Leads`}
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
     </div>
   );
 }

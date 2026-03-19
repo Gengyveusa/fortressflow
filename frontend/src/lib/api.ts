@@ -5,17 +5,28 @@ const api = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+// ── Types ──────────────────────────────────────────────
+
 export interface Lead {
   id: string;
   email: string;
   phone?: string;
-  first_name?: string;
-  last_name?: string;
-  company?: string;
-  title?: string;
+  first_name: string;
+  last_name: string;
+  company: string;
+  title: string;
   source: string;
   meeting_verified: boolean;
+  proof_data?: Record<string, unknown> | null;
   created_at: string;
+  updated_at: string;
+}
+
+export interface LeadListResponse {
+  items: Lead[];
+  total: number;
+  page: number;
+  page_size: number;
 }
 
 export interface ComplianceCheck {
@@ -23,11 +34,112 @@ export interface ComplianceCheck {
   reason: string;
 }
 
+export interface SequenceStep {
+  id: string;
+  sequence_id: string;
+  step_type: string;
+  position: number;
+  config: Record<string, unknown> | null;
+  delay_hours: number;
+  created_at: string;
+}
+
+export interface Sequence {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  steps: SequenceStep[];
+  enrolled_count: number;
+}
+
+export interface SequenceListResponse {
+  items: Sequence[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface DashboardStats {
+  total_leads: number;
+  active_consents: number;
+  touches_sent: number;
+  response_rate: number;
+}
+
+export interface DeliverabilityStats {
+  total_sent: number;
+  total_bounced: number;
+  bounce_rate: number;
+  spam_complaints: number;
+  spam_rate: number;
+  warmup_active: number;
+  warmup_completed: number;
+}
+
+export interface SequencePerformance {
+  sequence_id: string;
+  sequence_name: string;
+  enrolled: number;
+  active: number;
+  completed: number;
+  open_rate: number;
+  reply_rate: number;
+  bounce_rate: number;
+}
+
+export interface Domain {
+  id: string;
+  domain: string;
+  health_score: number;
+  warmup_progress: number;
+  total_sent: number;
+  total_bounced: number;
+  created_at: string;
+}
+
+export interface WarmupStatus {
+  inbox_id: string;
+  date: string;
+  emails_sent: number;
+  emails_target: number;
+  bounce_rate: number;
+  spam_rate: number;
+  open_rate: number;
+  status: string;
+}
+
+export interface StepAnalytics {
+  step_position: number;
+  step_type: string;
+  sent: number;
+  opened: number;
+  replied: number;
+  bounced: number;
+}
+
+export interface SequenceAnalytics {
+  sequence_id: string;
+  total_enrolled: number;
+  active: number;
+  completed: number;
+  steps: StepAnalytics[];
+}
+
+export interface AuditTrail {
+  lead_id: string;
+  consents: Record<string, unknown>[];
+  touch_logs: Record<string, unknown>[];
+  dnc_records: Record<string, unknown>[];
+}
+
+// ── API Functions ──────────────────────────────────────
+
 export const leadsApi = {
-  list: (page = 1, limit = 20) =>
-    api.get<{ items: Lead[]; total: number; page: number; pages: number }>(
-      `/leads/?page=${page}&limit=${limit}`
-    ),
+  list: (page = 1, pageSize = 20) =>
+    api.get<LeadListResponse>(`/leads/?page=${page}&page_size=${pageSize}`),
   get: (id: string) => api.get<Lead>(`/leads/${id}`),
   create: (data: Partial<Lead>) => api.post<Lead>("/leads/", data),
   import: (file: File) => {
@@ -50,7 +162,38 @@ export const complianceApi = {
   ) => api.post("/compliance/consent", { lead_id, channel, method, proof }),
   revokeConsent: (lead_id: string, channel: string) =>
     api.post("/compliance/revoke", { lead_id, channel }),
-  audit: (lead_id: string) => api.get(`/compliance/audit/${lead_id}`),
+  audit: (lead_id: string) => api.get<AuditTrail>(`/compliance/audit/${lead_id}`),
+};
+
+export const sequencesApi = {
+  list: (page = 1, pageSize = 20) =>
+    api.get<SequenceListResponse>(`/sequences/?page=${page}&page_size=${pageSize}`),
+  get: (id: string) => api.get<Sequence>(`/sequences/${id}`),
+  create: (data: { name: string; description?: string; status?: string }) =>
+    api.post<Sequence>("/sequences/", data),
+  update: (id: string, data: { name?: string; description?: string; status?: string }) =>
+    api.put<Sequence>(`/sequences/${id}`, data),
+  delete: (id: string) => api.delete(`/sequences/${id}`),
+  addStep: (id: string, data: { step_type: string; position: number; config?: object; delay_hours?: number }) =>
+    api.post<SequenceStep>(`/sequences/${id}/steps`, data),
+  enroll: (id: string, lead_ids: string[]) =>
+    api.post(`/sequences/${id}/enroll`, { lead_ids }),
+  analytics: (id: string) =>
+    api.get<SequenceAnalytics>(`/sequences/${id}/analytics`),
+};
+
+export const analyticsApi = {
+  dashboard: () => api.get<DashboardStats>("/analytics/dashboard"),
+  deliverability: () => api.get<DeliverabilityStats>("/analytics/deliverability"),
+  sequences: () =>
+    api.get<{ sequences: SequencePerformance[] }>("/analytics/sequences"),
+};
+
+export const deliverabilityApi = {
+  listDomains: () => api.get<Domain[]>("/deliverability/domains"),
+  addDomain: (domain: string) =>
+    api.post<Domain>("/deliverability/domains", { domain }),
+  warmupStatus: () => api.get<WarmupStatus[]>("/deliverability/warmup"),
 };
 
 export default api;
