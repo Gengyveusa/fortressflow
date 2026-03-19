@@ -11,11 +11,16 @@ class Settings(BaseSettings):
     DAILY_SMS_LIMIT: int = 30
     DAILY_LINKEDIN_LIMIT: int = 25
     HUBSPOT_API_KEY: str = ""
+    HUBSPOT_APP_ID: str = ""
     ZOOMINFO_CLIENT_ID: str = ""
     ZOOMINFO_CLIENT_SECRET: str = ""
+    ZOOMINFO_API_KEY: str = ""
     APOLLO_API_KEY: str = ""
     SENTRY_DSN: str = ""
     ENVIRONMENT: str = "development"
+    ENRICHMENT_TTL_DAYS: int = 90
+    ZOOMINFO_RATE_LIMIT: int = 25
+    APOLLO_RATE_LIMIT: int = 50
 
     model_config = SettingsConfigDict(env_file=".env")
 

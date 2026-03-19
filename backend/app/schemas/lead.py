@@ -16,6 +16,8 @@ class LeadCreate(BaseModel):
     source: str = Field(..., min_length=1, max_length=100)
     meeting_verified: bool = False
     proof_data: dict[str, Any] | None = None
+    meeting_proof: dict[str, Any] | None = None
+    enriched_data: dict[str, Any] | None = None
 
     @field_validator("phone")
     @classmethod
@@ -39,6 +41,8 @@ class LeadUpdate(BaseModel):
     title: str | None = Field(None, min_length=1, max_length=255)
     meeting_verified: bool | None = None
     proof_data: dict[str, Any] | None = None
+    meeting_proof: dict[str, Any] | None = None
+    enriched_data: dict[str, Any] | None = None
 
 
 class LeadResponse(BaseModel):
@@ -52,6 +56,9 @@ class LeadResponse(BaseModel):
     source: str
     meeting_verified: bool
     proof_data: dict[str, Any] | None
+    meeting_proof: dict[str, Any] | None
+    enriched_data: dict[str, Any] | None
+    last_enriched_at: datetime | None
     created_at: datetime
     updated_at: datetime
 
@@ -63,6 +70,24 @@ class LeadListResponse(BaseModel):
     page: int
     page_size: int
     items: list[LeadResponse]
+
+
+class CSVImportResponse(BaseModel):
+    """Response from CSV import endpoint."""
+
+    total_rows: int
+    imported: int
+    skipped_dupes: int
+    errors: list[str] = Field(default_factory=list)
+
+
+class HubSpotSyncResponse(BaseModel):
+    """Response from HubSpot sync endpoint."""
+
+    total_contacts: int
+    synced: int
+    skipped: int
+    errors: list[str] = Field(default_factory=list)
 
 
 class TouchLogCreate(BaseModel):

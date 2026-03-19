@@ -11,7 +11,15 @@ from app.schemas.compliance import (
     UnsubscribeResponse,
 )
 from app.schemas.consent import ConsentCreate, ConsentResponse, ConsentRevoke
+from app.schemas.enrichment import (
+    ApolloPersonResponse,
+    EnrichmentRequest,
+    EnrichmentResult,
+    ZoomInfoPersonResponse,
+)
 from app.schemas.lead import (
+    CSVImportResponse,
+    HubSpotSyncResponse,
     LeadCreate,
     LeadListResponse,
     LeadResponse,
@@ -21,7 +29,9 @@ from app.schemas.lead import (
 )
 
 __all__ = [
+    "ApolloPersonResponse",
     "AuditTrailResponse",
+    "CSVImportResponse",
     "ComplianceCheckRequest",
     "ComplianceCheckResponse",
     "ConsentCreate",
@@ -32,6 +42,9 @@ __all__ = [
     "ConsentRevokeRequest",
     "ConsentRevokeResponse",
     "DNCAddRequest",
+    "EnrichmentRequest",
+    "EnrichmentResult",
+    "HubSpotSyncResponse",
     "LeadCreate",
     "LeadListResponse",
     "LeadResponse",
@@ -42,4 +55,5 @@ __all__ = [
     "TouchLogResponse",
     "UUIDMixin",
     "UnsubscribeResponse",
+    "ZoomInfoPersonResponse",
 ]
