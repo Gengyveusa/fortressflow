@@ -14,6 +14,7 @@ from app.models.sequence import (
 from app.models.template import Template, TemplateCategory, TemplateChannel
 from app.models.touch_log import TouchLog, TouchAction
 from app.models.warmup import WarmupConfig, WarmupQueue, WarmupSeedLog
+from app.models.chat import ChatLog
 
 __all__ = [
     "Consent",
@@ -38,4 +39,5 @@ __all__ = [
     "WarmupConfig",
     "WarmupQueue",
     "WarmupSeedLog",
+    "ChatLog",
 ]

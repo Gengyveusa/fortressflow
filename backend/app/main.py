@@ -1,5 +1,5 @@
 """
-FortressFlow API — main application entry point (v0.6.0)
+FortressFlow API — main application entry point (v0.7.0)
 
 Phase 6 additions:
   • SecurityHeadersMiddleware  — hardened HTTP response headers
@@ -8,6 +8,14 @@ Phase 6 additions:
   • RedisRateLimitMiddleware   — distributed sliding-window rate limiting with fallback
   • Structured JSON logging    — machine-readable log output for log aggregators
   • Sentry performance tracing — full-transaction traces with profiling
+
+Phase 7 additions:
+  • In-App AI Chatbot Assistant — streaming SSE chat with Groq/OpenAI LLMs
+  • Context injection from live DB (sequences, deliverability, leads)
+  • AI platform routing: HubSpot Breeze, ZoomInfo Copilot, Apollo AI
+  • Slash commands (/status, /warmup, /sequences, /compliance, etc.)
+  • Chat log persistence with audit trail
+  • Celery feedback loop for anonymized AI learning
 """
 
 from __future__ import annotations
@@ -95,7 +103,7 @@ if settings.SENTRY_DSN:
     sentry_sdk.init(
         dsn=settings.SENTRY_DSN,
         environment=settings.ENVIRONMENT,
-        release=f"fortressflow@0.6.0",
+        release=f"fortressflow@0.7.0",
         integrations=[
             StarletteIntegration(transaction_style="endpoint"),
             FastApiIntegration(transaction_style="endpoint"),
@@ -130,9 +138,10 @@ app = FastAPI(
     title="FortressFlow API",
     description=(
         "Ethical B2B lead-generation and multi-channel sequencer platform for the dental "
-        "and healthcare market. Built for Gengyve USA Inc."
+        "and healthcare market. Built for Gengyve USA Inc. "
+        "Phase 7 — In-App AI Chatbot Assistant."
     ),
-    version="0.6.0",
+    version="0.7.0",
     docs_url="/docs" if settings.ENVIRONMENT != "production" else None,
     redoc_url="/redoc" if settings.ENVIRONMENT != "production" else None,
     contact={
@@ -210,7 +219,7 @@ async def health_check() -> dict:
     """Liveness probe — returns 200 OK when the application is running."""
     return {
         "status": "ok",
-        "version": "0.6.0",
+        "version": "0.7.0",
         "environment": settings.ENVIRONMENT,
     }
 

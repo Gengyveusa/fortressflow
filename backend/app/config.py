@@ -109,6 +109,15 @@ class Settings(BaseSettings):
     MAX_TOUCH_RETRIES: int = 3
     RETRY_BACKOFF_MINUTES: int = 30
 
+    # ── Phase 7: AI Chatbot Assistant ────────────────────────────────────
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"  # Fast + capable
+    OPENAI_API_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-4o-mini"  # Fallback — cheap + fast
+    CHAT_MAX_TOKENS: int = 1024
+    CHAT_RATE_LIMIT_PER_MINUTE: int = 30
+    CHAT_HISTORY_RETENTION_DAYS: int = 90
+
     model_config = SettingsConfigDict(env_file=".env")
 
 

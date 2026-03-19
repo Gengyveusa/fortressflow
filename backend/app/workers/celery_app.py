@@ -44,6 +44,8 @@ celery_app.conf.update(
         "app.workers.tasks.execute_linkedin_queue_task": {"queue": "sequences"},
         "app.workers.tasks.push_ai_feedback_task": {"queue": "warmup"},
         "app.workers.tasks.aggregate_channel_metrics_task": {"queue": "warmup"},
+        # Phase 7: Chat feedback
+        "app.workers.tasks.push_chat_feedback_task": {"queue": "warmup"},
     },
     beat_schedule={
         # Enrichment: re-verify stale leads daily at 2 AM UTC

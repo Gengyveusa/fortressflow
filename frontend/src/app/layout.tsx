@@ -3,6 +3,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
+import { ChatAssistant } from "@/components/ChatAssistant";
 
 export const metadata: Metadata = {
   title: "FortressFlow — Ethical B2B Lead Generation",
@@ -25,6 +26,7 @@ export default function RootLayout({
               <main className="flex-1 p-6">{children}</main>
             </div>
           </div>
+          <ChatAssistant />
         </Providers>
       </body>
     </html>

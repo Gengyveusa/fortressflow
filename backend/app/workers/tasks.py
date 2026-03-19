@@ -667,6 +667,61 @@ def push_ai_feedback_task(self, sequence_id: str) -> dict:
         raise self.retry(exc=exc)
 
 
+# ── Phase 7: Chat Feedback + Topic Categorization ─────────────────────
+
+
+def _categorize_chat_topic(message: str) -> str:
+    """
+    Categorize a chat message into a topic bucket for analytics.
+
+    Returns one of: sequences, deliverability, leads, compliance, templates,
+    analytics, setup, general.
+    """
+    msg = message.lower()
+
+    if any(kw in msg for kw in ["sequence", "enroll", "outreach", "campaign"]):
+        return "sequences"
+
+    if any(kw in msg for kw in [
+        "warmup", "bounce", "spam", "deliverability", "inbox", "domain",
+        "reputation", "open rate",
+    ]):
+        return "deliverability"
+
+    if any(kw in msg for kw in ["lead", "import", "contact", "prospect", "csv"]):
+        return "leads"
+
+    if any(kw in msg for kw in ["compliance", "gdpr", "can-spam", "tcpa", "consent", "unsubscribe", "dnc"]):
+        return "compliance"
+
+    if any(kw in msg for kw in ["template", "email subject", "subject line", "copy", "write"]):
+        return "templates"
+
+    if any(kw in msg for kw in ["dashboard", "metric", "analytic", "report", "stat", "kpi"]):
+        return "analytics"
+
+    if any(kw in msg for kw in ["setup", "install", "configure", "start", "how do i", "getting started"]):
+        return "setup"
+
+    return "general"
+
+
+@celery_app.task(bind=True, max_retries=2, default_retry_delay=60)
+def push_chat_feedback_task(self, user_id: str, session_id: str, message: str, response: str) -> dict:
+    """
+    Push chat interaction feedback to AI platforms and analytics.
+
+    Categorizes the topic and sends anonymized feedback to improve
+    HubSpot Breeze / ZoomInfo Copilot / Apollo AI routing.
+    """
+    topic = _categorize_chat_topic(message)
+    logger.info(
+        "push_chat_feedback_task: user=%s session=%s topic=%s",
+        user_id, session_id, topic,
+    )
+    return {"topic": topic, "status": "logged"}
+
+
 @celery_app.task(bind=True, max_retries=1, default_retry_delay=300)
 def aggregate_channel_metrics_task(self) -> dict:
     """
@@ -702,3 +757,97 @@ def aggregate_channel_metrics_task(self) -> dict:
     except Exception as exc:
         logger.error("aggregate_channel_metrics_task failed: %s", exc)
         raise self.retry(exc=exc)
+
+
+# ── Phase 7: In-App AI Chatbot ────────────────────────────────────────
+
+
+@celery_app.task(bind=True, max_retries=2, default_retry_delay=120)
+def push_chat_feedback_task(
+    self,
+    session_id: str,
+    message: str,
+    response_snippet: str,
+    ai_sources: list[str],
+) -> dict:
+    """
+    Phase 7: Push anonymized chat interaction metrics to AI platforms
+    for bi-directional learning loops.
+
+    Strips PII before sending — only sends topic categories and engagement patterns.
+    """
+    async def _push():
+        from app.services.platform_ai_service import PlatformAIService
+
+        # Anonymize: categorize the message topic without sending raw content
+        topic = _categorize_chat_topic(message)
+
+        svc = PlatformAIService()
+        results = {}
+
+        # Push to HubSpot Breeze for engagement learning
+        if "hubspot_breeze" in ai_sources and settings.HUBSPOT_BREEZE_ENABLED:
+            try:
+                await svc.push_interaction_feedback(
+                    platform="hubspot",
+                    feedback_type="chat_interaction",
+                    data={
+                        "topic": topic,
+                        "session_id": session_id,
+                        "had_response": bool(response_snippet),
+                        "sources_used": ai_sources,
+                    },
+                )
+                results["hubspot"] = "pushed"
+            except Exception as e:
+                logger.warning("HubSpot chat feedback failed: %s", e)
+                results["hubspot"] = f"failed: {e}"
+
+        # Push to Apollo AI for recommendation improvement
+        if "apollo_ai" in ai_sources and settings.APOLLO_AI_ENABLED:
+            try:
+                await svc.push_interaction_feedback(
+                    platform="apollo",
+                    feedback_type="chat_interaction",
+                    data={
+                        "topic": topic,
+                        "session_id": session_id,
+                        "sources_used": ai_sources,
+                    },
+                )
+                results["apollo"] = "pushed"
+            except Exception as e:
+                logger.warning("Apollo chat feedback failed: %s", e)
+                results["apollo"] = f"failed: {e}"
+
+        return results
+
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    return loop.run_until_complete(_push())
+
+
+def _categorize_chat_topic(message: str) -> str:
+    """Categorize chat message into broad topics for anonymized feedback."""
+    msg_lower = message.lower()
+    if any(kw in msg_lower for kw in ["sequence", "outreach", "campaign", "step"]):
+        return "sequences"
+    if any(kw in msg_lower for kw in ["warmup", "warm up", "deliverability", "bounce", "spam"]):
+        return "deliverability"
+    if any(kw in msg_lower for kw in ["lead", "import", "contact", "enrich"]):
+        return "leads"
+    if any(kw in msg_lower for kw in ["reply", "response", "inbox"]):
+        return "replies"
+    if any(kw in msg_lower for kw in ["complian", "consent", "gdpr", "can-spam", "tcpa"]):
+        return "compliance"
+    if any(kw in msg_lower for kw in ["template", "email", "content", "subject"]):
+        return "templates"
+    if any(kw in msg_lower for kw in ["analytic", "metric", "dashboard", "report"]):
+        return "analytics"
+    if any(kw in msg_lower for kw in ["setup", "config", "install", "deploy", "start"]):
+        return "setup"
+    return "general"

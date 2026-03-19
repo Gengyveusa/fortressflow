@@ -445,4 +445,45 @@ export const presetsApi = {
   deploy: (index: number) => api.post<PresetDeployResult>(`/presets/${index}/deploy`),
 };
 
+// ── Phase 7: Chat API ────────────────────────────────────────
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  timestamp: string;
+  sources?: string[];
+}
+
+export interface ChatHistoryItem {
+  id: string;
+  message: string;
+  response: string;
+  ai_sources: string[];
+  created_at: string;
+}
+
+export interface ChatHistoryResponse {
+  items: ChatHistoryItem[];
+  total: number;
+  session_id: string;
+}
+
+export const chatApi = {
+  // Streaming endpoint — use fetch directly for SSE
+  sendMessage: (message: string, session_id?: string) => {
+    return fetch("/api/v1/chat/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, session_id }),
+    });
+  },
+  // Non-streaming endpoint
+  sendMessageSync: (message: string, session_id?: string) =>
+    api.post("/chat/sync", { message, session_id }),
+  // Get history
+  getHistory: (session_id: string) =>
+    api.get<ChatHistoryResponse>(`/chat/history?session_id=${session_id}`),
+};
+
 export default api;

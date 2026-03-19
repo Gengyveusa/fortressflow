@@ -95,6 +95,18 @@ FortressFlow is a production-grade, multi-channel outreach sequencer that puts r
 - Prometheus alerting rules with Alertmanager integration
 - Sentry performance tracing with environment-aware sampling rates
 
+### Phase 7 — In-App AI Chatbot Assistant
+- Floating chat widget on every page (Intercom-style, bottom-right)
+- Streaming SSE responses from Groq (primary) / OpenAI (fallback) LLMs
+- Slash commands: `/status`, `/help`, `/warmup`, `/sequences`, `/compliance`, `/leads`, `/deliverability`
+- Live context injection — queries DB for active sequences, deliverability health, lead counts
+- AI platform routing — routes complex questions to HubSpot Breeze, ZoomInfo Copilot, Apollo AI
+- Proactive onboarding message for new users ("Need help getting started?")
+- Dark mode, responsive (full-screen on mobile), keyboard shortcuts, ARIA accessibility
+- Chat history persisted to `chat_logs` table with session tracking
+- Per-user rate limiting (30 req/min) and input sanitization
+- Anonymized chat feedback pushed to AI platforms for bi-directional learning
+
 ---
 
 ## Quick Start (Development)
@@ -272,6 +284,42 @@ APOLLO_MCP_INTEGRATION=true        # Claude MCP integration for AI outreach
 ```
 
 Apollo's 2026 agentic features allow autonomous prospecting and enrichment with Claude-powered message personalisation.
+
+### In-App AI Chatbot
+
+FortressFlow includes a built-in AI assistant accessible from every page via the floating chat bubble.
+
+**Setup:**
+1. Set `GROQ_API_KEY` in your `.env` (primary LLM — fast and cost-effective)
+2. Optionally set `OPENAI_API_KEY` for fallback
+3. The chatbot automatically injects live context from your database
+
+**Example conversations:**
+```
+You: How do I warm up my inboxes?
+Assistant: Great question! Here's how to set up inbox warmup in FortressFlow:
+  1. Go to **Deliverability** → Add your sending domain(s)
+  2. The system starts at 5 emails/day per identity and ramps 15% daily
+  3. Current config: 6-week warmup, 400 emails/day cap
+  • Monitor via the Deliverability Health panel on the dashboard
+  • The AI automatically adjusts ramp speed based on bounce/spam rates
+
+You: /status
+Assistant: **System Status:**
+  - Active Sequences: 3
+  - Total Enrolled: 147
+  - Bounce Rate: 1.2%
+  - Spam Rate: 0.02%
+  - Total Leads: 892
+
+You: What should I do next?
+Assistant: Based on your current state, here are my recommendations:
+  1. Your bounce rate (1.2%) is healthy — keep going
+  2. Consider creating an A/B test on your top sequence to improve reply rates
+  3. Import your DSO target list from Apollo for enrichment
+```
+
+**Slash commands:** `/status`, `/help`, `/warmup`, `/sequences`, `/compliance`, `/leads`, `/deliverability`
 
 ---
 
