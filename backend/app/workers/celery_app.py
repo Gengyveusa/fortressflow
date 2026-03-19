@@ -1,4 +1,5 @@
 from celery import Celery
+from celery.schedules import crontab
 
 from app.config import settings
 
@@ -20,7 +21,16 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     task_routes={
         "app.workers.tasks.process_lead_enrichment": {"queue": "enrichment"},
+        "app.workers.tasks.enrich_lead_task": {"queue": "enrichment"},
+        "app.workers.tasks.bulk_enrich_task": {"queue": "enrichment"},
+        "app.workers.tasks.re_verify_stale_leads": {"queue": "enrichment"},
         "app.workers.tasks.send_sequence_step": {"queue": "sequences"},
         "app.workers.tasks.run_warmup_step": {"queue": "warmup"},
+    },
+    beat_schedule={
+        "re-verify-stale-leads-daily": {
+            "task": "app.workers.tasks.re_verify_stale_leads",
+            "schedule": crontab(hour=2, minute=0),  # Run daily at 2:00 AM UTC
+        },
     },
 )

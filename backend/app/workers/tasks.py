@@ -6,8 +6,10 @@ All tasks that send messages MUST call can_send_to_lead before dispatching.
 
 import asyncio
 import logging
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+from app.config import settings
 from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -17,33 +19,114 @@ logger = logging.getLogger(__name__)
 def process_lead_enrichment(self, lead_id: str) -> dict:
     """
     Enrich a lead via ZoomInfo (primary) / Apollo (fallback).
-    Stores the result in leads.proof_data.
+    Stores the result in leads.enriched_data.
     """
     async def _enrich():
         from app.database import AsyncSessionLocal
-        from app.models.lead import Lead
         from app.services.enrichment import EnrichmentService
-        from sqlalchemy import select
 
         async with AsyncSessionLocal() as db:
-            result = await db.execute(select(Lead).where(Lead.id == UUID(lead_id)))
-            lead = result.scalar_one_or_none()
-            if lead is None:
-                logger.warning("process_lead_enrichment: lead %s not found", lead_id)
-                return {"status": "lead_not_found"}
-
             svc = EnrichmentService()
-            data = await svc.enrich_lead(lead.email)
-            if data:
-                lead.proof_data = data
-                await db.commit()
-                logger.info("Enriched lead %s via %s", lead_id, data.get("source"))
-            return {"status": "ok", "source": data.get("source", "none")}
+            result = await svc.enrich_lead(UUID(lead_id), db)
+            await db.commit()
+            return result
 
     try:
         return asyncio.run(_enrich())
     except Exception as exc:
         logger.error("process_lead_enrichment failed for %s: %s", lead_id, exc)
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
+def enrich_lead_task(self, lead_id: str) -> dict:
+    """Celery task wrapping enrichment_service.enrich_lead.
+
+    Alias for process_lead_enrichment for Phase 2 naming consistency.
+    """
+    return process_lead_enrichment(lead_id)
+
+
+@celery_app.task(bind=True, max_retries=2, default_retry_delay=120)
+def bulk_enrich_task(self, lead_ids: list[str]) -> dict:
+    """Batch enrichment of multiple leads with rate limiting.
+
+    Processes leads sequentially to respect external API rate limits.
+    """
+    async def _bulk_enrich():
+        from app.database import AsyncSessionLocal
+        from app.services.enrichment import EnrichmentService
+
+        results = {"enriched": 0, "failed": 0, "skipped": 0}
+        svc = EnrichmentService()
+
+        async with AsyncSessionLocal() as db:
+            for lid in lead_ids:
+                try:
+                    result = await svc.enrich_lead(UUID(lid), db)
+                    if result.get("success"):
+                        results["enriched"] += 1
+                    else:
+                        results["skipped"] += 1
+                except Exception as exc:
+                    logger.error("bulk_enrich: failed for %s: %s", lid, exc)
+                    results["failed"] += 1
+            await db.commit()
+        return results
+
+    try:
+        return asyncio.run(_bulk_enrich())
+    except Exception as exc:
+        logger.error("bulk_enrich_task failed: %s", exc)
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(bind=True, max_retries=1, default_retry_delay=300)
+def re_verify_stale_leads(self) -> dict:
+    """Find leads where last_enriched_at > 90 days ago and re-enrich them.
+
+    Runs as a periodic Celery Beat task.
+    """
+    async def _re_verify():
+        from app.database import AsyncSessionLocal
+        from app.models.lead import Lead
+        from app.services.enrichment import EnrichmentService
+        from sqlalchemy import or_, select
+
+        cutoff = datetime.now(UTC) - timedelta(days=settings.ENRICHMENT_TTL_DAYS)
+        svc = EnrichmentService()
+        results = {"re_enriched": 0, "failed": 0, "total_stale": 0}
+
+        async with AsyncSessionLocal() as db:
+            stmt = select(Lead).where(
+                or_(
+                    Lead.last_enriched_at < cutoff,
+                    Lead.last_enriched_at.is_(None),
+                )
+            ).limit(500)  # Process in batches to avoid overloading
+            result = await db.execute(stmt)
+            stale_leads = result.scalars().all()
+            results["total_stale"] = len(stale_leads)
+
+            for lead in stale_leads:
+                try:
+                    enrich_result = await svc.enrich_lead(lead.id, db)
+                    if enrich_result.get("success"):
+                        results["re_enriched"] += 1
+                    else:
+                        results["failed"] += 1
+                except Exception as exc:
+                    logger.error("re_verify: failed for %s: %s", lead.id, exc)
+                    results["failed"] += 1
+
+            await db.commit()
+        logger.info("re_verify_stale_leads: %s", results)
+        return results
+
+    try:
+        return asyncio.run(_re_verify())
+    except Exception as exc:
+        logger.error("re_verify_stale_leads failed: %s", exc)
         raise self.retry(exc=exc)
 
 
@@ -100,7 +183,7 @@ def run_warmup_step(self, inbox_id: str) -> dict:
     Increments emails_sent and evaluates health metrics.
     """
     async def _warmup():
-        from datetime import UTC, date
+        from datetime import date
         from app.database import AsyncSessionLocal
         from app.models.warmup import WarmupQueue
         from sqlalchemy import select, and_

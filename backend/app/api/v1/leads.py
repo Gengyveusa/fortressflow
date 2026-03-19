@@ -1,5 +1,7 @@
 import csv
 import io
+import logging
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
@@ -10,12 +12,17 @@ from app.database import get_db
 from app.models.lead import Lead
 from app.models.touch_log import TouchLog, TouchAction
 from app.schemas.lead import (
+    CSVImportResponse,
+    HubSpotSyncResponse,
     LeadCreate,
     LeadListResponse,
     LeadResponse,
     TouchLogCreate,
     TouchLogResponse,
 )
+from app.services.email_validator import normalize_email
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
@@ -26,7 +33,9 @@ async def create_lead(
     db: AsyncSession = Depends(get_db),
 ) -> LeadResponse:
     """Create a new lead."""
-    result = await db.execute(select(Lead).where(Lead.email == body.email))
+    result = await db.execute(
+        select(Lead).where(func.lower(Lead.email) == body.email.lower())
+    )
     if result.scalar_one_or_none() is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
     lead = Lead(**body.model_dump())
@@ -60,51 +69,174 @@ async def list_leads(
     )
 
 
-@router.post("/import/csv", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/import/csv", response_model=CSVImportResponse, status_code=status.HTTP_200_OK)
 async def import_leads_csv(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-) -> dict:
-    """
-    Bulk-import leads from a CSV file.
-    Required columns: email, first_name, last_name, company, title, source.
+) -> CSVImportResponse:
+    """Bulk-import leads from a CSV file.
+
+    Required columns: email, first_name, last_name (minimum).
+    Optional: company, title, phone, source.
+    Deduplication by email (case-insensitive). Idempotent — re-running skips existing leads.
     """
     if not file.filename or not file.filename.endswith(".csv"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Only CSV files are accepted"
         )
     content = await file.read()
-    reader = csv.DictReader(io.StringIO(content.decode("utf-8")))
-    required = {"email", "first_name", "last_name", "company", "title", "source"}
-    created = 0
-    skipped = 0
+    try:
+        decoded = content.decode("utf-8")
+    except UnicodeDecodeError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="File must be UTF-8 encoded"
+        )
+
+    reader = csv.DictReader(io.StringIO(decoded))
+    required = {"email", "first_name", "last_name"}
+
+    # Validate required columns exist in header
+    if reader.fieldnames is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="CSV file is empty or malformed"
+        )
+    missing_cols = required - set(reader.fieldnames)
+    if missing_cols:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"CSV missing required columns: {missing_cols}",
+        )
+
+    total_rows = 0
+    imported = 0
+    skipped_dupes = 0
     errors: list[str] = []
 
     for row_num, row in enumerate(reader, start=2):
-        missing = required - set(row.keys())
-        if missing:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"CSV missing required columns: {missing}",
-            )
+        total_rows += 1
+
+        email_raw = (row.get("email") or "").strip()
+        if not email_raw:
+            errors.append(f"Row {row_num}: missing email")
+            continue
+
         try:
-            data = LeadCreate(**{k: v for k, v in row.items() if v})
+            email_normalized = normalize_email(email_raw)
+        except ValueError as exc:
+            errors.append(f"Row {row_num}: {exc}")
+            continue
+
+        # Dedupe by email (case-insensitive)
+        existing = await db.execute(
+            select(Lead).where(func.lower(Lead.email) == email_normalized.lower())
+        )
+        if existing.scalar_one_or_none() is not None:
+            skipped_dupes += 1
+            continue
+
+        # Build lead data with defaults for optional fields
+        try:
+            lead = Lead(
+                email=email_normalized,
+                first_name=(row.get("first_name") or "").strip(),
+                last_name=(row.get("last_name") or "").strip(),
+                company=(row.get("company") or "Unknown").strip(),
+                title=(row.get("title") or "Unknown").strip(),
+                phone=(row.get("phone") or "").strip() or None,
+                source="csv_upload",
+                meeting_verified=False,
+            )
+            db.add(lead)
+            imported += 1
         except Exception as exc:
             errors.append(f"Row {row_num}: {exc}")
-            skipped += 1
             continue
-
-        existing = await db.execute(select(Lead).where(Lead.email == data.email))
-        if existing.scalar_one_or_none() is not None:
-            skipped += 1
-            continue
-
-        lead = Lead(**data.model_dump())
-        db.add(lead)
-        created += 1
 
     await db.flush()
-    return {"created": created, "skipped": skipped, "errors": errors}
+    logger.info("CSV import: %d total, %d imported, %d dupes, %d errors", total_rows, imported, skipped_dupes, len(errors))
+    return CSVImportResponse(
+        total_rows=total_rows,
+        imported=imported,
+        skipped_dupes=skipped_dupes,
+        errors=errors,
+    )
+
+
+@router.post("/import/hubspot", response_model=HubSpotSyncResponse, status_code=status.HTTP_200_OK)
+async def import_leads_hubspot(
+    db: AsyncSession = Depends(get_db),
+) -> HubSpotSyncResponse:
+    """Pull contacts from HubSpot CRM and sync to local leads table.
+
+    Deduplication by email (case-insensitive).
+    Source is set to "hubspot_sync". Never overwrites consent status.
+    """
+    from app.services.hubspot import HubSpotService
+
+    hs = HubSpotService()
+    contacts = await hs.pull_contacts_from_hubspot()
+
+    total_contacts = len(contacts)
+    synced = 0
+    skipped = 0
+    errors: list[str] = []
+
+    for contact in contacts:
+        email_raw = (contact.get("email") or "").strip()
+        if not email_raw:
+            errors.append(f"Contact missing email: {contact.get('hs_object_id', 'unknown')}")
+            continue
+
+        try:
+            email_normalized = normalize_email(email_raw)
+        except ValueError:
+            errors.append(f"Invalid email: {email_raw}")
+            continue
+
+        # Dedupe by email (case-insensitive)
+        result = await db.execute(
+            select(Lead).where(func.lower(Lead.email) == email_normalized.lower())
+        )
+        existing_lead = result.scalar_one_or_none()
+
+        if existing_lead is not None:
+            # Update enriched_data if HubSpot data is newer, but never overwrite consent
+            if existing_lead.enriched_data is None:
+                existing_lead.enriched_data = {
+                    "source": "hubspot_sync",
+                    "data": contact,
+                    "enriched_at": datetime.now(UTC).isoformat(),
+                }
+                existing_lead.last_enriched_at = datetime.now(UTC)
+            skipped += 1
+            continue
+
+        # Create new lead
+        try:
+            lead = Lead(
+                email=email_normalized,
+                first_name=(contact.get("firstname") or "Unknown").strip(),
+                last_name=(contact.get("lastname") or "Unknown").strip(),
+                company=(contact.get("company") or "Unknown").strip(),
+                title=(contact.get("jobtitle") or "Unknown").strip(),
+                phone=(contact.get("phone") or "").strip() or None,
+                source="hubspot_sync",
+                meeting_verified=False,
+            )
+            db.add(lead)
+            synced += 1
+        except Exception as exc:
+            errors.append(f"Error syncing {email_raw}: {exc}")
+            continue
+
+    await db.flush()
+    logger.info("HubSpot sync: %d total, %d synced, %d skipped, %d errors", total_contacts, synced, skipped, len(errors))
+    return HubSpotSyncResponse(
+        total_contacts=total_contacts,
+        synced=synced,
+        skipped=skipped,
+        errors=errors,
+    )
 
 
 @router.get("/{lead_id}", response_model=LeadResponse)
