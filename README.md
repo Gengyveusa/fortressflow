@@ -1,708 +1,469 @@
-# FortressFlow
+# FortressFlow — Ethical B2B Lead Generation Platform
 
-Production-ready ethical B2B lead-gen + multi-channel sequencer platform with compliance-first architecture.
+> **Compliance-first B2B outreach automation for the dental and healthcare market.**
+> Built and operated by [Gengyve USA Inc.](https://gengyveusa.com)
 
-## Overview
+FortressFlow is a production-grade, multi-channel outreach sequencer that puts regulatory compliance, sender reputation, and data ethics at the centre of every design decision. It is purpose-built for dental practices, DSOs, and healthcare organisations that need to reach decision-makers without compromising on CAN-SPAM, GDPR, TCPA, or CCPA obligations.
 
-FortressFlow is a legitimate B2B outreach tool — NOT a blackhat scraper. All leads come from user-uploaded/verified sources only (ZoomInfo/Apollo enrichment + professional meeting notes). Every outreach channel is gated behind explicit consent verification.
+---
 
-## Tech Stack
+## Architecture
 
-- **Backend**: Python 3.12 + FastAPI (async)
-- **Database**: PostgreSQL 16 + Redis 7 (queues/rate limits)
-- **Workers**: Celery + RabbitMQ
-- **Frontend**: Next.js 15 (App Router) + React Flow + Tailwind CSS + shadcn/ui
-- **Auth**: NextAuth
-- **Infra**: Docker + docker-compose
-- **Monitoring**: Sentry + Prometheus + Grafana
-- **AI Platforms**: HubSpot Breeze AI + ZoomInfo Copilot + Apollo AI (2026)
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                           External Traffic                           │
+└───────────────────────────────────┬──────────────────────────────────┘
+                                    │ HTTPS :443
+                             ┌──────▼──────┐
+                             │    Nginx    │  SSL termination / reverse proxy
+                             └──────┬──────┘
+                    ┌───────────────┼────────────────┐
+                    │               │                │
+             ┌──────▼──────┐ ┌──────▼──────┐  ┌──────▼──────┐
+             │  Frontend   │ │   Backend   │  │  Prometheus  │
+             │ (Next.js)   │ │  (FastAPI)  │  │  + Grafana   │
+             │   :3000     │ │   :8000     │  │  :9090/:3000 │
+             └─────────────┘ └──────┬──────┘  └─────────────┘
+                                    │
+              ┌─────────────────────┼───────────────────────┐
+              │                     │                       │
+       ┌──────▼──────┐      ┌───────▼──────┐        ┌──────▼──────┐
+       │ PostgreSQL  │      │    Redis     │        │  RabbitMQ   │
+       │   :5432     │      │   :6379      │        │   :5672     │
+       └─────────────┘      └─────────────┘        └──────┬──────┘
+                                                           │
+                                                    ┌──────▼──────┐
+                                                    │    Celery   │
+                                                    │   Workers   │
+                                                    └──────┬──────┘
+                                         ┌─────────────────┼────────────────┐
+                                         │                 │                │
+                                  ┌──────▼──────┐  ┌───────▼──────┐ ┌──────▼───────┐
+                                  │  AWS SES    │  │   Twilio     │ │  LinkedIn    │
+                                  │  (Email)    │  │   (SMS)      │ │  (Outreach)  │
+                                  └─────────────┘  └──────────────┘ └──────────────┘
+```
 
-## Quick Start
+---
+
+## Features
+
+### Phase 1 — Compliance & Consent Engine
+- Consent record management with timestamped audit trail
+- Unsubscribe link generation using HMAC-signed tokens
+- Suppression list management (global + per-campaign)
+- GDPR right-to-erasure and data-portability endpoints
+- CAN-SPAM physical address injection into all outgoing emails
+- TCPA time-of-day enforcement (8 am–9 pm recipient local time)
+
+### Phase 2 — Lead Import & Enrichment
+- CSV bulk import with validation and deduplication
+- Waterfall enrichment via ZoomInfo → Apollo → HubSpot
+- Enrichment TTL (90 days default) with automatic stale-data refresh
+- Lead scoring using configurable weighted attribute rules
+- HubSpot CRM bi-directional sync
+
+### Phase 3 — Deliverability Fortress
+- Dedicated sending subdomain with SPF/DKIM/DMARC/BIMI configuration
+- AWS SES dedicated IP pool with per-identity warm-up ramp (15 % daily increase, starting from 5 emails/identity/day)
+- Automated bounce and spam-complaint monitoring with circuit-breaker pause (>5 % bounce, >0.1 % spam)
+- Inbox rotation across up to 10 sending identities
+- SES Configuration Set event tracking for opens, clicks, bounces, and complaints
+
+### Phase 4 — Sequence Engine & Visual Builder
+- Multi-step email sequences with delay rules and branching
+- Drag-and-drop sequence builder (React Flow)
+- Conditional branching on open, click, reply, and bounce events
+- Per-contact enrollment tracking with status lifecycle (active → completed / failed / paused)
+- A/B variant support at each sequence step
+
+### Phase 5 — Multi-Channel Outreach & Reply Detection
+- Unified channel orchestrator: Email + SMS (Twilio) + LinkedIn
+- IMAP-based reply detection with intelligent auto-reply filtering
+- Global daily send caps (400 emails, 30 SMS, 25 LinkedIn touches)
+- Channel-level retry logic with configurable back-off
+- Webhook listeners for SES events, Twilio status callbacks, and LinkedIn OAuth
+
+### Phase 6 — Production Hardening
+- Distributed Redis-backed sliding-window rate limiting with per-endpoint policies
+- Security headers middleware (CSP, HSTS, X-Frame-Options, etc.)
+- CSRF double-submit cookie protection
+- Request body size enforcement (10 MB maximum)
+- Suspicious user-agent blocking (sqlmap, nikto, masscan, etc.)
+- Structured JSON logging (production) / pretty text logging (development)
+- Full Grafana observability dashboard (request metrics, email delivery KPIs, infrastructure)
+- Prometheus alerting rules with Alertmanager integration
+- Sentry performance tracing with environment-aware sampling rates
+
+---
+
+## Quick Start (Development)
 
 ### Prerequisites
-- Docker & docker-compose
-- Node.js 20+ (for local frontend development)
-- Python 3.12+ (for local backend development)
+- Docker ≥ 24 and Docker Compose v2
+- Git
 
-### 1. Clone and Configure
+### Start all services
 
 ```bash
-git clone https://github.com/Gengyveusa/fortressflow.git
+git clone https://github.com/gengyveusa/fortressflow.git
 cd fortressflow
-cp .env.example .env
-# Edit .env and set secure values for SECRET_KEY and UNSUBSCRIBE_HMAC_KEY
+cp .env.example .env          # fill in your API keys
+docker compose up -d
 ```
 
-### 2. Start All Services
+### Run database migrations
 
 ```bash
-docker-compose up -d
+docker compose exec backend alembic upgrade head
 ```
 
-This starts:
-- PostgreSQL on port 5432
-- Redis on port 6379
-- RabbitMQ on ports 5672 + 15672 (management UI)
-- FastAPI backend on port 8000
-- Celery worker
-- Next.js frontend on port 3000
-- Prometheus on port 9090
-- Grafana on port 3001
-
-### 3. Run Migrations
+### Seed development data
 
 ```bash
-docker-compose exec backend alembic upgrade head
+docker compose exec backend python -m scripts.seed_dev
 ```
 
-### 4. Access the Platform
+### Access the services
 
-- **Frontend**: http://localhost:3000
-- **API Docs**: http://localhost:8000/docs
-- **RabbitMQ**: http://localhost:15672 (fortressflow/fortressflow_dev)
-- **Grafana**: http://localhost:3001 (admin/admin)
+| Service            | URL                        |
+|--------------------|----------------------------|
+| API (Swagger UI)   | http://localhost:8000/docs  |
+| API (ReDoc)        | http://localhost:8000/redoc |
+| Frontend           | http://localhost:3000       |
+| Grafana            | http://localhost:3001       |
+| Prometheus         | http://localhost:9090       |
+| RabbitMQ Console   | http://localhost:15672      |
 
-## Phase 3: Deliverability Fortress
+Default credentials for local development:
+- Grafana: `admin` / `admin`
+- RabbitMQ: `guest` / `guest`
 
-### Architecture Overview
+---
 
-Phase 3 implements a production-grade email deliverability system with AI-powered warmup:
+## Production Deployment
 
-```
-┌──────────────────────────────────────────────────────┐
-│                  Deliverability Router                 │
-│  Round-robin rotation across 5-10 sending identities  │
-│  Health-aware routing · Daily cap: 300-400 touches    │
-└────────────────┬─────────────────────────────────────┘
-                 │
-    ┌────────────┴────────────┐
-    │    Sending Identities   │
-    │  outreach1@mail.domain  │
-    │  outreach2@mail.domain  │
-    │  outreach3@mail.domain  │
-    │  ... up to 10 inboxes   │
-    └────────────┬────────────┘
-                 │
-    ┌────────────┴────────────┐
-    │    Amazon SES (v2)      │
-    │  Dedicated IP Pool      │
-    │  Configuration Set      │
-    │  Event Tracking         │
-    └────────────┬────────────┘
-                 │
-    ┌────────────┴──────────────────────────┐
-    │  DNS Authentication Layer              │
-    │  SPF · DKIM · DMARC · BIMI            │
-    │  Strict alignment · Dedicated subdomain│
-    └───────────────────────────────────────┘
-```
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for the full step-by-step deployment guide.
 
-### AI-Powered Warmup System
+### Prerequisites
 
-The warmup engine uses a 4-6 week progressive ramp with AI-selected seeds:
+- Ubuntu 22.04 LTS server (4 vCPU, 16 GB RAM, 100 GB SSD minimum)
+- Domain name with DNS control
+- AWS account with SES access
+- Twilio account (if SMS is required)
 
-| Week | Daily Volume | Cumulative | Strategy |
-|------|-------------|------------|----------|
-| 1 | 5-8 | ~50 | AI-selected high-engagement seeds |
-| 2 | 9-15 | ~120 | Expand to medium-engagement contacts |
-| 3 | 16-25 | ~260 | Widen audience with health monitoring |
-| 4 | 26-35 | ~470 | Full monitoring, auto-pause if unhealthy |
-| 5 | 36-45 | ~750 | Approaching target volume |
-| 6 | 46-50 | ~1,090 | Full production capacity |
+### Environment Configuration
 
-**Safety thresholds (auto-pause triggers):**
-- Bounce rate > 5%
-- Spam/complaint rate > 0.1%
-- Open rate < 15% (after 50+ sends)
-
-### Platform AI Integration
-
-FortressFlow maximizes three paid AI platforms for smarter outreach:
-
-#### HubSpot Breeze AI
-- **Data Agent**: Contact-level engagement insights and predictive scoring
-- **Prospecting Agent**: Identifies ideal warmup seeds by engagement likelihood
-- **Content Agent**: Subject line optimization and personalization suggestions
-- **Breeze Studio**: Advanced workflow orchestration
-
-#### ZoomInfo Copilot
-- **GTM Workspace**: Account-level intelligence (tech stack, org hierarchy, funding)
-- **GTM Context Graph**: Intent signals and buying behavior scoring
-
-#### Apollo AI (2026 Agentic)
-- **AI Scoring**: Enhanced lead scoring with MCP + Claude integration
-- **Waterfall Enrichment**: Cascading data sources for maximum coverage
-- **Agentic Workflows**: Natural language-driven automation
-
-#### Bi-Directional Learning Loops
-
-```
-Platform AI recommends seeds → FortressFlow sends warmup emails
-    → Tracks outcomes (opens, replies, bounces)
-        → Feeds results back to platforms
-            → Platforms refine scoring models
-                → Better seed recommendations next cycle
-```
-
-### Sending Identity Rotation
-
-FortressFlow rotates across 5-10 verified sending identities:
+Copy and edit the production env file:
 
 ```bash
-# Add sending identities via API
-POST /api/v1/deliverability/inboxes
-{
-  "email_address": "outreach1@mail.gengyveusa.com",
-  "display_name": "Thad - Gengyve USA",
-  "domain": "mail.gengyveusa.com"
-}
+cp .env.example .env.production
+nano .env.production
 ```
 
-The deliverability router automatically:
-1. Round-robin selects the next healthy inbox
-2. Checks daily per-inbox and total volume caps
-3. Skips inboxes with health_score < 50
-4. Updates reputation metrics on SES events (bounce, complaint, open)
-
-## Phase 4: Sequencer Engine + Visual Builder + State Machine
-
-### Architecture Overview
-
-Phase 4 transforms the sequence engine into a production-grade FSM-driven orchestrator with visual drag-drop building and AI-powered sequence generation:
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│              Visual Drag-Drop Builder (React Flow)           │
-│  Email · LinkedIn · SMS · Wait · Conditional · A/B · End    │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-┌──────────────────────────┴──────────────────────────────────┐
-│              AI Sequence Generation Service                  │
-│  HubSpot Breeze Content + ZoomInfo Context + Apollo Agentic │
-│  Natural language → Full sequence config + visual layout     │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-┌──────────────────────────┴──────────────────────────────────┐
-│              FSM State Machine (Enrollment Lifecycle)        │
-│  pending→active→sent→opened→replied→paused→completed       │
-│  Idempotent dispatches · No double-sends · Restart-safe     │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-┌──────────────────────────┴──────────────────────────────────┐
-│              Enhanced Sequence Engine (Celery)               │
-│  Conditional branches · A/B testing · Hole-filler logic     │
-│  SES rotation dispatch via DeliverabilityRouter             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### State Machine (FSM)
-
-Every enrollment follows a strict finite state machine that prevents double-sends and handles restarts:
-
-```
-pending ──→ active ──→ sent ──→ opened ──→ replied ──→ paused
-   │          │         │         │                      │
-   │          │         │         └───→ completed         │
-   │          │         │         └───→ escalated         │
-   │          │         └───→ failed (bounce)             │
-   │          └───→ completed                             │
-   │          └───→ escalated (hole-filler)               │
-   └───→ paused                       active ←──── resume │
-   └───→ failed                                           │
-```
-
-**Key properties:**
-- Only `active` and `escalated` states allow dispatching a touch
-- `completed`, `failed`, `bounced`, `unsubscribed` are terminal (no exit)
-- Reply detection auto-transitions: sent/opened → replied → paused
-- Every dispatch generates a unique `dispatch_id` for idempotency
-
-### Conditional Branching
-
-Sequence steps can include conditional (if/else) nodes that route leads based on engagement:
-
-| Condition | Description |
-|-----------|-------------|
-| `opened` | Lead opened the previous email |
-| `not_opened` | Lead did NOT open the previous email |
-| `replied` | Lead replied to any email in the sequence |
-| `not_replied` | Lead has not replied |
-| `clicked` | Lead clicked a link |
-| `bounced` | Email bounced |
-
-Conditions can be scoped to a specific step via `step_position` and a time window via `within_hours`.
-
-### A/B Testing
-
-Any step can be configured as an A/B split with weighted variant assignment:
-
-```json
-{
-  "step_type": "ab_split",
-  "is_ab_test": true,
-  "ab_variants": {
-    "A": {"template_id": "...", "weight": 50, "channel": "email"},
-    "B": {"template_id": "...", "weight": 50, "channel": "email"}
-  }
-}
-```
-
-- Variant assignment is deterministic per enrollment (idempotent on restart)
-- Analytics endpoint returns per-variant open/reply/bounce rates
-- Variants tracked in `ab_variant_assignments` JSONB on the enrollment
-
-### Hole-Filler Escalation
-
-When a lead hasn't engaged after 2+ email touches, the engine automatically escalates:
-
-1. Check: 2+ emails sent, zero opens or replies
-2. Escalate to LinkedIn (if lead has a profile) or SMS (if lead has a phone)
-3. Mark enrollment as `escalated`, record `escalation_channel`
-4. Hole-filler only fires once per enrollment
-
-### AI-Powered Sequence Generation
+Required variables for production:
 
 ```bash
-POST /api/v1/sequences/generate
-{
-  "prompt": "Create a 7-step outreach sequence for dental offices",
-  "target_industry": "dental",
-  "channels": ["email", "linkedin", "sms"],
-  "include_ab_test": true,
-  "include_conditionals": true
-}
+DATABASE_URL=postgresql+asyncpg://fortressflow:STRONG_PASSWORD@postgres/fortressflow
+REDIS_URL=redis://:STRONG_PASSWORD@redis:6379/0
+SECRET_KEY=<64-char random hex>
+SENTRY_DSN=https://...@o0.ingest.sentry.io/...
+ENVIRONMENT=production
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+SES_FROM_EMAIL=outreach@mail.yourcompany.com
+SENDING_SUBDOMAIN=mail.yourcompany.com
+TWILIO_ACCOUNT_SID=...
+TWILIO_AUTH_TOKEN=...
 ```
 
-The AI generation service consults all three platforms in parallel:
-- **HubSpot Breeze Content Agent**: Optimizes email subject lines and body copy
-- **ZoomInfo Copilot GTM Context Graph**: Industry context and optimal send timing
-- **Apollo AI Agentic Workflows**: Sequence structure, step count, and timing
-
-Returns a complete sequence with steps + React Flow visual config, ready for the builder.
-
-### Visual Builder (React Flow)
-
-Access the drag-drop sequence builder at `/sequences/builder/{id}`:
-
-- **Node types**: Start, Email, SMS, LinkedIn, Wait, Conditional, A/B Split, End
-- **Drag-drop**: Add nodes from the palette, connect with edges
-- **Properties panel**: Edit labels, delay times, condition types per node
-- **AI generation**: Click "AI Generate" to create a sequence from a prompt
-- **Save/load**: Visual config persisted as JSONB on the sequence
-
-### Phase 4 API Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/v1/sequences/generate` | AI-powered sequence generation |
-| `GET` | `/api/v1/sequences/{id}/visual` | Load visual builder config |
-| `PUT` | `/api/v1/sequences/{id}/visual` | Save visual builder config |
-| `POST` | `/api/v1/sequences/{id}/enrollments/{eid}/pause` | Pause enrollment |
-| `POST` | `/api/v1/sequences/{id}/enrollments/{eid}/resume` | Resume enrollment |
-| `DELETE` | `/api/v1/sequences/{id}/steps/{sid}` | Delete a step |
-| `GET` | `/api/v1/sequences/{id}/analytics` | Analytics with A/B results |
-
-### Phase 4 Database Migration
-
-Migration `005_sequence_engine_phase4` adds:
-- `step_type` enum: `conditional`, `ab_split`, `end`
-- `enrollment_status` enum: `pending`, `sent`, `opened`, `replied`, `escalated`, `failed`
-- `sequences`: `visual_config`, `ai_generated`, `ai_generation_prompt`, `ai_generation_metadata`
-- `sequence_steps`: `condition`, `true_next_position`, `false_next_position`, `ab_variants`, `is_ab_test`, `node_id`
-- `sequence_enrollments`: `last_touch_at`, `last_state_change_at`, `ab_variant_assignments`, `hole_filler_triggered`, `escalation_channel`, `last_dispatch_id`
-
-## Multi-Channel Outreach
-
-FortressFlow supports three outreach channels, all gated behind compliance:
-
-### Email (Amazon SES)
-- HTML + plain text composition with template engine
-- Tracking pixel injection for open tracking
-- RFC 8058 one-click unsubscribe headers
-- Bounce/complaint webhook processing
-- AI-powered 4-6 week warmup with platform AI seed selection
-
-### SMS (Twilio)
-- 10DLC-compliant SMS delivery
-- STOP keyword auto-DNC processing
-- Segment counting (160 char limit awareness)
-- Status callback webhook handling
-
-### LinkedIn
-- Connection request with personalized note (300 char limit)
-- InMail composition with subject/body
-- Direct message to existing connections
-- CSV export for manual execution workflows
-- Rate limiting (25/day safe limit)
-
-## Template Engine
-
-All outreach content uses `{{variable}}` interpolation:
-
-| Variable | Description |
-|----------|-------------|
-| `{{first_name}}` | Lead's first name |
-| `{{last_name}}` | Lead's last name |
-| `{{company}}` | Lead's company |
-| `{{title}}` | Lead's job title |
-| `{{sender_name}}` | Your name |
-| `{{sender_company}}` | Your company |
-| `{{unsubscribe_url}}` | HMAC-signed unsubscribe link |
-
-## Gengyve Sequence Presets
-
-Three pre-built outreach sequences targeting dental offices and DSOs:
-
-1. **Cold Outreach** (9 steps, ~14 days) — Multi-channel introduction: educational email hook → LinkedIn connect → value-add follow-up → SMS → breakup email
-2. **Post-Meeting Follow-up** (6 steps, ~10 days) — Warm relationship sequence: thank-you + sample offer → LinkedIn connect → sample check-in → SMS
-3. **Re-engagement Nurture** (7 steps, ~21 days) — Education-first re-warming: clinical research share → case study → LinkedIn value-add → open door final touch
-
-Deploy any preset with one API call: `POST /api/v1/presets/{index}/deploy`
-
-## Sequence Engine
-
-The Phase 4 sequence engine runs every 15 minutes (configurable via `SEQUENCE_ENGINE_INTERVAL_MINUTES`) and:
-
-1. Finds all sendable enrollments (FSM state: `active` or `pending`) where delay has elapsed
-2. Activates pending enrollments (`pending` → `active`)
-3. Checks hole-filler trigger (2+ unanswered emails → escalate to LinkedIn/SMS)
-4. Routes through conditional/A/B nodes (branch evaluation, variant assignment)
-5. Checks compliance gate (consent + DNC + daily limits)
-6. Resolves template (with A/B variant if applicable)
-7. Dispatches via SES rotation (DeliverabilityRouter) for email, Twilio for SMS, LinkedIn prep
-8. Generates idempotent `dispatch_id` to prevent double-sends on restart
-9. Transitions FSM state: `active` → `sent`
-10. Logs the touch and advances the enrollment
-
-## API Reference
-
-### Deliverability Endpoints (Phase 3)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/v1/deliverability/domains` | List sending domains |
-| `POST` | `/api/v1/deliverability/domains` | Add domain (triggers SES verification) |
-| `GET` | `/api/v1/deliverability/domains/{name}/dns` | DNS setup instructions |
-| `GET` | `/api/v1/deliverability/inboxes` | List sending inboxes |
-| `POST` | `/api/v1/deliverability/inboxes` | Create inbox (auto-warmup config) |
-| `POST` | `/api/v1/deliverability/inboxes/{id}/pause` | Pause inbox |
-| `POST` | `/api/v1/deliverability/inboxes/{id}/resume` | Resume inbox |
-| `GET` | `/api/v1/deliverability/warmup` | Warmup queue status |
-| `GET` | `/api/v1/deliverability/warmup/config/{id}` | Warmup config for inbox |
-| `PUT` | `/api/v1/deliverability/warmup/config/{id}` | Update warmup config |
-| `GET` | `/api/v1/deliverability/warmup/ramp-schedule` | Preview ramp schedule |
-| `GET` | `/api/v1/deliverability/dashboard` | Full deliverability dashboard |
-
-### Template Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/v1/templates/` | Create a template |
-| `GET` | `/api/v1/templates/` | List templates (filterable) |
-| `GET` | `/api/v1/templates/{id}` | Get template details |
-| `PUT` | `/api/v1/templates/{id}` | Update a template |
-| `DELETE` | `/api/v1/templates/{id}` | Deactivate a template |
-| `POST` | `/api/v1/templates/preview` | Preview with sample data |
-
-### Preset Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/v1/presets/` | List available presets |
-| `POST` | `/api/v1/presets/{index}/deploy` | Deploy a preset |
-
-### Compliance Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/v1/compliance/check` | Check if lead can be contacted |
-| `POST` | `/api/v1/compliance/consent` | Record consent with proof |
-| `POST` | `/api/v1/compliance/revoke` | Revoke consent |
-| `GET` | `/api/v1/compliance/audit/{lead_id}` | Full audit trail |
-| `POST` | `/api/v1/unsubscribe/{token}` | One-click unsubscribe |
-
-### Lead Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/v1/leads/` | Create a lead |
-| `GET` | `/api/v1/leads/` | List leads (paginated) |
-| `GET` | `/api/v1/leads/{id}` | Get lead details |
-| `POST` | `/api/v1/leads/import/csv` | Bulk CSV import |
-| `POST` | `/api/v1/leads/{id}/touch` | Log an outreach touch |
-
-## Celery Beat Schedule
-
-| Task | Schedule | Description |
-|------|----------|-------------|
-| Re-verify stale leads | Daily 2:00 AM UTC | Re-enrich leads older than 90 days |
-| Sequence engine | Every 15 min | Advance enrolled leads through steps |
-| Warmup cycle | Daily 6:00 AM UTC | AI-powered warmup for all inboxes |
-| Warmup feedback loop | Daily 7:00 AM UTC | Send outcomes to AI platforms |
-| Reset daily counters | Daily midnight UTC | Reset per-inbox send counters |
-| Domain metrics | Hourly (:30) | Aggregate inbox → domain metrics |
-| Health score recalc | Every 6 hours (:15) | Recalculate inbox health scores |
-
-## Development
-
-### Backend
+### Deploy
 
 ```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-
-# Start PostgreSQL and Redis first
-docker-compose up -d postgres redis rabbitmq
-
-# Run migrations
-alembic upgrade head
-
-# Start dev server
-uvicorn app.main:app --reload
+docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml exec backend alembic upgrade head
 ```
 
-### Running Tests
+### SSL/TLS with Certbot
 
 ```bash
-cd backend
-pytest -v
+sudo apt install certbot python3-certbot-nginx
+sudo certbot --nginx -d yourcompany.com -d www.yourcompany.com -d api.yourcompany.com
 ```
 
-### Frontend
+### Database Migrations
+
+```bash
+# Apply pending migrations
+docker compose exec backend alembic upgrade head
+
+# Create a new migration
+docker compose exec backend alembic revision --autogenerate -m "describe_change"
+
+# Roll back one step
+docker compose exec backend alembic downgrade -1
+```
+
+### Monitoring Setup
+
+Grafana dashboards are provisioned automatically via the `infra/grafana/` volume mounts.
+Access Grafana at `https://grafana.yourcompany.com` and confirm the **FortressFlow — Production Dashboard** appears under Dashboards.
+
+---
+
+## API Documentation
+
+- **Swagger UI**: `/docs` (disabled in production by default; enable with `ENVIRONMENT=staging`)
+- **ReDoc**: `/redoc`
+- **OpenAPI JSON**: `/openapi.json`
+
+All API endpoints are versioned under `/api/v1/`.
+
+### Authentication
+
+All protected endpoints require a Bearer JWT token:
+
+```http
+Authorization: Bearer <token>
+```
+
+Obtain a token by posting credentials to `/api/v1/auth/token`.
+
+---
+
+## AI Platform Integration
+
+FortressFlow integrates with three leading AI sales-intelligence platforms.
+
+### HubSpot Breeze AI
+
+Configure via environment variables:
+
+```bash
+HUBSPOT_API_KEY=...
+HUBSPOT_BREEZE_ENABLED=true
+HUBSPOT_BREEZE_DATA_AGENT=true        # Enrichment & insights
+HUBSPOT_BREEZE_PROSPECTING_AGENT=true # Automated prospecting
+HUBSPOT_BREEZE_CONTENT_AGENT=true     # Email content suggestions
+```
+
+Breeze AI surfaces intent signals and prospect summaries directly in the sequence builder UI.
+
+### ZoomInfo Copilot
+
+```bash
+ZOOMINFO_CLIENT_ID=...
+ZOOMINFO_CLIENT_SECRET=...
+ZOOMINFO_COPILOT_ENABLED=true
+ZOOMINFO_GTM_WORKSPACE=true    # GTM Workspace integration
+ZOOMINFO_CONTEXT_GRAPH=true    # GTM Context Graph for buying signals
+```
+
+ZoomInfo Copilot provides account-level intent data and organisational chart insights during lead enrichment.
+
+### Apollo AI Assistant
+
+```bash
+APOLLO_API_KEY=...
+APOLLO_AI_ENABLED=true
+APOLLO_AI_SCORING=true             # Enhanced AI lead scoring
+APOLLO_WATERFALL_ENRICHMENT=true   # Multi-source waterfall enrichment
+APOLLO_MCP_INTEGRATION=true        # Claude MCP integration for AI outreach
+```
+
+Apollo's 2026 agentic features allow autonomous prospecting and enrichment with Claude-powered message personalisation.
+
+---
+
+## Security
+
+### Rate Limiting
+
+Redis-backed sliding-window rate limiting is applied to every endpoint with the following policies:
+
+| Endpoint                      | Limit         |
+|-------------------------------|---------------|
+| `/api/v1/leads/import`        | 10 req/min    |
+| `/api/v1/sequences/generate`  | 5 req/min     |
+| `/api/v1/webhooks/*`          | 500 req/min   |
+| `/health`, `/metrics`         | No limit      |
+| All other endpoints           | 200 req/min   |
+
+Rate limit headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`) are included on all responses.
+
+### CSRF Protection
+
+Double-submit cookie pattern. A `ff_csrf` cookie is set on every response; mutating requests (POST/PUT/PATCH/DELETE) must echo the token in the `X-CSRF-Token` header. Requests authenticated with a Bearer token and webhook endpoints are exempt.
+
+### Security Headers
+
+Every response includes:
+
+| Header                     | Value                                     |
+|----------------------------|-------------------------------------------|
+| `X-Content-Type-Options`   | `nosniff`                                 |
+| `X-Frame-Options`          | `DENY`                                    |
+| `X-XSS-Protection`         | `1; mode=block`                           |
+| `Referrer-Policy`          | `strict-origin-when-cross-origin`         |
+| `Permissions-Policy`       | `camera=(), microphone=(), geolocation=()` |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` (production only) |
+| `Content-Security-Policy`  | Strict policy (see `middleware/security.py`) |
+
+### Input Validation
+
+- Request bodies are capped at **10 MB**; larger payloads receive HTTP 413.
+- Known scanning user-agents (sqlmap, nikto, masscan, nessus, etc.) receive HTTP 403.
+- All request bodies are validated by Pydantic models before reaching route handlers.
+
+### Data Encryption
+
+- Passwords are hashed with bcrypt (work factor 12).
+- Unsubscribe tokens are HMAC-SHA256-signed with `UNSUBSCRIBE_HMAC_KEY`.
+- API keys and secrets are stored in environment variables; never committed to source control.
+- Database connections use TLS in production.
+
+---
+
+## Monitoring & Observability
+
+### Grafana Dashboards
+
+The **FortressFlow — Production Dashboard** (`uid: fortressflow-main`) provides four rows of panels:
+
+- **Row 1 — Overview**: Request rate, p50/p95/p99 latency, error rate (4xx/5xx), active Celery workers.
+- **Row 2 — Email Delivery**: Emails sent today, bounce rate, spam complaint rate, warmup progress per inbox.
+- **Row 3 — Sequences**: Active sequences, enrollment status pie chart, open rate trend, reply rate trend.
+- **Row 4 — Infrastructure**: PostgreSQL connections, Redis memory, RabbitMQ queue depth, Celery task duration.
+
+Dashboard auto-refreshes every 30 seconds.
+
+### Prometheus Alerts
+
+Defined in `infra/prometheus/alerts.yml`. Key alerts:
+
+| Alert                  | Condition                          | Severity  |
+|------------------------|------------------------------------|-----------|
+| `HighErrorRate`        | >5 % 5xx for 5 min                 | critical  |
+| `HighLatency`          | p95 >2 s for 5 min                 | warning   |
+| `HighBounceRate`       | >5 % bounce for 15 min             | critical  |
+| `HighSpamComplaintRate` | >0.1 % spam for 15 min            | critical  |
+| `LowOpenRate`          | <15 % open rate for 1 h            | warning   |
+| `ServiceDown`          | Backend unreachable for 2 min      | critical  |
+| `HighMemoryUsage`      | >85 % RAM for 10 min               | warning   |
+| `QueueBacklog`         | >1 000 RabbitMQ messages for 5 min | warning   |
+| `WarmupStall`          | No warmup emails for 1 h (biz hrs) | warning   |
+| `HighRateLimitHits`    | >10 HTTP 429s/min                  | warning   |
+
+### Sentry Error Tracking
+
+Sentry is initialised with FastAPI, Starlette, Redis, SQLAlchemy, and logging integrations. Slow requests (>5 s) generate a Sentry `warning` event with full request context. Configure via `SENTRY_DSN` in your `.env` file.
+
+### Log Aggregation
+
+In production, all services emit structured JSON logs to stdout. Pipe stdout to your log aggregator (Datadog, CloudWatch Logs, Loki, etc.) via the Docker logging driver:
+
+```yaml
+# docker-compose.prod.yml
+services:
+  backend:
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: /fortressflow/backend
+        awslogs-region: us-east-1
+```
+
+---
+
+## Testing
+
+### Backend Tests (pytest)
+
+```bash
+# Run all tests
+docker compose exec backend pytest
+
+# With coverage
+docker compose exec backend pytest --cov=app --cov-report=term-missing
+
+# Run a specific test file
+docker compose exec backend pytest tests/test_middleware.py -v
+```
+
+### Frontend E2E Tests (Playwright)
 
 ```bash
 cd frontend
-npm install --legacy-peer-deps
-npm run dev
+npx playwright install
+npx playwright test
+npx playwright test --ui   # Interactive mode
 ```
 
-## Compliance Architecture
+### Load Testing
 
-FortressFlow implements a **hard-gate compliance system**:
+```bash
+# Install k6
+brew install k6
 
-1. **Consent Gate**: Every outreach channel (email, SMS, LinkedIn) requires explicit, tracked consent
-2. **DNC Checks**: Global and per-channel Do-Not-Contact list checked before every send
-3. **Daily Limits**: Per-lead rate limits enforced (100 emails, 30 SMS, 25 LinkedIn per day)
-4. **Validation**: Email and phone numbers validated before any contact attempt
-5. **Audit Trail**: Every touch logged with full metadata, retained for 5+ years
-6. **One-Click Unsubscribe**: HMAC-signed tokens auto-add to DNC list
-7. **STOP Keyword**: Auto-DNC on SMS STOP keyword detection
+# Run the load test scenario
+k6 run tests/load/baseline.js --vus 50 --duration 60s
+```
 
-### Consent Methods
+---
 
-- `meeting_card`: Business card exchanged at professional meeting
-- `web_form`: Web form opt-in with IP/timestamp proof
-- `import_verified`: ZoomInfo/Apollo verified professional contact
+## Compliance
 
-## Integration Setup
+FortressFlow is built for compliance with US and EU regulations governing commercial electronic communications. See [COMPLIANCE_CHECKLIST.md](./COMPLIANCE_CHECKLIST.md) for the full pre-launch checklist.
 
-### HubSpot (with Breeze AI)
+### CAN-SPAM
 
-1. Create a Private App in HubSpot with `crm.objects.contacts.write` and `crm.objects.notes.write` scopes
-2. Copy the API key to `HUBSPOT_API_KEY` in `.env`
-3. **Enable Breeze AI**: Set `HUBSPOT_BREEZE_ENABLED=true` in `.env`
-4. Ensure your HubSpot plan includes Breeze AI features (Professional+ required)
-5. Breeze agents used:
-   - **Data Agent**: Provides contact engagement insights for warmup seed selection
-   - **Prospecting Agent**: Identifies high-engagement contacts as warmup seeds
-   - **Content Agent**: Optimizes email subject lines and personalization
-   - **Breeze Studio**: Orchestrates advanced AI workflows
+- Physical address is automatically appended to every outgoing email.
+- One-click unsubscribe links use HMAC-signed tokens to prevent forgery.
+- Opt-out requests are processed within 10 business days per the Act.
+- Subject lines are validated against deceptive-pattern heuristics.
 
-### ZoomInfo (with Copilot)
+### GDPR
 
-1. Obtain API credentials from ZoomInfo
-2. Set `ZOOMINFO_CLIENT_ID` and `ZOOMINFO_CLIENT_SECRET` in `.env`
-3. **Enable Copilot**: Set `ZOOMINFO_COPILOT_ENABLED=true` in `.env`
-4. Copilot features used:
-   - **GTM Workspace**: Account intelligence (tech stack, org chart, funding)
-   - **GTM Context Graph**: Intent signals and buyer behavior scoring
+- Lawful basis is recorded per data subject at the point of consent capture.
+- Data processing records are maintained in the audit log table.
+- `/api/v1/compliance/erasure` implements the right to erasure (Article 17).
+- `/api/v1/compliance/export` implements data portability (Article 20).
+- Sub-processor DPAs are documented in `docs/legal/sub-processors.md`.
 
-### Apollo.io (with AI Assistant)
+### TCPA (SMS)
 
-1. Get API key from Apollo.io settings
-2. Set `APOLLO_API_KEY` in `.env`
-3. **Enable AI**: Set `APOLLO_AI_ENABLED=true` in `.env`
-4. Apollo AI features used:
-   - **Enhanced AI Scoring**: Lead quality scoring with MCP + Claude
-   - **Waterfall Enrichment**: Cascading data sources for maximum coverage
-   - **Agentic Workflows**: Natural language automation
+- Express written consent is required before any SMS is sent.
+- STOP keyword opt-out is handled by the Twilio webhook and immediately suppresses the contact.
+- Sends are enforced between 8 am and 9 pm in the recipient's local timezone.
+- DNC list scrubbing is performed at import time and before each send.
 
-### Twilio (SMS)
+### CCPA
 
-1. Set up a 10DLC phone number in Twilio
-2. Configure `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER` in `.env`
+- Do-Not-Sell requests are honoured via `/api/v1/compliance/do-not-sell`.
+- Privacy policy is accessible at `/privacy`.
+- Consumer data requests are fulfilled within 45 days.
+- Data inventory is maintained in `docs/legal/data-inventory.md`.
 
-### Amazon SES (Email)
+---
 
-1. Use FortressFlow's DNS setup endpoint to get required records:
-   ```
-   GET /api/v1/deliverability/domains/{domain}/dns
-   ```
-2. Add the returned DNS records to your domain (SPF, DKIM CNAMEs, DMARC, BIMI)
-3. Configure in `.env`:
-   ```
-   AWS_ACCESS_KEY_ID=your-key
-   AWS_SECRET_ACCESS_KEY=your-secret
-   AWS_REGION=us-east-1
-   SES_FROM_EMAIL=outreach@mail.gengyveusa.com
-   SENDING_SUBDOMAIN=mail.gengyveusa.com
-   SES_CONFIGURATION_SET=fortressflow-tracking
-   DEDICATED_IP_POOL=fortressflow-pool
-   ```
-4. Add sending identities via the API:
-   ```
-   POST /api/v1/deliverability/inboxes
-   ```
+## Contributing
 
-## Email Deliverability
+1. Fork the repository.
+2. Create a feature branch: `git checkout -b feature/your-feature-name`
+3. Commit your changes following the [Conventional Commits](https://www.conventionalcommits.org) spec.
+4. Push to your fork and open a Pull Request against `main`.
+5. Ensure all tests pass and coverage does not decrease.
 
-FortressFlow implements a comprehensive deliverability fortress:
+Please read `CONTRIBUTING.md` before submitting a PR.
 
-- **Dedicated subdomain**: Full SPF/DKIM/DMARC/BIMI on `mail.gengyveusa.com`
-- **AI-powered 4-6 week warmup**: Platform AI selects high-engagement seeds
-- **Identity rotation**: 5-10 sending identities with round-robin routing
-- **Health monitoring**: Auto-pause on bounce > 5% or spam > 0.1%
-- **Daily volume cap**: 300-400 email touches/day across all identities
-- **Bi-directional learning**: Warmup outcomes feed back to AI platforms
-- **SES event tracking**: Real-time bounce/complaint/open/click processing
-- **Dedicated IP pool**: Managed IP allocation for consistent reputation
-
-## Monitoring
-
-- **Prometheus** scrapes `/metrics` every 15 seconds
-- **Grafana** dashboards for delivery rates, bounce rates, consent stats
-- **Sentry** for error tracking (set `SENTRY_DSN` in `.env`)
-- **Deliverability Dashboard**: `GET /api/v1/deliverability/dashboard` for real-time inbox/domain health
+---
 
 ## License
 
-MIT
+**Proprietary — All Rights Reserved**
 
-## Phase 5: Multi-Channel Logic + Reply Detection + SMS/Twilio
+Copyright © 2024–2026 Gengyve USA Inc. All rights reserved.
 
-### Architecture
+This software and associated documentation files are the exclusive property of Gengyve USA Inc. Unauthorised copying, modification, distribution, or use of this software, in whole or in part, is strictly prohibited without prior written consent from Gengyve USA Inc.
 
-Phase 5 deepens multi-channel orchestration, adds robust reply detection,
-completes Twilio SMS as a high-value channel, refines LinkedIn for safe
-hole-filling, and closes the AI feedback loop.
-
-#### New Services
-- **Reply Service** (`reply_service.py`) — IMAP polling + webhook-based reply ingestion,
-  sender/thread matching, NLP sentiment analysis, AI-powered reply analysis via HubSpot
-  Breeze + Apollo AI + ZoomInfo Copilot
-- **Channel Orchestrator** (`channel_orchestrator.py`) — Central dispatch with failover
-  chains, global rate limit enforcement (400 email/30 SMS/25 LinkedIn per day), retry logic
-- **AI Feedback Service** (`ai_feedback_service.py`) — Metrics aggregation and push-back
-  to all AI platforms for continuous learning
-
-#### Enhanced Services
-- **SMS Service** — Full Twilio production: timezone gating (8AM-9PM recipient TZ), TCPA
-  consent verification, smart body formatting, delivery metrics
-- **LinkedIn Service** — AI-personalized connection notes (Breeze + Copilot), safe queue
-  with human-like timing (45-120s delays), OAuth stub, manual export fallback
-
-### Reply Detection Setup
-
-1. **IMAP Polling** (recommended):
-   ```env
-   IMAP_HOST=imap.gmail.com
-   IMAP_USER=hello@gengyveusa.com
-   IMAP_PASSWORD=app-specific-password
-   IMAP_FOLDER=INBOX
-   IMAP_POLL_INTERVAL_MINUTES=5
-   ```
-   The `poll_imap_replies_task` runs every 5 minutes via Celery Beat.
-
-2. **Webhook-based** (Parsio or custom):
-   ```env
-   REPLY_WEBHOOK_SECRET=your-webhook-secret
-   ```
-   POST replies to `/api/v1/webhooks/email/reply` with `X-Webhook-Secret` header.
-
-### Twilio Webhook Configuration
-
-1. In your Twilio console, set the webhook URL for your phone number:
-   - **Incoming Messages**: `https://your-domain.com/api/v1/webhooks/twilio/sms`
-   - **Status Callback**: Same URL (handles both inbound and status)
-
-2. Required environment variables:
-   ```env
-   TWILIO_ACCOUNT_SID=your-sid
-   TWILIO_AUTH_TOKEN=your-token
-   TWILIO_PHONE_NUMBER=+1234567890
-   ```
-
-### LinkedIn OAuth Guidance
-
-LinkedIn API access requires OAuth 2.0 application approval:
-
-1. Create a LinkedIn Developer Application
-2. Request the `w_member_social` scope for connection requests
-3. Configure:
-   ```env
-   LINKEDIN_OAUTH_CLIENT_ID=your-client-id
-   LINKEDIN_OAUTH_CLIENT_SECRET=your-secret
-   LINKEDIN_OAUTH_REDIRECT_URI=https://your-domain.com/auth/linkedin/callback
-   ```
-4. For cloud automation, set `LINKEDIN_PROXY_ENDPOINT` to your proxy service URL.
-5. Fallback: export queue to CSV via the API for manual browser extension execution.
-
-### AI Feedback Loop
-
-After sequence completion or reply detection, FortressFlow automatically:
-1. Aggregates performance metrics (reply rate, open rate, best channel/template)
-2. Pushes outcomes to HubSpot Breeze, ZoomInfo Copilot, and Apollo AI
-3. These platforms use the feedback to improve:
-   - Future sequence generation (template selection, timing)
-   - Lead scoring accuracy
-   - Channel recommendations
-
-### Example: Reply Detection Flow
-
-```
-Inbound email reply received (IMAP or webhook)
-  ↓
-Parse sender, subject, body, thread_id
-  ↓
-Match to enrollment (thread_id → sender email → subject pattern)
-  ↓
-Analyze sentiment (NLP keywords → positive/negative/neutral)
-  ↓
-AI Analysis (parallel):
-  ├── HubSpot Breeze: engagement context + next-step recommendation
-  ├── Apollo AI: agentic next-action workflow
-  └── ZoomInfo Copilot: account update + intent signals
-  ↓
-FSM Transition: sent/opened → replied → paused (auto-pause)
-  ↓
-Log to reply_logs + touch_history + HubSpot Note
-  ↓
-AI Suggestion: "Schedule demo" / "Send case study" / "Manual follow-up"
-```
-
-### New Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/sequences/{id}/monitor` | Full sequence monitoring view |
-| GET | `/sequences/replies/inbox` | Reply inbox with AI suggestions |
-| GET | `/sequences/{id}/channel-health` | Per-channel health metrics |
-| POST | `/webhooks/twilio/sms` | Twilio SMS webhooks |
-| POST | `/webhooks/email/reply` | Email reply webhooks |
-| POST | `/webhooks/ses/events` | SES event notifications |
-
-### New Celery Tasks
-
-| Task | Schedule | Description |
-|------|----------|-------------|
-| `poll_imap_replies_task` | Every 5 min | Poll IMAP inbox for replies |
-| `execute_linkedin_queue_task` | Every 30 min | Execute pending LinkedIn queue |
-| `aggregate_channel_metrics_task` | Hourly | Aggregate channel health metrics |
-| `push_ai_feedback_task` | On completion | Push metrics to AI platforms |
-
-### Database (Migration 006)
-
-New tables: `reply_logs`, `reply_webhook_events`, `linkedin_queue`, `channel_metrics`
-New indexes on `sequence_enrollments.last_touch_at`, `touch_logs(channel, created_at)`
+Contact: thad@gengyveusa.com

@@ -1,13 +1,63 @@
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+  external_labels:
+    environment: "production"
+    project: "fortressflow"
 
+# ── Alerting rules ─────────────────────────────────────────────────────────
+rule_files:
+  - "alerts.yml"
+
+# ── Alertmanager integration ───────────────────────────────────────────────
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - "alertmanager:9093"
+      timeout: 10s
+
+# ── Scrape targets ─────────────────────────────────────────────────────────
 scrape_configs:
+
+  # FortressFlow backend (FastAPI + prometheus_fastapi_instrumentator)
   - job_name: "fortressflow-backend"
     static_configs:
       - targets: ["backend:8000"]
     metrics_path: "/metrics"
+    scrape_interval: 15s
+    scrape_timeout: 10s
 
+  # Prometheus self-monitoring
   - job_name: "prometheus"
     static_configs:
       - targets: ["localhost:9090"]
+
+  # Node Exporter — host OS metrics (CPU, memory, disk, network)
+  - job_name: "node-exporter"
+    static_configs:
+      - targets: ["node-exporter:9100"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: "([^:]+):.*"
+        replacement: "${1}"
+
+  # PostgreSQL Exporter — database connection pools, query stats, replication lag
+  - job_name: "postgres-exporter"
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+    scrape_interval: 30s
+
+  # Redis Exporter — memory, hit rate, evictions, connected clients
+  - job_name: "redis-exporter"
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+    scrape_interval: 15s
+
+  # RabbitMQ Exporter — queue depth, message rates, consumer counts
+  - job_name: "rabbitmq-exporter"
+    static_configs:
+      - targets: ["rabbitmq:15692"]
+    metrics_path: "/metrics"
+    scrape_interval: 15s

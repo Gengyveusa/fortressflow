@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect, useCallback } from "react";
 import {
   analyticsApi,
   complianceApi,
@@ -126,4 +127,69 @@ export function usePresets() {
     queryKey: ["presets"],
     queryFn: () => presetsApi.list().then((r) => r.data),
   });
+}
+
+// ── Settings ───────────────────────────────────────────────
+
+export interface AppSettings {
+  apiKeys?: Record<string, string>;
+  warmup?: {
+    volumeCap: number;
+    rampMultiplier: number;
+    initialDailyVolume: number;
+    durationWeeks: number;
+  };
+  alertThresholds?: {
+    bounceRatePause: number;
+    spamRatePause: number;
+    openRateMinimum: number;
+  };
+}
+
+const SETTINGS_KEY = "fortressflow-settings";
+
+function loadSettings(): AppSettings {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    return raw ? (JSON.parse(raw) as AppSettings) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveSettings(s: AppSettings): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+  } catch {
+    // ignore
+  }
+}
+
+export function useSettings() {
+  const [settings, setSettings] = useState<AppSettings>({});
+
+  useEffect(() => {
+    setSettings(loadSettings());
+  }, []);
+
+  const updateSettings = useCallback((patch: Partial<AppSettings>) => {
+    setSettings((prev) => {
+      const next = { ...prev, ...patch };
+      // Deep merge apiKeys
+      if (patch.apiKeys) {
+        next.apiKeys = { ...(prev.apiKeys ?? {}), ...patch.apiKeys };
+      }
+      saveSettings(next);
+      return next;
+    });
+  }, []);
+
+  const resetSettings = useCallback(() => {
+    saveSettings({});
+    setSettings({});
+  }, []);
+
+  return { settings, updateSettings, resetSettings };
 }

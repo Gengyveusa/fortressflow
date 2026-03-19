@@ -1,0 +1,187 @@
+groups:
+  - name: fortressflow_alerts
+    rules:
+
+      # ── HTTP Error Rate ───────────────────────────────────────────────────
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{job="fortressflow-backend", status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{job="fortressflow-backend"}[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "High HTTP 5xx error rate on FortressFlow backend"
+          description: >
+            More than 5% of requests are returning 5xx errors for the last 5 minutes.
+            Current rate: {{ $value | humanizePercentage }}.
+            Investigate application logs and Sentry for root cause.
+          runbook_url: "https://github.com/gengyveusa/fortressflow/wiki/runbook-high-error-rate"
+          dashboard_url: "http://grafana:3000/d/fortressflow-main"
+
+      # ── High Latency ─────────────────────────────────────────────────────
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{job="fortressflow-backend"}[5m]))
+            by (le)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High p95 response latency on FortressFlow backend"
+          description: >
+            The 95th percentile response time has exceeded 2 seconds for the last 5 minutes.
+            Current p95: {{ $value | humanizeDuration }}.
+            Check for slow database queries, Redis latency, or upstream bottlenecks.
+          runbook_url: "https://github.com/gengyveusa/fortressflow/wiki/runbook-high-latency"
+          dashboard_url: "http://grafana:3000/d/fortressflow-main"
+
+      # ── Email Bounce Rate ─────────────────────────────────────────────────
+      - alert: HighBounceRate
+        expr: fortressflow_email_bounce_rate{job="fortressflow-backend"} > 0.05
+        for: 15m
+        labels:
+          severity: critical
+          team: deliverability
+        annotations:
+          summary: "Email bounce rate exceeds 5% — sending may be paused"
+          description: >
+            Bounce rate is {{ $value | humanizePercentage }}, exceeding the 5% pause threshold
+            for the last 15 minutes. Sending has been automatically paused by the deliverability guard.
+            Review bounce logs and clean the affected list segments immediately.
+          runbook_url: "https://github.com/gengyveusa/fortressflow/wiki/runbook-bounce-rate"
+
+      # ── Spam Complaint Rate ───────────────────────────────────────────────
+      - alert: HighSpamComplaintRate
+        expr: fortressflow_email_spam_complaint_rate{job="fortressflow-backend"} > 0.001
+        for: 15m
+        labels:
+          severity: critical
+          team: deliverability
+        annotations:
+          summary: "Spam complaint rate exceeds 0.1% — reputation risk"
+          description: >
+            Spam complaint rate is {{ $value | humanizePercentage }}, exceeding the 0.1% threshold
+            for the last 15 minutes. This poses an immediate risk to sender reputation and SES account standing.
+            Review content, targeting, and consent records. Pause affected campaigns.
+          runbook_url: "https://github.com/gengyveusa/fortressflow/wiki/runbook-spam-complaints"
+
+      # ── Low Open Rate ─────────────────────────────────────────────────────
+      - alert: LowOpenRate
+        expr: fortressflow_email_open_rate{job="fortressflow-backend"} < 0.15
+        for: 1h
+        labels:
+          severity: warning
+          team: deliverability
+        annotations:
+          summary: "Email open rate below 15% for the past hour"
+          description: >
+            Open rate has dropped to {{ $value | humanizePercentage }}, below the 15% minimum
+            target for the last hour. This may indicate deliverability issues, spam folder placement,
+            or content quality problems.
+          runbook_url: "https://github.com/gengyveusa/fortressflow/wiki/runbook-low-open-rate"
+
+      # ── Service Down ──────────────────────────────────────────────────────
+      - alert: ServiceDown
+        expr: up{job="fortressflow-backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "FortressFlow backend is unreachable"
+          description: >
+            The FortressFlow backend ({{ $labels.instance }}) has been unreachable by Prometheus
+            for more than 2 minutes. Check Docker container status and application health.
+          runbook_url: "https://github.com/gengyveusa/fortressflow/wiki/runbook-service-down"
+
+      - alert: ExporterDown
+        expr: up{job!="fortressflow-backend", job!="prometheus"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Monitoring exporter is down: {{ $labels.job }}"
+          description: >
+            The exporter for {{ $labels.job }} ({{ $labels.instance }}) has been unreachable
+            for more than 2 minutes. Metrics collection is degraded.
+
+      # ── High Memory Usage ─────────────────────────────────────────────────
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes
+          ) / node_memory_MemTotal_bytes > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Host memory usage above 85% on {{ $labels.instance }}"
+          description: >
+            Memory usage on {{ $labels.instance }} is at {{ $value | humanizePercentage }},
+            above the 85% threshold for the last 10 minutes.
+            Consider scaling vertically or investigating memory leaks in application containers.
+          runbook_url: "https://github.com/gengyveusa/fortressflow/wiki/runbook-high-memory"
+
+      # ── RabbitMQ Queue Backlog ────────────────────────────────────────────
+      - alert: QueueBacklog
+        expr: rabbitmq_queue_messages_ready{vhost="/"} > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "RabbitMQ queue backlog exceeds 1000 messages: {{ $labels.queue }}"
+          description: >
+            Queue {{ $labels.queue }} has {{ $value }} ready messages, exceeding the 1000 message
+            threshold for the last 5 minutes. Celery workers may be understaffed or stalled.
+            Check worker health and consider scaling Celery concurrency.
+          runbook_url: "https://github.com/gengyveusa/fortressflow/wiki/runbook-queue-backlog"
+
+      # ── Warmup Stall ─────────────────────────────────────────────────────
+      - alert: WarmupStall
+        expr: |
+          (
+            increase(fortressflow_warmup_emails_sent_total[1h]) == 0
+          )
+          and
+          (
+            (hour() >= 8) and (hour() < 20)
+          )
+        for: 0m
+        labels:
+          severity: warning
+          team: deliverability
+        annotations:
+          summary: "IP warmup stalled — no warmup emails sent in the last hour"
+          description: >
+            No warmup emails have been sent in the last hour during business hours (8am–8pm UTC).
+            This may indicate the warmup scheduler has stopped, there are no active warmup campaigns,
+            or sending has been paused by a deliverability guard.
+          runbook_url: "https://github.com/gengyveusa/fortressflow/wiki/runbook-warmup-stall"
+
+      # ── Rate Limit Triggered ─────────────────────────────────────────────
+      - alert: HighRateLimitHits
+        expr: |
+          sum(rate(http_requests_total{job="fortressflow-backend", status="429"}[1m])) > 10
+        for: 0m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "More than 10 rate limit rejections per minute"
+          description: >
+            The FortressFlow API is rejecting more than 10 requests per minute with HTTP 429.
+            Current rate: {{ $value | humanize }} req/s.
+            This may indicate a misconfigured client, a scraping bot, or a need to adjust
+            rate limit thresholds. Review the X-RateLimit headers and source IPs.
+          runbook_url: "https://github.com/gengyveusa/fortressflow/wiki/runbook-rate-limiting"
