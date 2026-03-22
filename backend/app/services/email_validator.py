@@ -1,6 +1,8 @@
 """Email and phone validation helpers."""
 
 import re
+import time
+import threading
 
 import phonenumbers
 from email_validator import EmailNotValidError, validate_email
@@ -90,17 +92,58 @@ def is_role_based_email(email: str) -> bool:
         return False
 
 
-def check_mx_record(domain: str) -> bool:
-    """Stub for MX record check — always returns True.
+# ── MX record cache with TTL ──────────────────────────────────────────────
 
-    In production, integrate with dns.resolver to verify the domain
-    has valid MX records before sending.
+_mx_cache: dict[str, tuple[bool, float]] = {}
+_mx_cache_lock = threading.Lock()
+_MX_CACHE_TTL = 3600  # 1 hour
+
+
+def check_mx_record(domain: str) -> bool:
+    """Check if a domain has valid MX records via DNS lookup.
+
+    Uses dnspython with a 5-second timeout and caches results for 1 hour.
+    Returns True if valid MX records exist, False otherwise.
     """
-    return bool(domain)
+    if not domain:
+        return False
+
+    domain = domain.lower().strip()
+
+    # Check cache
+    with _mx_cache_lock:
+        cached = _mx_cache.get(domain)
+        if cached is not None:
+            result, cached_at = cached
+            if time.time() - cached_at < _MX_CACHE_TTL:
+                return result
+
+    # Perform real DNS lookup
+    try:
+        import dns.resolver
+
+        resolver = dns.resolver.Resolver()
+        resolver.timeout = 5
+        resolver.lifetime = 5
+
+        answers = resolver.resolve(domain, "MX")
+        has_mx = len(answers) > 0
+
+        with _mx_cache_lock:
+            _mx_cache[domain] = (has_mx, time.time())
+
+        return has_mx
+
+    except Exception:
+        # dns.resolver.NXDOMAIN, dns.resolver.NoAnswer,
+        # dns.resolver.Timeout, dns.exception.DNSException, etc.
+        with _mx_cache_lock:
+            _mx_cache[domain] = (False, time.time())
+        return False
 
 
 def validate_email_full(email: str) -> tuple[bool, str]:
-    """Full email validation: RFC check + disposable + role-based.
+    """Full email validation: RFC check + disposable + role-based + MX record.
 
     Returns (is_valid, reason) tuple.
     """
@@ -110,6 +153,15 @@ def validate_email_full(email: str) -> tuple[bool, str]:
         return False, "disposable_email_domain"
     if is_role_based_email(email):
         return False, "role_based_email"
+
+    # MX record validation
+    try:
+        domain = email.rsplit("@", 1)[1].lower()
+        if not check_mx_record(domain):
+            return False, "no_mx_records"
+    except (IndexError, AttributeError):
+        return False, "invalid_email_format"
+
     return True, "valid"
 
 
