@@ -13,10 +13,12 @@ from app.models.sequence import (
 )
 from app.models.template import Template, TemplateCategory, TemplateChannel
 from app.models.touch_log import TouchLog, TouchAction
+from app.models.user import User, UserRole
 from app.models.warmup import WarmupConfig, WarmupQueue, WarmupSeedLog
 from app.models.chat import ChatLog
 
 __all__ = [
+    "ChatLog",
     "Consent",
     "ConsentChannel",
     "ConsentMethod",
@@ -36,8 +38,9 @@ __all__ = [
     "TemplateChannel",
     "TouchLog",
     "TouchAction",
+    "User",
+    "UserRole",
     "WarmupConfig",
     "WarmupQueue",
     "WarmupSeedLog",
-    "ChatLog",
 ]
