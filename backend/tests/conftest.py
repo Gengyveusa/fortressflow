@@ -10,6 +10,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.user import UserRole
+
 
 # ── Original Fixtures ──────────────────────────────────────────────────────
 
@@ -271,6 +273,56 @@ def mock_settings():
     s.WARMUP_AI_SEED_BATCH_SIZE = 50
     s.WARMUP_AI_LEARNING_WINDOW_DAYS = 7
     return s
+
+
+@pytest.fixture
+def mock_user():
+    """A mock User ORM object for authentication tests."""
+    user = MagicMock()
+    user.id = uuid.uuid4()
+    user.email = "testuser@fortressflow.io"
+    user.full_name = "Test User"
+    user.role = UserRole.user
+    user.is_active = True
+    user.password_hash = "$2b$12$fakehashfortest"
+    user.created_at = datetime.now(UTC)
+    user.updated_at = datetime.now(UTC)
+    user.last_login_at = None
+    return user
+
+
+@pytest.fixture
+def mock_admin_user():
+    """A mock admin User ORM object."""
+    user = MagicMock()
+    user.id = uuid.uuid4()
+    user.email = "admin@fortressflow.io"
+    user.full_name = "Admin User"
+    user.role = UserRole.admin
+    user.is_active = True
+    user.password_hash = "$2b$12$fakehashfortest"
+    user.created_at = datetime.now(UTC)
+    user.updated_at = datetime.now(UTC)
+    user.last_login_at = None
+    return user
+
+
+@pytest.fixture
+def auth_token(mock_user):
+    """Generate a valid JWT access token for the mock user."""
+    from app.services.auth_service import create_access_token
+    return create_access_token(
+        str(mock_user.id), mock_user.email, mock_user.role.value
+    )
+
+
+@pytest.fixture
+def admin_auth_token(mock_admin_user):
+    """Generate a valid JWT access token for the mock admin user."""
+    from app.services.auth_service import create_access_token
+    return create_access_token(
+        str(mock_admin_user.id), mock_admin_user.email, mock_admin_user.role.value
+    )
 
 
 @pytest.fixture

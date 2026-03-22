@@ -1,8 +1,18 @@
 import axios from "axios";
+import { getSession } from "next-auth/react";
 
 const api = axios.create({
   baseURL: "/api/v1",
   headers: { "Content-Type": "application/json" },
+});
+
+// Attach the JWT access token to every outgoing request
+api.interceptors.request.use(async (config) => {
+  const session = await getSession();
+  if ((session as any)?.accessToken) {
+    config.headers.Authorization = `Bearer ${(session as any).accessToken}`;
+  }
+  return config;
 });
 
 // ── Types ──────────────────────────────────────────────
@@ -505,10 +515,15 @@ export interface ChatHistoryResponse {
 
 export const chatApi = {
   // Streaming endpoint — use fetch directly for SSE
-  sendMessage: (message: string, session_id?: string) => {
+  sendMessage: async (message: string, session_id?: string) => {
+    const session = await getSession();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if ((session as any)?.accessToken) {
+      headers["Authorization"] = `Bearer ${(session as any).accessToken}`;
+    }
     return fetch("/api/v1/chat/", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ message, session_id }),
     });
   },
