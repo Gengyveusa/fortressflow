@@ -326,6 +326,46 @@ export interface PresetDeployResult {
   status: string;
 }
 
+// ── Analytics Endpoint Types ──────────────────────────
+
+export interface OutreachDailyEntry {
+  day: string;
+  email: number;
+  sms: number;
+  linkedin: number;
+}
+
+export interface RecentActivityEntry {
+  id: number;
+  text: string;
+  time: string;
+  type: string;
+}
+
+export interface SequencePerformanceEntry {
+  sequence_id: string;
+  total_sends: number;
+  opens: number;
+  replies: number;
+  bounces: number;
+}
+
+export interface ResponseTrendEntry {
+  week: string;
+  rate: number;
+}
+
+export interface ChannelBreakdownEntry {
+  name: string;
+  value: number;
+}
+
+export interface BounceDailyEntry {
+  date: string;
+  bounced: number;
+  sent: number;
+}
+
 // ── API Functions ──────────────────────────────────────
 
 export const leadsApi = {
@@ -410,6 +450,18 @@ export const analyticsApi = {
   deliverability: () => api.get<DeliverabilityStats>("/analytics/deliverability"),
   sequences: () =>
     api.get<{ sequences: SequencePerformance[] }>("/analytics/sequences"),
+  outreachDaily: () =>
+    api.get<OutreachDailyEntry[]>("/analytics/outreach-daily"),
+  recentActivity: () =>
+    api.get<RecentActivityEntry[]>("/analytics/recent-activity"),
+  sequencePerformance: () =>
+    api.get<SequencePerformanceEntry[]>("/analytics/sequence-performance"),
+  responseTrends: () =>
+    api.get<ResponseTrendEntry[]>("/analytics/response-trends"),
+  channelBreakdown: () =>
+    api.get<ChannelBreakdownEntry[]>("/analytics/channel-breakdown"),
+  bounceDaily: () =>
+    api.get<BounceDailyEntry[]>("/analytics/bounce-daily"),
 };
 
 export const deliverabilityApi = {

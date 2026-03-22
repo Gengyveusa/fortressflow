@@ -30,26 +30,7 @@ import {
   Tooltip as RTooltip,
   Legend,
 } from "recharts";
-import { useSequencesAnalytics } from "@/lib/hooks";
-
-/* ── mock time-series for response rate trends ───────── */
-const RESPONSE_TREND = [
-  { week: "W1", rate: 4.2 },
-  { week: "W2", rate: 5.1 },
-  { week: "W3", rate: 4.8 },
-  { week: "W4", rate: 6.3 },
-  { week: "W5", rate: 7.1 },
-  { week: "W6", rate: 6.8 },
-  { week: "W7", rate: 8.2 },
-  { week: "W8", rate: 7.5 },
-];
-
-/* ── mock channel breakdown ──────────────────────────── */
-const CHANNEL_DATA = [
-  { name: "Email", value: 65 },
-  { name: "LinkedIn", value: 25 },
-  { name: "SMS", value: 10 },
-];
+import { useSequencesAnalytics, useResponseTrends, useChannelBreakdown } from "@/lib/hooks";
 
 const CHANNEL_COLORS = ["#3b82f6", "#0ea5e9", "#22c55e"];
 
@@ -63,6 +44,8 @@ function ChartSkeleton() {
 
 export default function AnalyticsPage() {
   const { data, isLoading, error } = useSequencesAnalytics();
+  const { data: responseTrends, isLoading: trendsLoading, error: trendsError } = useResponseTrends();
+  const { data: channelData, isLoading: channelLoading, error: channelError } = useChannelBreakdown();
   const sequences = data?.sequences ?? [];
 
   // build comparison chart data
@@ -127,28 +110,40 @@ export default function AnalyticsPage() {
             <CardTitle className="text-base">Channel Breakdown</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={CHANNEL_DATA}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={90}
-                    label={({ name, percent }) =>
-                      `${name} ${(percent * 100).toFixed(0)}%`
-                    }
-                  >
-                    {CHANNEL_DATA.map((_, i) => (
-                      <Cell key={i} fill={CHANNEL_COLORS[i % CHANNEL_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <RTooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+            {channelLoading ? (
+              <ChartSkeleton />
+            ) : channelError ? (
+              <div className="h-64 flex items-center justify-center">
+                <p className="text-sm text-red-500">Failed to load channel data.</p>
+              </div>
+            ) : !channelData?.length ? (
+              <div className="h-64 flex items-center justify-center">
+                <p className="text-sm text-gray-400">No channel data yet.</p>
+              </div>
+            ) : (
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={channelData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={90}
+                      label={({ name, percent }) =>
+                        `${name} ${(percent * 100).toFixed(0)}%`
+                      }
+                    >
+                      {channelData.map((_, i) => (
+                        <Cell key={i} fill={CHANNEL_COLORS[i % CHANNEL_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <RTooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -158,24 +153,36 @@ export default function AnalyticsPage() {
             <CardTitle className="text-base">Response Rate Trends</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={RESPONSE_TREND}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="week" fontSize={12} />
-                  <YAxis fontSize={12} unit="%" />
-                  <RTooltip formatter={(v: number) => `${v}%`} />
-                  <Line
-                    type="monotone"
-                    dataKey="rate"
-                    stroke="#3b82f6"
-                    strokeWidth={2}
-                    dot={{ r: 4 }}
-                    name="Response Rate"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+            {trendsLoading ? (
+              <ChartSkeleton />
+            ) : trendsError ? (
+              <div className="h-64 flex items-center justify-center">
+                <p className="text-sm text-red-500">Failed to load response trends.</p>
+              </div>
+            ) : !responseTrends?.length ? (
+              <div className="h-64 flex items-center justify-center">
+                <p className="text-sm text-gray-400">No trend data yet.</p>
+              </div>
+            ) : (
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={responseTrends}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="week" fontSize={12} />
+                    <YAxis fontSize={12} unit="%" />
+                    <RTooltip formatter={(v: number) => `${v}%`} />
+                    <Line
+                      type="monotone"
+                      dataKey="rate"
+                      stroke="#3b82f6"
+                      strokeWidth={2}
+                      dot={{ r: 4 }}
+                      name="Response Rate"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

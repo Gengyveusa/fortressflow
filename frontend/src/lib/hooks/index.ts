@@ -77,6 +77,50 @@ export function useSequencesAnalytics() {
   });
 }
 
+// ── Analytics (real endpoints) ─────────────────────────
+
+export function useOutreachDaily() {
+  return useQuery({
+    queryKey: ["outreach-daily"],
+    queryFn: () => analyticsApi.outreachDaily().then((r) => r.data),
+  });
+}
+
+export function useRecentActivity() {
+  return useQuery({
+    queryKey: ["recent-activity"],
+    queryFn: () => analyticsApi.recentActivity().then((r) => r.data),
+  });
+}
+
+export function useSequencePerformance() {
+  return useQuery({
+    queryKey: ["sequence-performance"],
+    queryFn: () => analyticsApi.sequencePerformance().then((r) => r.data),
+  });
+}
+
+export function useResponseTrends() {
+  return useQuery({
+    queryKey: ["response-trends"],
+    queryFn: () => analyticsApi.responseTrends().then((r) => r.data),
+  });
+}
+
+export function useChannelBreakdown() {
+  return useQuery({
+    queryKey: ["channel-breakdown"],
+    queryFn: () => analyticsApi.channelBreakdown().then((r) => r.data),
+  });
+}
+
+export function useBounceDaily() {
+  return useQuery({
+    queryKey: ["bounce-daily"],
+    queryFn: () => analyticsApi.bounceDaily().then((r) => r.data),
+  });
+}
+
 // ── Deliverability ─────────────────────────────────────
 
 export function useDomains() {

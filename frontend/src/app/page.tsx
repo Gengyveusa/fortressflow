@@ -26,6 +26,8 @@ import {
   useDashboardStats,
   useDeliverabilityStats,
   useSequencesAnalytics,
+  useOutreachDaily,
+  useRecentActivity,
 } from "@/lib/hooks";
 import {
   ResponsiveContainer,
@@ -38,26 +40,6 @@ import {
   BarChart,
   Bar,
 } from "recharts";
-
-// ── Mock daily outreach data (7 days) ────────────────────
-const outreachData = [
-  { day: "Mon", email: 142, sms: 38, linkedin: 22 },
-  { day: "Tue", email: 189, sms: 52, linkedin: 31 },
-  { day: "Wed", email: 167, sms: 45, linkedin: 28 },
-  { day: "Thu", email: 214, sms: 61, linkedin: 40 },
-  { day: "Fri", email: 198, sms: 55, linkedin: 35 },
-  { day: "Sat", email: 88,  sms: 20, linkedin: 12 },
-  { day: "Sun", email: 72,  sms: 15, linkedin: 9  },
-];
-
-// ── Recent activity ───────────────────────────────────────
-const recentActivity = [
-  { id: 1, text: "New lead imported: jane@acme.com", time: "2 min ago", icon: Users },
-  { id: 2, text: "Sequence 'Q4 Outreach' enrolled 12 leads", time: "18 min ago", icon: GitBranch },
-  { id: 3, text: "Consent granted for john@corp.io (email)", time: "1 h ago", icon: ShieldCheck },
-  { id: 4, text: "Bounce detected: bad@invalid.net", time: "3 h ago", icon: AlertTriangle },
-  { id: 5, text: "Warmup completed for sales@example.com", time: "5 h ago", icon: Activity },
-];
 
 // ── Skeleton ──────────────────────────────────────────────
 function StatSkeleton() {
@@ -107,6 +89,8 @@ export default function DashboardPage() {
   const { data: stats, isLoading: statsLoading, error: statsError } = useDashboardStats();
   const { data: deliv, isLoading: delivLoading, error: delivError } = useDeliverabilityStats();
   const { data: seqAnalytics, isLoading: seqLoading } = useSequencesAnalytics();
+  const { data: outreachData, isLoading: outreachLoading, error: outreachError } = useOutreachDaily();
+  const { data: recentActivity, isLoading: activityLoading, error: activityError } = useRecentActivity();
 
   const statCards = [
     { label: "Total Leads", value: stats?.total_leads, icon: Users, color: "text-blue-600 bg-blue-50 dark:bg-blue-950 dark:text-blue-300" },
@@ -163,52 +147,66 @@ export default function DashboardPage() {
             <CardDescription className="dark:text-gray-400">Daily touches by channel</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={outreachData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="emailGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="smsGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="linkedinGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:[stroke:#374151]" />
-                <XAxis
-                  dataKey="day"
-                  tick={{ fontSize: 11, fill: "#9ca3af" }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fontSize: 11, fill: "#9ca3af" }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Area type="monotone" dataKey="email" stroke="#3b82f6" fill="url(#emailGrad)" strokeWidth={2} name="email" />
-                <Area type="monotone" dataKey="sms" stroke="#10b981" fill="url(#smsGrad)" strokeWidth={2} name="sms" />
-                <Area type="monotone" dataKey="linkedin" stroke="#8b5cf6" fill="url(#linkedinGrad)" strokeWidth={2} name="linkedin" />
-              </AreaChart>
-            </ResponsiveContainer>
-            <div className="flex items-center gap-4 mt-2 px-1">
-              {[
-                { label: "Email", color: "#3b82f6" },
-                { label: "SMS", color: "#10b981" },
-                { label: "LinkedIn", color: "#8b5cf6" },
-              ].map(({ label, color }) => (
-                <span key={label} className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                  <span className="w-2.5 h-2.5 rounded-sm" style={{ background: color }} />
-                  {label}
-                </span>
-              ))}
-            </div>
+            {outreachLoading ? (
+              <ChartSkeleton />
+            ) : outreachError ? (
+              <div className="h-48 flex items-center justify-center">
+                <p className="text-sm text-red-500">Failed to load outreach data.</p>
+              </div>
+            ) : !outreachData?.length ? (
+              <div className="h-48 flex items-center justify-center">
+                <p className="text-sm text-gray-400 dark:text-gray-500">No outreach data yet.</p>
+              </div>
+            ) : (
+              <>
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={outreachData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="emailGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="smsGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="linkedinGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:[stroke:#374151]" />
+                    <XAxis
+                      dataKey="day"
+                      tick={{ fontSize: 11, fill: "#9ca3af" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: "#9ca3af" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area type="monotone" dataKey="email" stroke="#3b82f6" fill="url(#emailGrad)" strokeWidth={2} name="email" />
+                    <Area type="monotone" dataKey="sms" stroke="#10b981" fill="url(#smsGrad)" strokeWidth={2} name="sms" />
+                    <Area type="monotone" dataKey="linkedin" stroke="#8b5cf6" fill="url(#linkedinGrad)" strokeWidth={2} name="linkedin" />
+                  </AreaChart>
+                </ResponsiveContainer>
+                <div className="flex items-center gap-4 mt-2 px-1">
+                  {[
+                    { label: "Email", color: "#3b82f6" },
+                    { label: "SMS", color: "#10b981" },
+                    { label: "LinkedIn", color: "#8b5cf6" },
+                  ].map(({ label, color }) => (
+                    <span key={label} className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      <span className="w-2.5 h-2.5 rounded-sm" style={{ background: color }} />
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -258,17 +256,39 @@ export default function DashboardPage() {
             <CardTitle className="text-base dark:text-gray-100">Recent Activity</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {recentActivity.map((a) => (
-              <div key={a.id} className="flex items-start gap-3">
-                <div className="p-1.5 rounded-md bg-gray-100 dark:bg-gray-800 mt-0.5">
-                  <a.icon className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-700 dark:text-gray-300 truncate">{a.text}</p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">{a.time}</p>
-                </div>
+            {activityLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="h-10 bg-gray-100 dark:bg-gray-800 rounded animate-pulse" />
+                ))}
               </div>
-            ))}
+            ) : activityError ? (
+              <p className="text-sm text-red-500">Failed to load recent activity.</p>
+            ) : !recentActivity?.length ? (
+              <p className="text-sm text-gray-400 dark:text-gray-500">No recent activity.</p>
+            ) : (
+              recentActivity.map((a) => {
+                const IconMap: Record<string, typeof Activity> = {
+                  lead: Users,
+                  sequence: GitBranch,
+                  consent: ShieldCheck,
+                  bounce: AlertTriangle,
+                  warmup: Activity,
+                };
+                const Icon = IconMap[a.type] ?? Activity;
+                return (
+                  <div key={a.id} className="flex items-start gap-3">
+                    <div className="p-1.5 rounded-md bg-gray-100 dark:bg-gray-800 mt-0.5">
+                      <Icon className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-700 dark:text-gray-300 truncate">{a.text}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">{a.time}</p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </CardContent>
         </Card>
 

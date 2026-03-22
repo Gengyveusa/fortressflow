@@ -22,19 +22,9 @@ import {
   CartesianGrid,
   Tooltip as RTooltip,
 } from "recharts";
-import { useDomains, useDeliverabilityStats } from "@/lib/hooks";
+import { useDomains, useDeliverabilityStats, useBounceDaily } from "@/lib/hooks";
 import { deliverabilityApi } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
-
-const MOCK_BOUNCE_DATA = [
-  { date: "Mon", bounced: 3, sent: 120 },
-  { date: "Tue", bounced: 1, sent: 145 },
-  { date: "Wed", bounced: 5, sent: 130 },
-  { date: "Thu", bounced: 2, sent: 160 },
-  { date: "Fri", bounced: 4, sent: 150 },
-  { date: "Sat", bounced: 0, sent: 40 },
-  { date: "Sun", bounced: 1, sent: 25 },
-];
 
 function DomainSkeleton() {
   return (
@@ -51,6 +41,7 @@ function DomainSkeleton() {
 export default function DeliverabilityPage() {
   const { data: domains, isLoading: domainsLoading, error: domainsError } = useDomains();
   const { data: stats, isLoading: statsLoading } = useDeliverabilityStats();
+  const { data: bounceData, isLoading: bounceLoading, error: bounceError } = useBounceDaily();
   const queryClient = useQueryClient();
 
   const [newDomain, setNewDomain] = useState("");
@@ -200,18 +191,32 @@ export default function DeliverabilityPage() {
           <CardTitle className="text-base">Bounce Rate (Last 7 Days)</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={MOCK_BOUNCE_DATA}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" fontSize={12} />
-                <YAxis fontSize={12} />
-                <RTooltip />
-                <Bar dataKey="sent" fill="#3b82f6" name="Sent" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="bounced" fill="#ef4444" name="Bounced" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {bounceLoading ? (
+            <div className="h-64 flex items-center justify-center">
+              <div className="h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : bounceError ? (
+            <div className="h-64 flex items-center justify-center">
+              <p className="text-sm text-red-500">Failed to load bounce data.</p>
+            </div>
+          ) : !bounceData?.length ? (
+            <div className="h-64 flex items-center justify-center">
+              <p className="text-sm text-gray-400">No bounce data yet.</p>
+            </div>
+          ) : (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={bounceData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" fontSize={12} />
+                  <YAxis fontSize={12} />
+                  <RTooltip />
+                  <Bar dataKey="sent" fill="#3b82f6" name="Sent" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="bounced" fill="#ef4444" name="Bounced" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -54,7 +54,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useSequences } from "@/lib/hooks";
+import { useSequences, useSequencePerformance } from "@/lib/hooks";
 import { sequencesApi, type Sequence } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -71,14 +71,10 @@ const STATUS_BADGE: Record<string, string> = {
   archived: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
 };
 
-function getPerformanceMockData(id: string) {
-  // Deterministic mock from sequence id hash
-  const hash = id.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-  return {
-    open_rate:   ((hash % 40) + 20) / 100,
-    reply_rate:  ((hash % 20) + 5) / 100,
-    bounce_rate: ((hash % 5) + 1) / 100,
-  };
+interface SequencePerf {
+  open_rate: number;
+  reply_rate: number;
+  bounce_rate: number;
 }
 
 // ── Skeleton ──────────────────────────────────────────────
@@ -99,11 +95,11 @@ function SequenceSkeleton() {
 // ── Sequence Card ─────────────────────────────────────────
 interface SequenceCardProps {
   seq: Sequence;
+  perf: SequencePerf;
   onAction: (action: string, seq: Sequence) => void;
 }
 
-function SequenceCard({ seq, onAction }: SequenceCardProps) {
-  const perf = getPerformanceMockData(seq.id);
+function SequenceCard({ seq, perf, onAction }: SequenceCardProps) {
 
   return (
     <Card className="hover:shadow-md transition-shadow h-full relative group dark:bg-gray-900 dark:border-gray-800 dark:hover:border-gray-700">
@@ -240,7 +236,25 @@ export default function SequencesPage() {
   const [page, setPage] = useState(1);
   const pageSize = 12;
   const { data, isLoading, error } = useSequences(page, pageSize);
+  const { data: perfData } = useSequencePerformance();
   const queryClient = useQueryClient();
+
+  const perfMap = useMemo(() => {
+    const map: Record<string, SequencePerf> = {};
+    if (perfData) {
+      for (const entry of perfData) {
+        const total = entry.total_sends || 0;
+        map[entry.sequence_id] = {
+          open_rate: total > 0 ? entry.opens / total : 0,
+          reply_rate: total > 0 ? entry.replies / total : 0,
+          bounce_rate: total > 0 ? entry.bounces / total : 0,
+        };
+      }
+    }
+    return map;
+  }, [perfData]);
+
+  const NO_PERF: SequencePerf = { open_rate: 0, reply_rate: 0, bounce_rate: 0 };
   const { toast } = useToast();
 
   // Dialog
@@ -461,7 +475,7 @@ export default function SequencesPage() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredItems.map((seq) => (
-              <SequenceCard key={seq.id} seq={seq} onAction={handleAction} />
+              <SequenceCard key={seq.id} seq={seq} perf={perfMap[seq.id] ?? NO_PERF} onAction={handleAction} />
             ))}
           </div>
 
