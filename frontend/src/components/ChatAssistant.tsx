@@ -51,9 +51,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
 const PROACTIVE_MESSAGE =
   "👋 Need help getting started? I can guide you through setup, warmup, sequences, and more. Try asking me anything or type /help!";
 
-const LS_SESSION_KEY = "fortressflow-chat-session";
 const LS_PROACTIVE_KEY = "fortressflow-chat-proactive-dismissed";
-const LS_MESSAGES_KEY = "fortressflow-chat-messages";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -110,30 +108,43 @@ export function ChatAssistant() {
   const panelRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  // ── Init session + messages from localStorage ────────────────────────────
+  // ── Init session from backend ─────────────────────────────────────────
 
   useEffect(() => {
-    let sid = localStorage.getItem(LS_SESSION_KEY);
-    if (!sid) {
-      sid = generateId();
-      localStorage.setItem(LS_SESSION_KEY, sid);
-    }
-    setSessionId(sid);
-
-    // Restore messages
-    try {
-      const stored = localStorage.getItem(LS_MESSAGES_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as Array<
-          Omit<ChatMessage, "timestamp"> & { timestamp: string }
-        >;
-        setMessages(
-          parsed.map((m) => ({ ...m, timestamp: new Date(m.timestamp) }))
-        );
+    const initSession = async () => {
+      // Try to load sessions from backend
+      try {
+        const res = await fetch("/api/v1/chat/sessions");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.sessions && data.sessions.length > 0) {
+            // Resume most recent session
+            const latest = data.sessions[0];
+            setSessionId(latest.session_id);
+            // Load messages for this session
+            await loadSessionMessages(latest.session_id);
+            return;
+          }
+        }
+      } catch {
+        // Backend unavailable — create local session
       }
-    } catch {
-      // ignore corrupt storage
-    }
+
+      // Create a new session
+      try {
+        const res = await fetch("/api/v1/chat/sessions", { method: "POST" });
+        if (res.ok) {
+          const data = await res.json();
+          setSessionId(data.session_id);
+          return;
+        }
+      } catch {
+        // Fallback to local session ID
+      }
+      setSessionId(generateId());
+    };
+
+    initSession();
 
     // Proactive message timer
     const dismissed = localStorage.getItem(LS_PROACTIVE_KEY);
@@ -146,16 +157,28 @@ export function ChatAssistant() {
     }
   }, []);
 
-  // ── Persist messages to localStorage ────────────────────────────────────
+  // ── Load messages from backend ────────────────────────────────────────
 
-  useEffect(() => {
-    if (messages.length === 0) return;
+  const loadSessionMessages = async (sid: string) => {
     try {
-      localStorage.setItem(LS_MESSAGES_KEY, JSON.stringify(messages));
+      const res = await fetch(`/api/v1/chat/sessions/${sid}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.messages && data.messages.length > 0) {
+          const loaded: ChatMessage[] = data.messages.map((m: { id: string; role: string; content: string; timestamp: string; sources?: string[] }) => ({
+            id: m.id,
+            role: m.role as "user" | "assistant",
+            content: m.content,
+            timestamp: new Date(m.timestamp),
+            sources: m.sources || [],
+          }));
+          setMessages(loaded);
+        }
+      }
     } catch {
-      // quota exceeded — ignore
+      // Silently handle — show empty chat
     }
-  }, [messages]);
+  };
 
   // ── Auto-scroll to bottom ────────────────────────────────────────────────
 

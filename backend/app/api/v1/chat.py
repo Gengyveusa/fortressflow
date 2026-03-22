@@ -2,9 +2,12 @@
 Phase 7: Chat API — In-app AI assistant endpoint.
 
 Routes:
-  POST /chat/       — Streaming SSE chat endpoint
-  POST /chat/sync   — Non-streaming chat (for testing)
-  GET  /chat/history — Chat history for a session
+  POST /chat/          — Streaming SSE chat endpoint
+  POST /chat/sync      — Non-streaming chat (for testing)
+  GET  /chat/history   — Chat history for a session
+  GET  /chat/sessions  — List chat sessions
+  GET  /chat/sessions/{session_id} — Get messages for a session
+  POST /chat/sessions  — Create a new session
 """
 
 import logging
@@ -13,10 +16,14 @@ from collections import defaultdict, deque
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from sqlalchemy import distinct, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.leads import get_current_user  # reuse existing auth dependency
+from app.database import get_db
+from app.models.chat import ChatLog
 from app.schemas.chat import ChatHistoryResponse, ChatRequest, ChatResponse
 from app.services.chat_service import ChatService
 
@@ -177,3 +184,76 @@ async def chat_history(
         # Return empty history instead of failing
         from app.schemas.chat import ChatHistoryItem
         return ChatHistoryResponse(items=[], total=0, session_id=session_id)
+
+
+# ── Session management endpoints ─────────────────────────────────────────────
+
+
+@router.get("/sessions", summary="List chat sessions")
+async def list_sessions(
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """List all distinct chat sessions with their latest message timestamp."""
+    result = await db.execute(
+        select(
+            ChatLog.session_id,
+            func.min(ChatLog.created_at).label("started_at"),
+            func.max(ChatLog.created_at).label("last_message_at"),
+            func.count(ChatLog.id).label("message_count"),
+        )
+        .group_by(ChatLog.session_id)
+        .order_by(func.max(ChatLog.created_at).desc())
+        .limit(50)
+    )
+    rows = result.all()
+
+    sessions = [
+        {
+            "session_id": row.session_id,
+            "started_at": row.started_at.isoformat() if row.started_at else None,
+            "last_message_at": row.last_message_at.isoformat() if row.last_message_at else None,
+            "message_count": row.message_count,
+        }
+        for row in rows
+    ]
+    return {"sessions": sessions}
+
+
+@router.get("/sessions/{session_id}", summary="Get session messages")
+async def get_session_messages(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get all messages for a specific chat session."""
+    result = await db.execute(
+        select(ChatLog)
+        .where(ChatLog.session_id == session_id)
+        .order_by(ChatLog.created_at.asc())
+        .limit(200)
+    )
+    logs = result.scalars().all()
+
+    messages = []
+    for log in logs:
+        messages.append({
+            "id": str(log.id),
+            "role": "user",
+            "content": log.message,
+            "timestamp": log.created_at.isoformat(),
+        })
+        messages.append({
+            "id": f"{log.id}-response",
+            "role": "assistant",
+            "content": log.response,
+            "timestamp": log.created_at.isoformat(),
+            "sources": log.ai_sources.get("sources", []) if log.ai_sources else [],
+        })
+
+    return {"session_id": session_id, "messages": messages}
+
+
+@router.post("/sessions", summary="Create a new session")
+async def create_session() -> dict:
+    """Create a new chat session and return its ID."""
+    session_id = str(uuid.uuid4())
+    return {"session_id": session_id}

@@ -1,9 +1,11 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.dnc import DNCBlock
 from app.schemas.compliance import (
     AuditTrailResponse,
     ComplianceCheckRequest,
@@ -12,6 +14,7 @@ from app.schemas.compliance import (
     ConsentGrantResponse,
     ConsentRevokeRequest,
     ConsentRevokeResponse,
+    DNCAddRequest,
 )
 from app.services import compliance as compliance_svc
 
@@ -62,3 +65,81 @@ async def get_audit_trail(
     """Return the full audit trail for a lead (consents, touch logs, DNC records)."""
     trail = await compliance_svc.get_audit_trail(lead_id, db)
     return AuditTrailResponse(**trail)
+
+
+# ── DNC Management Endpoints ───────────────────────────────────────────────
+
+
+@router.get("/dnc")
+async def list_dnc(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    search: str = Query("", description="Filter by identifier (email/phone)"),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """List all DNC entries with optional search and pagination."""
+    query = select(DNCBlock).order_by(DNCBlock.created_at.desc())
+    count_query = select(func.count(DNCBlock.id))
+
+    if search:
+        query = query.where(DNCBlock.identifier.ilike(f"%{search}%"))
+        count_query = count_query.where(DNCBlock.identifier.ilike(f"%{search}%"))
+
+    total_r = await db.execute(count_query)
+    total = total_r.scalar_one()
+
+    offset = (page - 1) * page_size
+    result = await db.execute(query.offset(offset).limit(page_size))
+    entries = result.scalars().all()
+
+    return {
+        "items": [
+            {
+                "id": str(e.id),
+                "identifier": e.identifier,
+                "channel": e.channel,
+                "reason": e.reason,
+                "source": e.source,
+                "blocked_at": e.blocked_at.isoformat(),
+                "created_at": e.created_at.isoformat(),
+            }
+            for e in entries
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+@router.post("/dnc", status_code=status.HTTP_201_CREATED)
+async def add_dnc(
+    body: DNCAddRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Add an email or phone to the DNC list."""
+    block = await compliance_svc.add_to_dnc(
+        body.identifier, body.channel, body.reason, body.source, db
+    )
+    return {
+        "id": str(block.id),
+        "identifier": block.identifier,
+        "channel": block.channel,
+        "reason": block.reason,
+        "source": block.source,
+        "blocked_at": block.blocked_at.isoformat(),
+    }
+
+
+@router.delete("/dnc/{dnc_id}", status_code=status.HTTP_200_OK)
+async def remove_dnc(
+    dnc_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Remove a DNC entry by ID."""
+    result = await db.execute(select(DNCBlock).where(DNCBlock.id == dnc_id))
+    block = result.scalar_one_or_none()
+    if block is None:
+        raise HTTPException(status_code=404, detail="DNC entry not found")
+    await db.delete(block)
+    await db.flush()
+    return {"deleted": True, "id": str(dnc_id)}

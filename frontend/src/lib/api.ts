@@ -342,6 +342,32 @@ export const leadsApi = {
   },
 };
 
+export interface DNCEntry {
+  id: string;
+  identifier: string;
+  channel: string;
+  reason: string;
+  source: string;
+  blocked_at: string;
+  created_at: string;
+}
+
+export interface DNCListResponse {
+  items: DNCEntry[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface AuditTrailEntry {
+  id: number | string;
+  who: string;
+  when: string;
+  channel: string;
+  method: string;
+  proof: string;
+}
+
 export const complianceApi = {
   check: (lead_id: string, channel: string) =>
     api.post<ComplianceCheck>("/compliance/check", { lead_id, channel }),
@@ -354,6 +380,14 @@ export const complianceApi = {
   revokeConsent: (lead_id: string, channel: string) =>
     api.post("/compliance/revoke", { lead_id, channel }),
   audit: (lead_id: string) => api.get<AuditTrail>(`/compliance/audit/${lead_id}`),
+  listDnc: (page = 1, pageSize = 50, search = "") => {
+    const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+    if (search) params.set("search", search);
+    return api.get<DNCListResponse>(`/compliance/dnc?${params.toString()}`);
+  },
+  addDnc: (identifier: string, channel: string, reason: string, source: string) =>
+    api.post<DNCEntry>("/compliance/dnc", { identifier, channel, reason, source }),
+  removeDnc: (id: string) => api.delete(`/compliance/dnc/${id}`),
 };
 
 export const sequencesApi = {

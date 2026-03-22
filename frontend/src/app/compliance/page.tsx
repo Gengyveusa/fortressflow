@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ShieldCheck, Search, Plus, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { ShieldCheck, Search, Plus, AlertTriangle, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -34,14 +34,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { complianceApi, type ComplianceCheck } from "@/lib/api";
-
-/* ── mock audit data ─────────────────────────────────── */
-const MOCK_AUDIT = [
-  { id: 1, who: "admin@company.com", when: "2024-12-01 10:32", channel: "email", method: "double opt-in", proof: "Confirmation link clicked" },
-  { id: 2, who: "jane@acme.com", when: "2024-12-02 09:15", channel: "linkedin", method: "explicit consent", proof: "Connection request accepted" },
-  { id: 3, who: "john@corp.io", when: "2024-12-03 14:45", channel: "sms", method: "written consent", proof: "SMS opt-in keyword YES" },
-];
+import { complianceApi, type ComplianceCheck, type DNCEntry, type AuditTrailEntry } from "@/lib/api";
 
 const CHANNELS = ["email", "linkedin", "sms", "phone"] as const;
 
@@ -56,7 +49,46 @@ export default function CompliancePage() {
   /* ── DNC state ─────────────────────────────────────── */
   const [dncSearch, setDncSearch] = useState("");
   const [dncEmail, setDncEmail] = useState("");
-  const [dncList, setDncList] = useState<string[]>([]);
+  const [dncList, setDncList] = useState<DNCEntry[]>([]);
+  const [dncLoading, setDncLoading] = useState(false);
+
+  /* ── Audit trail state ─────────────────────────────── */
+  const [auditTrail, setAuditTrail] = useState<AuditTrailEntry[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+
+  /* ── Fetch DNC list from backend ───────────────────── */
+  const fetchDnc = useCallback(async (search = "") => {
+    setDncLoading(true);
+    try {
+      const res = await complianceApi.listDnc(1, 200, search);
+      setDncList(res.data.items);
+    } catch {
+      // Silently handle — show empty list
+    } finally {
+      setDncLoading(false);
+    }
+  }, []);
+
+  /* ── Fetch audit trail from backend ────────────────── */
+  const fetchAuditTrail = useCallback(async () => {
+    setAuditLoading(true);
+    try {
+      const res = await fetch("/api/v1/analytics/audit-trail");
+      if (res.ok) {
+        const data = await res.json();
+        setAuditTrail(data.items || []);
+      }
+    } catch {
+      // Silently handle
+    } finally {
+      setAuditLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDnc();
+    fetchAuditTrail();
+  }, [fetchDnc, fetchAuditTrail]);
 
   const handleCheck = async () => {
     if (!checkLeadId.trim()) return;
@@ -73,15 +105,30 @@ export default function CompliancePage() {
     }
   };
 
-  const addDnc = () => {
+  const addDnc = async () => {
     if (!dncEmail.trim()) return;
-    setDncList((prev) => [...prev, dncEmail.trim()]);
-    setDncEmail("");
+    try {
+      await complianceApi.addDnc(dncEmail.trim(), "email", "Manual DNC addition", "manual");
+      setDncEmail("");
+      fetchDnc(dncSearch);
+    } catch {
+      // Silently handle
+    }
   };
 
-  const filteredDnc = dncList.filter((e) =>
-    e.toLowerCase().includes(dncSearch.toLowerCase())
-  );
+  const removeDnc = async (id: string) => {
+    try {
+      await complianceApi.removeDnc(id);
+      fetchDnc(dncSearch);
+    } catch {
+      // Silently handle
+    }
+  };
+
+  const handleDncSearch = (value: string) => {
+    setDncSearch(value);
+    fetchDnc(value);
+  };
 
   return (
     <div className="space-y-6">
@@ -102,30 +149,44 @@ export default function CompliancePage() {
               <CardDescription>Record of all consent-related activity.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Who</TableHead>
-                    <TableHead>When</TableHead>
-                    <TableHead>Channel</TableHead>
-                    <TableHead>Method</TableHead>
-                    <TableHead>Proof / Source</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {MOCK_AUDIT.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell className="font-medium">{row.who}</TableCell>
-                      <TableCell className="text-gray-500 text-xs">{row.when}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{row.channel}</Badge>
-                      </TableCell>
-                      <TableCell>{row.method}</TableCell>
-                      <TableCell className="text-gray-500 text-sm">{row.proof}</TableCell>
+              {auditLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Who</TableHead>
+                      <TableHead>When</TableHead>
+                      <TableHead>Channel</TableHead>
+                      <TableHead>Method</TableHead>
+                      <TableHead>Proof / Source</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {auditTrail.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-gray-400 py-8">
+                          No audit trail entries found.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      auditTrail.map((row) => (
+                        <TableRow key={row.id}>
+                          <TableCell className="font-medium">{row.who}</TableCell>
+                          <TableCell className="text-gray-500 text-xs">{row.when}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{row.channel}</Badge>
+                          </TableCell>
+                          <TableCell>{row.method}</TableCell>
+                          <TableCell className="text-gray-500 text-sm">{row.proof}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -155,32 +216,37 @@ export default function CompliancePage() {
                 <Input
                   placeholder="Search DNC list…"
                   value={dncSearch}
-                  onChange={(e) => setDncSearch(e.target.value)}
+                  onChange={(e) => handleDncSearch(e.target.value)}
                   className="max-w-xs h-9"
                 />
               </div>
 
-              {filteredDnc.length === 0 ? (
+              {dncLoading ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                </div>
+              ) : dncList.length === 0 ? (
                 <p className="text-sm text-gray-400 py-4 text-center">
-                  {dncList.length === 0
-                    ? "No entries in the DNC list."
-                    : "No matches found."}
+                  No entries in the DNC list.
                 </p>
               ) : (
                 <div className="space-y-1 max-h-64 overflow-y-auto">
-                  {filteredDnc.map((email, i) => (
+                  {dncList.map((entry) => (
                     <div
-                      key={i}
+                      key={entry.id}
                       className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded text-sm"
                     >
-                      <span>{email}</span>
+                      <div>
+                        <span className="font-medium">{entry.identifier}</span>
+                        <span className="text-gray-400 ml-2 text-xs">
+                          {entry.channel} · {entry.source}
+                        </span>
+                      </div>
                       <Button
                         variant="ghost"
                         size="sm"
                         className="text-red-500 h-7"
-                        onClick={() =>
-                          setDncList((prev) => prev.filter((_, idx) => idx !== i))
-                        }
+                        onClick={() => removeDnc(entry.id)}
                       >
                         Remove
                       </Button>
