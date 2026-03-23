@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { onboardingApi } from "@/lib/api";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -381,19 +382,15 @@ export default function OnboardingPage() {
   const handleFinish = async (launch: boolean) => {
     setSaving(true);
     try {
-      // Save onboarding preferences to backend
-      await fetch("/api/v1/settings/onboarding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          business_type: data.businessType,
-          company_name: data.companyName,
-          target_specialties: data.targetSpecialties,
-          target_region: data.targetRegion,
-          target_states: data.targetStates,
-          channels: data.channels,
-          launch_first_campaign: launch,
-        }),
+      // Save onboarding preferences to backend (authenticated via axios interceptor)
+      await onboardingApi.save({
+        business_type: data.businessType,
+        company_name: data.companyName,
+        target_specialties: data.targetSpecialties,
+        target_region: data.targetRegion,
+        target_states: data.targetStates,
+        channels: data.channels,
+        launch_first_campaign: launch,
       });
     } catch {
       // Continue even if save fails

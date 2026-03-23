@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Lightbulb, X, TrendingUp, AlertTriangle, MessageCircle, Award, Linkedin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { insightsApi } from "@/lib/api";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -137,11 +138,8 @@ export function InsightsBannerList({ onOpenChat }: InsightsBannerListProps) {
 
   const fetchInsights = async () => {
     try {
-      const res = await fetch("/api/v1/insights/proactive");
-      if (res.ok) {
-        const data = await res.json();
-        setInsights(data.insights || []);
-      }
+      const res = await insightsApi.getProactive();
+      setInsights(res.data.insights || []);
     } catch {
       // Silently fail — insights are non-critical
     }

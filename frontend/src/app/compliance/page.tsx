@@ -34,7 +34,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { complianceApi, type ComplianceCheck, type DNCEntry, type AuditTrailEntry } from "@/lib/api";
+import api, { complianceApi, type ComplianceCheck, type DNCEntry, type AuditTrailEntry } from "@/lib/api";
 
 const CHANNELS = ["email", "linkedin", "sms", "phone"] as const;
 
@@ -73,10 +73,9 @@ export default function CompliancePage() {
   const fetchAuditTrail = useCallback(async () => {
     setAuditLoading(true);
     try {
-      const res = await fetch("/api/v1/analytics/audit-trail");
-      if (res.ok) {
-        const data = await res.json();
-        setAuditTrail(data.items || []);
+      const res = await api.get("/analytics/audit-trail");
+      if (res.data) {
+        setAuditTrail(res.data.items || []);
       }
     } catch {
       // Silently handle
