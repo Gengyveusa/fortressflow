@@ -152,7 +152,7 @@ function ABSplitNode({ data }: { data: Record<string, unknown> }) {
       <p className="text-sm text-gray-700">
         {(data.label as string) || "A/B Split"}
       </p>
-      {data.abVariants && (
+      {data.abVariants != null && typeof data.abVariants === "object" && (
         <div className="flex gap-1 mt-1">
           {Object.keys(data.abVariants as Record<string, unknown>).map((v) => (
             <Badge key={v} variant="secondary" className="text-xs">
@@ -355,8 +355,19 @@ function BuilderCanvas() {
     setSaving(true);
     try {
       const visualConfig: VisualConfig = {
-        nodes,
-        edges,
+        nodes: nodes.map((n) => ({
+          id: n.id,
+          type: n.type || "default",
+          position: n.position,
+          data: n.data as Record<string, unknown>,
+        })),
+        edges: edges.map((e) => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          sourceHandle: e.sourceHandle ?? undefined,
+          label: typeof e.label === "string" ? e.label : undefined,
+        })),
         viewport: { x: 0, y: 0, zoom: 1 },
       };
       await sequencesApi.saveVisualConfig(sequenceId, {

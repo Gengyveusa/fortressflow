@@ -15,9 +15,10 @@ import logging
 import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from urllib.parse import urlparse
 
 import sentry_sdk
-from fastapi import APIRouter, Depends, Header, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import PlainTextResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,7 +37,42 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 
-# ── HubSpot (Phase 2, unchanged) ──────────────────────────────────────
+# ── HubSpot (Phase 2, with signature validation) ────────────────────
+
+
+def _validate_hubspot_signature(
+    request: Request, body: bytes, timestamp: str,
+) -> bool:
+    """
+    Validate HubSpot webhook signature (v3) using HMAC-SHA256.
+
+    The signature is computed from: requestMethod + requestUri + requestBody + timestamp
+    using the app's client secret.
+    """
+    client_secret = settings.HUBSPOT_CLIENT_SECRET
+    if not client_secret:
+        logger.warning("HUBSPOT_CLIENT_SECRET not configured — skipping signature validation")
+        return True
+
+    signature = request.headers.get("X-HubSpot-Signature-v3", "")
+    if not signature or not timestamp:
+        return False
+
+    # Reject if timestamp is older than 5 minutes
+    try:
+        ts = int(timestamp)
+        now_ms = int(datetime.now(UTC).timestamp() * 1000)
+        if abs(now_ms - ts) > 5 * 60 * 1000:
+            logger.warning("HubSpot webhook: timestamp too old (%s)", timestamp)
+            return False
+    except (ValueError, TypeError):
+        return False
+
+    source_string = f"POST{request.url}{body.decode()}{timestamp}"
+    expected = hmac.new(
+        client_secret.encode(), source_string.encode(), hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(signature, expected)
 
 
 @router.post("/hubspot", status_code=status.HTTP_200_OK)
@@ -49,8 +85,14 @@ async def hubspot_webhook(
     Handles contact.propertyChange events: if a relevant property changed
     on a contact we track, queue a re-enrichment.
     """
+    raw_body = await request.body()
+    timestamp = request.headers.get("X-HubSpot-Request-Timestamp", "")
+
+    if not _validate_hubspot_signature(request, raw_body, timestamp):
+        raise HTTPException(status_code=401, detail="Invalid HubSpot signature")
+
     try:
-        events = await request.json()
+        events = json.loads(raw_body)
     except Exception:
         logger.warning("HubSpot webhook: invalid JSON body")
         return {"processed": 0}
@@ -413,6 +455,45 @@ _SES_EVENT_ACTION_MAP: dict[str, TouchAction] = {
 }
 
 
+def _validate_sns_message(sns_payload: dict[str, Any]) -> bool:
+    """
+    Basic validation for SNS messages.
+
+    Checks:
+    - SigningCertURL is from *.amazonaws.com
+    - TopicArn matches expected SES notification pattern
+    - Message Type is valid
+    """
+    # Validate SigningCertURL domain
+    cert_url = sns_payload.get("SigningCertURL") or sns_payload.get("SigningCertUrl", "")
+    if cert_url:
+        parsed = urlparse(cert_url)
+        hostname = parsed.hostname or ""
+        if not hostname.endswith(".amazonaws.com"):
+            logger.warning(
+                "SES events webhook: SigningCertURL from non-AWS domain: %s", hostname,
+            )
+            return False
+        if parsed.scheme != "https":
+            logger.warning("SES events webhook: SigningCertURL not HTTPS")
+            return False
+
+    # Validate message type
+    msg_type = sns_payload.get("Type", "")
+    valid_types = {"Notification", "SubscriptionConfirmation", "UnsubscribeConfirmation"}
+    if msg_type and msg_type not in valid_types:
+        logger.warning("SES events webhook: invalid SNS message type: %s", msg_type)
+        return False
+
+    # Validate TopicArn looks like an AWS SES topic
+    topic_arn = sns_payload.get("TopicArn", "")
+    if topic_arn and not topic_arn.startswith("arn:aws:sns:"):
+        logger.warning("SES events webhook: invalid TopicArn: %s", topic_arn)
+        return False
+
+    return True
+
+
 @router.post("/ses/events", status_code=status.HTTP_200_OK)
 async def ses_events_webhook(
     request: Request,
@@ -436,6 +517,10 @@ async def ses_events_webhook(
         logger.warning("SES events webhook: invalid JSON body: %s", exc)
         return {"status": "error", "reason": "invalid_json"}
 
+    # Validate SNS message origin and structure
+    if not _validate_sns_message(sns_payload):
+        return {"status": "rejected", "reason": "invalid_sns_message"}
+
     message_type = x_amz_sns_message_type or sns_payload.get("Type", "")
     logger.debug("SES events webhook: SNS message type=%s", message_type)
 
@@ -443,6 +528,14 @@ async def ses_events_webhook(
     if message_type == "SubscriptionConfirmation":
         subscribe_url = sns_payload.get("SubscribeURL")
         if subscribe_url:
+            # Validate SubscribeURL is from AWS
+            parsed_sub = urlparse(subscribe_url)
+            if not (parsed_sub.hostname or "").endswith(".amazonaws.com"):
+                logger.warning(
+                    "SES events webhook: SubscribeURL from non-AWS domain: %s",
+                    subscribe_url,
+                )
+                return {"status": "rejected", "reason": "invalid_subscribe_url"}
             try:
                 import httpx
 
