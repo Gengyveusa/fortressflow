@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Settings,
   Key,
@@ -31,6 +31,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { useSettings } from "@/lib/hooks";
 import { useToast } from "@/lib/hooks/use-toast";
+import { settingsApi } from "@/lib/api";
+import type { ApiKeyEntry as ApiKeyData } from "@/lib/api";
 
 // ── Types ─────────────────────────────────────────────────
 interface ApiKeyEntry {
@@ -61,12 +63,6 @@ const DEFAULT_IDENTITIES: SendingIdentity[] = [
   { id: "2", email: "sales@fortressflow.io",       name: "FortressFlow Sales",    status: "warming" },
   { id: "3", email: "noreply@fortressflow.io",     name: "FortressFlow NoReply",  status: "paused"  },
 ];
-
-// ── Masked key display ────────────────────────────────────
-function maskKey(key: string): string {
-  if (!key || key.length < 8) return "•".repeat(key.length || 8);
-  return key.slice(0, 6) + "•".repeat(Math.max(0, key.length - 10)) + key.slice(-4);
-}
 
 // ── Status badge ──────────────────────────────────────────
 function StatusBadge({ connected }: { connected: boolean }) {
@@ -100,111 +96,143 @@ function IdentityBadge({ status }: { status: SendingIdentity["status"] }) {
 
 // ── API Keys Tab ──────────────────────────────────────────
 function ApiKeysTab() {
-  const { settings, updateSettings } = useSettings();
   const { toast } = useToast();
   const [editing, setEditing] = useState<string | null>(null);
   const [visible, setVisible] = useState<Record<string, boolean>>({});
   const [draftKeys, setDraftKeys] = useState<Record<string, string>>({});
+  const [serverKeys, setServerKeys] = useState<Record<string, string>>({});
+  const [loadingKeys, setLoadingKeys] = useState(true);
+
+  const fetchKeys = useCallback(async () => {
+    try {
+      const res = await settingsApi.listApiKeys();
+      const map: Record<string, string> = {};
+      res.data.forEach((k: ApiKeyData) => { map[k.service_name] = k.masked_key; });
+      setServerKeys(map);
+    } catch {
+      // Silent fail — keys just won't show
+    } finally {
+      setLoadingKeys(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchKeys(); }, [fetchKeys]);
 
   const startEdit = (name: string) => {
-    setDraftKeys((prev) => ({ ...prev, [name]: settings.apiKeys?.[name] ?? "" }));
+    setDraftKeys((prev) => ({ ...prev, [name]: "" }));
     setEditing(name);
   };
 
-  const saveKey = (name: string) => {
-    updateSettings({
-      apiKeys: { ...(settings.apiKeys ?? {}), [name]: draftKeys[name] ?? "" },
-    });
-    setEditing(null);
-    toast({ title: "API key saved", variant: "success" });
+  const saveKey = async (name: string) => {
+    const key = draftKeys[name]?.trim();
+    if (!key) return;
+    try {
+      const res = await settingsApi.upsertApiKey(name, key);
+      setServerKeys((prev) => ({ ...prev, [name]: res.data.masked_key }));
+      setEditing(null);
+      toast({ title: "API key saved", variant: "success" });
+    } catch {
+      toast({ title: "Failed to save API key", variant: "destructive" });
+    }
   };
 
-  const clearKey = (name: string) => {
-    const updated = { ...(settings.apiKeys ?? {}) };
-    delete updated[name];
-    updateSettings({ apiKeys: updated });
-    setEditing(null);
-    toast({ title: "API key removed" });
+  const clearKey = async (name: string) => {
+    try {
+      await settingsApi.deleteApiKey(name);
+      setServerKeys((prev) => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
+      setEditing(null);
+      toast({ title: "API key removed" });
+    } catch {
+      toast({ title: "Failed to remove API key", variant: "destructive" });
+    }
   };
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-500 dark:text-gray-400">
-        Configure your third-party integration credentials. Keys are stored locally and never logged.
+        Configure your third-party integration credentials. Keys are encrypted and stored securely on the server.
       </p>
-      {API_KEYS.map((entry) => {
-        const storedKey = settings.apiKeys?.[entry.name] ?? "";
-        const hasKey = !!storedKey;
-        const isEditing = editing === entry.name;
-        const isVisible = visible[entry.name];
+      {loadingKeys ? (
+        <p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">Loading API keys...</p>
+      ) : (
+        API_KEYS.map((entry) => {
+          const maskedKey = serverKeys[entry.name] ?? "";
+          const hasKey = !!maskedKey;
+          const isEditing = editing === entry.name;
+          const isVisible = visible[entry.name];
 
-        return (
-          <Card key={entry.name} className="dark:bg-gray-900 dark:border-gray-800">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-sm font-semibold dark:text-gray-100">
-                    {entry.label}
-                  </CardTitle>
-                  <CardDescription className="text-xs dark:text-gray-400">
-                    {entry.description}
-                  </CardDescription>
+          return (
+            <Card key={entry.name} className="dark:bg-gray-900 dark:border-gray-800">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-sm font-semibold dark:text-gray-100">
+                      {entry.label}
+                    </CardTitle>
+                    <CardDescription className="text-xs dark:text-gray-400">
+                      {entry.description}
+                    </CardDescription>
+                  </div>
+                  <StatusBadge connected={hasKey} />
                 </div>
-                <StatusBadge connected={hasKey} />
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {isEditing ? (
-                <div className="flex gap-2">
-                  <Input
-                    type={isVisible ? "text" : "password"}
-                    placeholder={entry.placeholder}
-                    value={draftKeys[entry.name] ?? ""}
-                    onChange={(e) =>
-                      setDraftKeys((p) => ({ ...p, [entry.name]: e.target.value }))
-                    }
-                    className="font-mono text-sm dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setVisible((p) => ({ ...p, [entry.name]: !isVisible }))}
-                    className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                  >
-                    {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                  <Button size="sm" onClick={() => saveKey(entry.name)}>
-                    <Save className="h-4 w-4 mr-1" /> Save
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => setEditing(null)}
-                    className="dark:border-gray-700 dark:text-gray-300">
-                    Cancel
-                  </Button>
-                </div>
-              ) : hasKey ? (
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 text-xs bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-3 py-2 font-mono text-gray-600 dark:text-gray-300">
-                    {maskKey(storedKey)}
-                  </code>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {isEditing ? (
+                  <div className="flex gap-2">
+                    <Input
+                      type={isVisible ? "text" : "password"}
+                      placeholder={entry.placeholder}
+                      value={draftKeys[entry.name] ?? ""}
+                      onChange={(e) =>
+                        setDraftKeys((p) => ({ ...p, [entry.name]: e.target.value }))
+                      }
+                      className="font-mono text-sm dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setVisible((p) => ({ ...p, [entry.name]: !isVisible }))}
+                      className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                    >
+                      {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                    <Button size="sm" onClick={() => saveKey(entry.name)}>
+                      <Save className="h-4 w-4 mr-1" /> Save
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setEditing(null)}
+                      className="dark:border-gray-700 dark:text-gray-300">
+                      Cancel
+                    </Button>
+                  </div>
+                ) : hasKey ? (
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-xs bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-3 py-2 font-mono text-gray-600 dark:text-gray-300">
+                      {maskedKey}
+                    </code>
+                    <Button size="sm" variant="outline" onClick={() => startEdit(entry.name)}
+                      className="dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
+                      <Key className="h-4 w-4 mr-1" /> Edit
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => clearKey(entry.name)}
+                      className="text-red-500 hover:text-red-700 dark:hover:bg-gray-800">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
                   <Button size="sm" variant="outline" onClick={() => startEdit(entry.name)}
                     className="dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
-                    <Key className="h-4 w-4 mr-1" /> Edit
+                    <Plus className="h-4 w-4 mr-1" /> Add Key
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => clearKey(entry.name)}
-                    className="text-red-500 hover:text-red-700 dark:hover:bg-gray-800">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : (
-                <Button size="sm" variant="outline" onClick={() => startEdit(entry.name)}
-                  className="dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
-                  <Plus className="h-4 w-4 mr-1" /> Add Key
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
+                )}
+              </CardContent>
+            </Card>
+          );
+        })
+      )}
     </div>
   );
 }

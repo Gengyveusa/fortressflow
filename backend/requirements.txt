@@ -24,3 +24,4 @@ pytest-mock==3.14.0
 anyio==4.6.2
 python-json-logger==2.0.7
 dnspython==2.7.0
+cryptography==43.0.1
