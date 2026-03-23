@@ -269,6 +269,34 @@ async def debug_db_state() -> dict:
     return result
 
 
+@app.get("/debug/test-register", tags=["health"], include_in_schema=False)
+async def debug_test_register() -> dict:
+    """Test register flow step by step."""
+    import traceback
+    result = {}
+    try:
+        from app.services.auth_service import hash_password
+        result["hash_test"] = hash_password("test123")[:20] + "..."
+    except Exception as e:
+        result["hash_error"] = f"{type(e).__name__}: {e}"
+        result["hash_traceback"] = traceback.format_exc()[-1000:]
+    try:
+        from app.database import AsyncSessionLocal
+        from sqlalchemy import text
+        async with AsyncSessionLocal() as session:
+            r = await session.execute(text("SELECT count(*) FROM users"))
+            result["user_count"] = r.scalar()
+    except Exception as e:
+        result["db_error"] = f"{type(e).__name__}: {e}"
+        result["db_traceback"] = traceback.format_exc()[-1000:]
+    try:
+        from app.utils.password_validation import validate_password_strength
+        result["password_validation"] = validate_password_strength("FortressFlow2026!")
+    except Exception as e:
+        result["validation_error"] = str(e)
+    return result
+
+
 @app.get("/debug/run-migrations", tags=["health"], include_in_schema=False)
 async def debug_run_migrations() -> dict:
     """Temporary endpoint to manually trigger Alembic migrations."""
