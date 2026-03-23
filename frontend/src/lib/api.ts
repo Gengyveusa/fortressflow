@@ -661,4 +661,41 @@ export const dealsApi = {
     api.get<HubSpotPipeline[]>("/deals/pipelines"),
 };
 
+// ── Insights API ─────────────────────────────────────────────
+
+export interface ProactiveInsight {
+  id: string;
+  type: "high_performer" | "warning" | "action_needed" | "milestone" | "suggestion";
+  title: string;
+  description: string;
+  action_label?: string;
+  action_value?: string;
+}
+
+export interface ProactiveInsightsResponse {
+  insights: ProactiveInsight[];
+}
+
+export const insightsApi = {
+  getProactive: () =>
+    api.get<ProactiveInsightsResponse>("/insights/proactive"),
+};
+
+// ── Onboarding API ───────────────────────────────────────────
+
+export interface OnboardingPreferences {
+  business_type: string;
+  company_name: string;
+  target_specialties: string[];
+  target_region: string;
+  target_states: string;
+  channels: string[];
+  launch_first_campaign: boolean;
+}
+
+export const onboardingApi = {
+  save: (data: OnboardingPreferences) =>
+    api.post("/settings/onboarding", data),
+};
+
 export default api;
