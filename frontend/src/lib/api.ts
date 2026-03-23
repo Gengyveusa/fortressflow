@@ -587,4 +587,21 @@ export const chatApi = {
     api.get<ChatHistoryResponse>(`/chat/history?session_id=${session_id}`),
 };
 
+// ── Settings API ──────────────────────────────────────────
+
+export interface ApiKeyEntry {
+  service_name: string;
+  masked_key: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export const settingsApi = {
+  listApiKeys: () => api.get<ApiKeyEntry[]>("/settings/api-keys"),
+  upsertApiKey: (service: string, apiKey: string) =>
+    api.put<ApiKeyEntry>(`/settings/api-keys/${service}`, { api_key: apiKey }),
+  deleteApiKey: (service: string) =>
+    api.delete(`/settings/api-keys/${service}`),
+};
+
 export default api;

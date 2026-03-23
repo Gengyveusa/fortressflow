@@ -448,6 +448,11 @@ def poll_imap_replies_task(self) -> dict:
 
     Fetches UNSEEN messages, creates ReplySignal for each, and processes
     through the full reply pipeline (sentiment → AI analysis → FSM transition).
+
+    Handles errors gracefully:
+    - IMAP connection failures → retry with backoff
+    - Individual reply processing failures → logged, other replies still processed
+    - Timeouts → caught and retried
     """
     async def _poll():
         import sentry_sdk
@@ -460,6 +465,13 @@ def poll_imap_replies_task(self) -> dict:
             svc = ReplyService(db)
             try:
                 signals = await svc.poll_imap_inbox()
+            except (OSError, TimeoutError, ConnectionError) as exc:
+                # IMAP connection issues — retry without crashing the worker
+                logger.warning(
+                    "poll_imap_replies_task: IMAP connection error (will retry): %s", exc
+                )
+                sentry_sdk.capture_exception(exc)
+                raise
             except Exception as exc:
                 logger.error("poll_imap_replies_task: IMAP poll error: %s", exc)
                 sentry_sdk.capture_exception(exc)
@@ -478,7 +490,9 @@ def poll_imap_replies_task(self) -> dict:
                     )
                 except Exception as exc:
                     logger.error(
-                        "poll_imap_replies_task: reply processing failed: %s", exc
+                        "poll_imap_replies_task: reply processing failed for message_id=%s: %s",
+                        signal.message_id,
+                        exc,
                     )
                     sentry_sdk.capture_exception(exc)
                     stats["failed"] += 1
