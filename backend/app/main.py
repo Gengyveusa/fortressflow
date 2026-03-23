@@ -269,6 +269,31 @@ async def debug_db_state() -> dict:
     return result
 
 
+@app.post("/debug/run-migrations", tags=["health"], include_in_schema=False)
+async def debug_run_migrations() -> dict:
+    """Temporary endpoint to manually trigger Alembic migrations."""
+    import subprocess
+    import traceback
+
+    try:
+        proc = subprocess.run(
+            ["python", "-m", "alembic", "upgrade", "head"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        return {
+            "returncode": proc.returncode,
+            "stdout": proc.stdout[-3000:] if proc.stdout else "",
+            "stderr": proc.stderr[-3000:] if proc.stderr else "",
+        }
+    except Exception as exc:
+        return {
+            "error": str(exc),
+            "traceback": traceback.format_exc()[-2000:],
+        }
+
+
 @app.get("/ready", tags=["health"], include_in_schema=True)
 async def readiness_check() -> dict:
     """
