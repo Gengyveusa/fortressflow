@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.auth import get_current_user
 from app.main import app
 
 
@@ -22,8 +23,11 @@ def _apply_mock_fields(target, source):
 
 
 @pytest.fixture
-def client():
-    return TestClient(app)
+def client(mock_user, auth_token):
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+    c = TestClient(app, headers={"Authorization": f"Bearer {auth_token}"})
+    yield c
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture

@@ -309,8 +309,17 @@ class TestHubSpotWebhook:
 
         lead_result = MagicMock()
         lead_result.scalar_one_or_none.return_value = lead
+
+        # Use side_effect to ensure each execute() call returns the right mock
+        # (the handler may call execute multiple times in some paths)
         mock_db.execute = AsyncMock(return_value=lead_result)
-        _override_db(mock_db)
+
+        from app.database import get_db
+
+        async def _mock_get_db():
+            yield mock_db
+
+        app.dependency_overrides[get_db] = _mock_get_db
 
         events = [
             {

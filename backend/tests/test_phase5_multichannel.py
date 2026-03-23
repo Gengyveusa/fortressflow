@@ -383,7 +383,6 @@ class TestReplyFSMTransition:
         mock_enrollment.lead_id = lead_id
         mock_enrollment.sequence_id = sequence_id
         mock_enrollment.status = EnrollmentStatus.sent
-        mock_enrollment.status.value = "sent"
         mock_enrollment.last_state_change_at = None
 
         # Mock lead
@@ -783,7 +782,7 @@ class TestTwilioWebhook:
         }
 
         with patch(
-            "app.services.sms_service.ReplyService"
+            "app.services.reply_service.ReplyService"
         ) as mock_reply_svc_class:
             mock_reply_svc = AsyncMock()
             mock_reply_svc_class.return_value = mock_reply_svc
@@ -1260,7 +1259,7 @@ class TestHoleFillerEscalation:
             mock_lead.phone = None  # No phone — should use LinkedIn
             mock_lead.enriched_data = {"linkedin_url": "https://linkedin.com/in/jane"}
 
-            with patch("app.services.channel_orchestrator.LinkedInService") as MockLI:
+            with patch("app.services.linkedin_service.LinkedInService") as MockLI:
                 mock_li_svc = AsyncMock()
                 MockLI.return_value = mock_li_svc
                 mock_li_result = MagicMock()
@@ -1316,7 +1315,7 @@ class TestHoleFillerEscalation:
             mock_lead.phone = "+14155559999"
             mock_lead.enriched_data = {}
 
-            with patch("app.services.channel_orchestrator.send_sms") as mock_send_sms:
+            with patch("app.services.sms_service.send_sms") as mock_send_sms:
                 mock_sms_result = MagicMock()
                 mock_sms_result.success = True
                 mock_sms_result.message_sid = "SMtest999"
@@ -1709,7 +1708,7 @@ class TestWebhookSecurity:
 
     @pytest.mark.asyncio
     async def test_webhook_email_reply_invalid_secret(self):
-        """POST with wrong secret → 403 Forbidden."""
+        """POST with wrong secret → rejected (200 to prevent webhook retries)."""
         from fastapi.testclient import TestClient
 
         try:
@@ -1724,7 +1723,7 @@ class TestWebhookSecurity:
             "body": "Interested in a demo!",
         }
 
-        with patch("app.config.settings") as mock_settings:
+        with patch("app.api.v1.webhooks.settings") as mock_settings:
             mock_settings.REPLY_WEBHOOK_SECRET = "correct-secret"
 
             response = client.post(
@@ -1733,7 +1732,10 @@ class TestWebhookSecurity:
                 headers={"X-Webhook-Secret": "wrong-secret"},
             )
 
-        assert response.status_code == 403
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "rejected"
+        assert data["reason"] == "invalid_secret"
 
 
 # ═══════════════════════════════════════════════════════════════════════

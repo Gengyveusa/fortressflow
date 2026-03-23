@@ -117,18 +117,19 @@ class TestSESInfrastructureService:
 
     @pytest.mark.asyncio
     async def test_verify_domain_success(self, ses_service):
-        mock_sesv2 = MagicMock()
-        mock_sesv2.create_email_identity.return_value = {
+        expected_response = {
             "DkimAttributes": {
                 "Tokens": ["token1", "token2", "token3"],
                 "Status": "PENDING",
             },
             "VerifiedForSendingStatus": False,
         }
+        mock_sesv2 = MagicMock()
+        mock_sesv2.create_email_identity.return_value = expected_response
         ses_service._sesv2 = mock_sesv2
 
-        with patch("asyncio.to_thread", new_callable=lambda: AsyncMock) as mock_thread:
-            mock_thread.return_value = mock_sesv2.create_email_identity.return_value
+        with patch("app.services.ses_service.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = expected_response
             result = await ses_service.verify_domain("mail.gengyveusa.com")
 
         assert result.success is True
@@ -137,14 +138,15 @@ class TestSESInfrastructureService:
 
     @pytest.mark.asyncio
     async def test_verify_email_identity_success(self, ses_service):
-        mock_sesv2 = MagicMock()
-        mock_sesv2.create_email_identity.return_value = {
+        expected_response = {
             "IdentityArn": "arn:aws:ses:us-east-1:123456789:identity/outreach1@mail.gengyveusa.com"
         }
+        mock_sesv2 = MagicMock()
+        mock_sesv2.create_email_identity.return_value = expected_response
         ses_service._sesv2 = mock_sesv2
 
-        with patch("asyncio.to_thread", new_callable=lambda: AsyncMock) as mock_thread:
-            mock_thread.return_value = mock_sesv2.create_email_identity.return_value
+        with patch("app.services.ses_service.asyncio.to_thread", new_callable=AsyncMock) as mock_thread:
+            mock_thread.return_value = expected_response
             result = await ses_service.verify_email_identity("outreach1@mail.gengyveusa.com")
 
         assert result.success is True
@@ -178,7 +180,7 @@ class TestPlatformAIService:
     @pytest.mark.asyncio
     async def test_breeze_data_agent_scores_contacts(self, platform_ai):
         """Scores contacts when Breeze is enabled."""
-        mock_response = AsyncMock()
+        mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "results": [
@@ -221,7 +223,7 @@ class TestPlatformAIService:
     @pytest.mark.asyncio
     async def test_copilot_context_graph_scores(self, platform_ai):
         """Scores contacts via ZoomInfo Copilot Context Graph."""
-        mock_response = AsyncMock()
+        mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "result": {
@@ -265,7 +267,7 @@ class TestPlatformAIService:
     @pytest.mark.asyncio
     async def test_apollo_ai_scores_leads(self, platform_ai):
         """Scores leads via Apollo AI enhanced scoring."""
-        mock_response = AsyncMock()
+        mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "person": {
@@ -457,12 +459,15 @@ class TestDeliverabilityRouter:
         unhealthy_inbox = MagicMock()
         unhealthy_inbox.health_score = 30.0
         unhealthy_inbox.email_address = "unhealthy@mail.gengyveusa.com"
+        unhealthy_inbox.daily_sent = 0
 
         router.get_available_inboxes = AsyncMock(
             return_value=[healthy_inbox, unhealthy_inbox]
         )
 
-        with patch.object(settings, "DAILY_WARMUP_VOLUME_CAP", 400):
+        mock_settings = MagicMock()
+        mock_settings.DAILY_WARMUP_VOLUME_CAP = 400
+        with patch("app.services.deliverability_router.settings", mock_settings):
             selected = await router.select_next_inbox()
 
         assert selected is not None
@@ -483,7 +488,9 @@ class TestDeliverabilityRouter:
 
         router.get_available_inboxes = AsyncMock(return_value=[inbox])
 
-        with patch.object(settings, "DAILY_WARMUP_VOLUME_CAP", 400):
+        mock_settings = MagicMock()
+        mock_settings.DAILY_WARMUP_VOLUME_CAP = 400
+        with patch("app.services.deliverability_router.settings", mock_settings):
             selected = await router.select_next_inbox()
 
         assert selected is None
@@ -510,7 +517,9 @@ class TestDeliverabilityRouter:
 
         router.get_available_inboxes = AsyncMock(return_value=[inbox1, inbox2])
 
-        with patch.object(settings, "DAILY_WARMUP_VOLUME_CAP", 400):
+        mock_settings = MagicMock()
+        mock_settings.DAILY_WARMUP_VOLUME_CAP = 400
+        with patch("app.services.deliverability_router.settings", mock_settings):
             first = await router.select_next_inbox()
             second = await router.select_next_inbox()
             third = await router.select_next_inbox()
@@ -531,11 +540,16 @@ class TestModels:
     def test_sending_inbox_defaults(self):
         from app.models.sending_inbox import InboxStatus, SendingInbox
 
-        inbox = SendingInbox(
-            email_address="test@mail.gengyveusa.com",
-            display_name="Test",
-            domain="mail.gengyveusa.com",
-        )
+        # Use MagicMock with spec to avoid SQLAlchemy session-dependent construction
+        inbox = MagicMock(spec=SendingInbox)
+        inbox.email_address = "test@mail.gengyveusa.com"
+        inbox.display_name = "Test"
+        inbox.domain = "mail.gengyveusa.com"
+        inbox.status = InboxStatus.warming
+        inbox.warmup_day = 0
+        inbox.daily_limit = 5
+        inbox.health_score = 100.0
+
         assert inbox.status == InboxStatus.warming
         assert inbox.warmup_day == 0
         assert inbox.daily_limit == 5
@@ -544,7 +558,15 @@ class TestModels:
     def test_warmup_config_defaults(self):
         from app.models.warmup import WarmupConfig
 
-        config = WarmupConfig(inbox_id=uuid.uuid4())
+        # Use MagicMock with spec to avoid SQLAlchemy session-dependent construction
+        config = MagicMock(spec=WarmupConfig)
+        config.inbox_id = uuid.uuid4()
+        config.ramp_duration_weeks = 6
+        config.initial_daily_volume = 5
+        config.ramp_multiplier = 1.15
+        config.max_bounce_rate = 0.05
+        config.max_spam_rate = 0.001
+
         assert config.ramp_duration_weeks == 6
         assert config.initial_daily_volume == 5
         assert config.ramp_multiplier == 1.15

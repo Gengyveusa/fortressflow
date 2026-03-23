@@ -874,12 +874,16 @@ class ReplyService:
             )
             enrollment = enr_result.scalar_one_or_none()
 
-            lead_result = await self.db.execute(
-                select(Lead).where(Lead.id == enrollment.lead_id)
-            ) if enrollment else None
+            lead_result = (
+                await self.db.execute(
+                    select(Lead).where(Lead.id == enrollment.lead_id)
+                )
+                if enrollment
+                else None
+            )
 
             lead: Lead | None = (
-                (await lead_result).scalar_one_or_none()
+                lead_result.scalar_one_or_none()
                 if lead_result
                 else None
             )

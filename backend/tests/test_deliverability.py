@@ -6,12 +6,16 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
+from app.auth import get_current_user
 from app.main import app
 
 
 @pytest.fixture
-def client():
-    return TestClient(app)
+def client(mock_user, auth_token):
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+    c = TestClient(app, headers={"Authorization": f"Bearer {auth_token}"})
+    yield c
+    app.dependency_overrides.clear()
 
 
 class TestDomains:
@@ -31,7 +35,6 @@ class TestDomains:
         response = client.get("/api/v1/deliverability/domains")
         assert response.status_code == 200
         assert response.json() == []
-        app.dependency_overrides.clear()
 
     def test_add_domain_conflict(self, client):
         """POST /api/v1/deliverability/domains should return 409 for duplicate domain."""
@@ -50,7 +53,6 @@ class TestDomains:
         )
         assert response.status_code == 409
         assert response.json()["detail"] == "Domain already exists"
-        app.dependency_overrides.clear()
 
 
 class TestWarmup:
@@ -70,4 +72,3 @@ class TestWarmup:
         response = client.get("/api/v1/deliverability/warmup")
         assert response.status_code == 200
         assert response.json() == []
-        app.dependency_overrides.clear()
