@@ -192,6 +192,7 @@ services:
       IMAP_PASSWORD: ${IMAP_PASSWORD}
       LINKEDIN_OAUTH_CLIENT_ID: ${LINKEDIN_OAUTH_CLIENT_ID}
       LINKEDIN_OAUTH_CLIENT_SECRET: ${LINKEDIN_OAUTH_CLIENT_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
     depends_on:
       postgres:
         condition: service_healthy

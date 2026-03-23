@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 revision = "004_deliverability_fortress"
-down_revision = "003_templates_and_outreach"
+down_revision = "003b_missing_tables"
 branch_labels = None
 depends_on = None
 
