@@ -210,6 +210,153 @@ class HubSpotService:
         except Exception as exc:
             logger.error("HubSpot create_enrichment_note error: %s", exc)
 
+    # ── Deal / Pipeline Tracking ─────────────────────────────────────
+
+    async def create_deal(
+        self,
+        hs_contact_id: str,
+        deal_name: str,
+        pipeline: str = "default",
+        stage: str = "appointmentscheduled",
+        amount: float | None = None,
+    ) -> dict:
+        """Create a deal in HubSpot and associate it with a contact.
+
+        Returns the created deal properties dict (including 'hs_object_id').
+        """
+        if not settings.HUBSPOT_API_KEY:
+            return {}
+        properties: dict[str, str] = {
+            "dealname": deal_name,
+            "pipeline": pipeline,
+            "dealstage": stage,
+        }
+        if amount is not None:
+            properties["amount"] = str(amount)
+
+        payload: dict = {
+            "properties": properties,
+            "associations": [
+                {
+                    "to": {"id": hs_contact_id},
+                    "types": [
+                        {
+                            "associationCategory": "HUBSPOT_DEFINED",
+                            "associationTypeId": 3,  # deal-to-contact
+                        }
+                    ],
+                }
+            ],
+        }
+        try:
+            resp = await self._request_with_backoff(
+                "POST", "/crm/v3/objects/deals", json=payload,
+            )
+            data = resp.json()
+            logger.info(
+                "Created HubSpot deal '%s' (id=%s) for contact %s",
+                deal_name, data.get("id"), hs_contact_id,
+            )
+            props = data.get("properties", {})
+            props["hs_object_id"] = data.get("id")
+            return props
+        except Exception as exc:
+            logger.error("HubSpot create_deal error: %s", exc)
+            return {}
+
+    async def update_deal_stage(self, deal_id: str, stage: str) -> dict:
+        """Update the pipeline stage of an existing deal.
+
+        Returns the updated deal properties dict.
+        """
+        if not settings.HUBSPOT_API_KEY:
+            return {}
+        payload = {"properties": {"dealstage": stage}}
+        try:
+            resp = await self._request_with_backoff(
+                "PATCH", f"/crm/v3/objects/deals/{deal_id}", json=payload,
+            )
+            data = resp.json()
+            logger.info("Updated HubSpot deal %s to stage '%s'", deal_id, stage)
+            props = data.get("properties", {})
+            props["hs_object_id"] = data.get("id")
+            return props
+        except Exception as exc:
+            logger.error("HubSpot update_deal_stage error: %s", exc)
+            return {}
+
+    async def sync_deals(self, hs_contact_id: str) -> list[dict]:
+        """Pull deals associated with a contact from HubSpot.
+
+        Returns a list of deal property dicts.
+        """
+        if not settings.HUBSPOT_API_KEY or not hs_contact_id:
+            return []
+        try:
+            # Get associated deal IDs
+            resp = await self._request_with_backoff(
+                "GET",
+                f"/crm/v3/objects/contacts/{hs_contact_id}/associations/deals",
+            )
+            assoc_data = resp.json()
+            deal_ids = [r["id"] for r in assoc_data.get("results", [])]
+
+            if not deal_ids:
+                return []
+
+            deals: list[dict] = []
+            for did in deal_ids:
+                try:
+                    deal_resp = await self._request_with_backoff(
+                        "GET",
+                        f"/crm/v3/objects/deals/{did}",
+                        params={
+                            "properties": "dealname,pipeline,dealstage,amount,createdate,hs_lastmodifieddate"
+                        },
+                    )
+                    deal_data = deal_resp.json()
+                    props = deal_data.get("properties", {})
+                    props["hs_object_id"] = deal_data.get("id")
+                    deals.append(props)
+                except Exception as exc:
+                    logger.warning("Failed to fetch deal %s: %s", did, exc)
+
+            logger.info(
+                "Synced %d deals for HubSpot contact %s", len(deals), hs_contact_id,
+            )
+            return deals
+        except Exception as exc:
+            logger.error("HubSpot sync_deals error: %s", exc)
+            return []
+
+    async def list_pipelines(self) -> list[dict]:
+        """Get available deal pipelines and their stages from HubSpot.
+
+        Returns a list of pipeline dicts with nested stages.
+        """
+        if not settings.HUBSPOT_API_KEY:
+            return []
+        try:
+            resp = await self._request_with_backoff(
+                "GET", "/crm/v3/pipelines/deals",
+            )
+            data = resp.json()
+            pipelines: list[dict] = []
+            for p in data.get("results", []):
+                stages = [
+                    {"stage_id": s.get("id", ""), "label": s.get("label", "")}
+                    for s in p.get("stages", [])
+                ]
+                pipelines.append({
+                    "pipeline_id": p.get("id", ""),
+                    "label": p.get("label", ""),
+                    "stages": stages,
+                })
+            return pipelines
+        except Exception as exc:
+            logger.error("HubSpot list_pipelines error: %s", exc)
+            return []
+
     # ── Legacy methods (kept for backward compatibility) ───────────────
 
     async def log_activity(

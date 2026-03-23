@@ -32,6 +32,7 @@ from app.models.lead import Lead
 from app.models.sequence import SequenceEnrollment
 from app.models.touch_log import TouchAction, TouchLog
 from app.services import compliance as compliance_svc
+from app.services.linkedin_executor import ExecutionStatus, get_executor
 from app.services.platform_ai_service import ContentSuggestion, PlatformAIService
 
 logger = logging.getLogger(__name__)
@@ -642,72 +643,83 @@ class LinkedInService:
         self, item: LinkedInQueueItem
     ) -> dict:
         """
-        Attempt to execute a queue item via the configured proxy endpoint.
+        Execute a queue item via the configured executor.
 
-        If no proxy is configured, marks item as manual and returns
-        a CSV-exportable result.
+        Uses PhantombusterExecutor when Phantombuster credentials are set,
+        otherwise falls back to ManualExecutor (CSV export).
         """
-        proxy_url = self._config.proxy_endpoint
-        if not proxy_url:
-            logger.info(
-                "No LinkedIn proxy configured — item %s marked for manual execution",
-                item.id,
+        executor = get_executor()
+        profile_url = item.payload.recipient_linkedin_url or ""
+
+        if not profile_url:
+            logger.warning(
+                "No LinkedIn URL for item %s — marking as manual", item.id
             )
             return {
                 "success": False,
                 "manual": True,
                 "item_id": item.id,
                 "payload": item.payload,
-                "reason": "no_proxy_configured",
+                "reason": "no_linkedin_url",
             }
 
         try:
-            payload_data = {
-                "action": item.payload.action.value,
-                "recipient_name": item.payload.recipient_name,
-                "recipient_title": item.payload.recipient_title,
-                "recipient_company": item.payload.recipient_company,
-                "recipient_linkedin_url": item.payload.recipient_linkedin_url,
-                "note": item.payload.note,
-                "subject": item.payload.subject,
-                "body": item.payload.body,
-                "lead_id": str(item.lead_id),
-                "enrollment_id": str(item.enrollment_id) if item.enrollment_id else None,
-            }
+            if item.payload.action == LinkedInAction.connection_request:
+                result = await executor.send_connection_request(
+                    profile_url, item.payload.note
+                )
+            elif item.payload.action == LinkedInAction.message:
+                result = await executor.send_message(
+                    profile_url, item.payload.body
+                )
+            elif item.payload.action == LinkedInAction.inmail:
+                result = await executor.send_message(
+                    profile_url, item.payload.body
+                )
+            else:
+                result = await executor.view_profile(profile_url)
 
-            resp = await self._http.post(
-                proxy_url,
-                json=payload_data,
-                timeout=30,
-            )
-            resp.raise_for_status()
-            proxy_resp = resp.json()
+            if result.status == ExecutionStatus.success:
+                logger.info(
+                    "LinkedIn executor completed item %s: %s",
+                    item.id,
+                    result.message,
+                )
+                return {
+                    "success": True,
+                    "item_id": item.id,
+                    "container_id": result.container_id,
+                    "proxy_response": result.raw_response,
+                }
+            elif result.status == ExecutionStatus.manual:
+                return {
+                    "success": False,
+                    "manual": True,
+                    "item_id": item.id,
+                    "payload": item.payload,
+                    "reason": "manual_mode",
+                }
+            elif result.status == ExecutionStatus.rate_limited:
+                logger.warning(
+                    "LinkedIn executor rate limited for item %s", item.id
+                )
+                return {
+                    "success": False,
+                    "manual": False,
+                    "item_id": item.id,
+                    "error": "rate_limited",
+                }
+            else:
+                return {
+                    "success": False,
+                    "manual": False,
+                    "item_id": item.id,
+                    "error": result.message,
+                }
 
-            logger.info(
-                "LinkedIn proxy executed item %s: %s",
-                item.id,
-                proxy_resp.get("status", "ok"),
-            )
-
-            return {
-                "success": True,
-                "item_id": item.id,
-                "proxy_response": proxy_resp,
-            }
-
-        except httpx.HTTPStatusError as exc:
-            logger.error(
-                "LinkedIn proxy HTTP error for item %s: %s", item.id, exc
-            )
-            return {
-                "success": False,
-                "manual": False,
-                "item_id": item.id,
-                "error": f"proxy_http_{exc.response.status_code}",
-            }
         except Exception as exc:
             logger.error(
-                "LinkedIn proxy execution error for item %s: %s", item.id, exc
+                "LinkedIn execution error for item %s: %s", item.id, exc
             )
             return {
                 "success": False,

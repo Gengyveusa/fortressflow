@@ -895,19 +895,21 @@ async def get_sequence_monitor(
     daily_send_count: dict[str, int] = {}
     try:
         seven_days_ago = dt.now(UTC) - timedelta(days=7)
+        send_date_col = func.date(TouchLog.created_at).label("send_date")
         ds_result = await db.execute(
-            text(
-                """
-                SELECT DATE(created_at) as send_date, COUNT(*) as send_count
-                FROM touch_logs
-                WHERE sequence_id = :seq_id
-                  AND action = 'sent'
-                  AND created_at >= :cutoff
-                GROUP BY DATE(created_at)
-                ORDER BY send_date
-                """
-            ),
-            {"seq_id": str(sequence_id), "cutoff": seven_days_ago},
+            select(
+                send_date_col,
+                func.count(TouchLog.id).label("send_count"),
+            )
+            .where(
+                and_(
+                    TouchLog.sequence_id == sequence_id,
+                    TouchLog.action == "sent",
+                    TouchLog.created_at >= seven_days_ago,
+                )
+            )
+            .group_by(send_date_col)
+            .order_by(send_date_col)
         )
         for send_date, send_count in ds_result.all():
             daily_send_count[str(send_date)] = send_count

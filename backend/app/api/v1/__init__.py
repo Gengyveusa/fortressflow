@@ -12,6 +12,7 @@ from app.api.v1.tracking import router as tracking_router
 from app.api.v1.unsubscribe import router as unsubscribe_router
 from app.api.v1.webhooks import router as webhooks_router
 from app.api.v1.chat import router as chat_router
+from app.api.v1.deals import router as deals_router
 from app.api.v1.settings import router as settings_router
 
 v1_router = APIRouter(prefix="/api/v1")
@@ -27,4 +28,5 @@ v1_router.include_router(tracking_router)
 v1_router.include_router(unsubscribe_router)
 v1_router.include_router(webhooks_router)
 v1_router.include_router(chat_router)
+v1_router.include_router(deals_router)
 v1_router.include_router(settings_router)

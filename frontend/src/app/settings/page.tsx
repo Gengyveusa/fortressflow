@@ -7,6 +7,7 @@ import {
   Flame,
   AlertTriangle,
   Mail,
+  Linkedin,
   Eye,
   EyeOff,
   CheckCircle2,
@@ -32,7 +33,7 @@ import { Separator } from "@/components/ui/separator";
 import { useSettings } from "@/lib/hooks";
 import { useToast } from "@/lib/hooks/use-toast";
 import { settingsApi } from "@/lib/api";
-import type { ApiKeyEntry as ApiKeyData } from "@/lib/api";
+import type { ApiKeyEntry as ApiKeyData, IntegrationStatusEntry } from "@/lib/api";
 
 // ── Types ─────────────────────────────────────────────────
 interface ApiKeyEntry {
@@ -616,6 +617,157 @@ function SendingIdentityTab() {
   );
 }
 
+// ── LinkedIn / Phantombuster Tab ──────────────────────────
+function LinkedInTab() {
+  const { toast } = useToast();
+  const [status, setStatus] = useState<IntegrationStatusEntry | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draftKeys, setDraftKeys] = useState<Record<string, string>>({});
+  const [serverKeys, setServerKeys] = useState<Record<string, string>>({});
+
+  const linkedinKeys = [
+    { name: "phantombuster", label: "Phantombuster API Key", description: "API key from phantombuster.com/api", placeholder: "pb_xxxxxxxxxxxxxxxx" },
+    { name: "phantombuster_connect_agent", label: "Connect Agent ID", description: "Phantombuster phantom ID for connection requests", placeholder: "1234567890" },
+    { name: "phantombuster_message_agent", label: "Message Agent ID", description: "Phantombuster phantom ID for messages", placeholder: "1234567890" },
+  ];
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [statusRes, keysRes] = await Promise.all([
+          settingsApi.integrationStatus(),
+          settingsApi.listApiKeys(),
+        ]);
+        const li = statusRes.data.integrations.find((i) => i.name === "linkedin");
+        setStatus(li ?? null);
+        const map: Record<string, string> = {};
+        keysRes.data.forEach((k: ApiKeyData) => { map[k.service_name] = k.masked_key; });
+        setServerKeys(map);
+      } catch {
+        // silent
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const saveKey = async (name: string) => {
+    const key = draftKeys[name]?.trim();
+    if (!key) return;
+    try {
+      const res = await settingsApi.upsertApiKey(name, key);
+      setServerKeys((prev) => ({ ...prev, [name]: res.data.masked_key }));
+      setEditing(null);
+      toast({ title: "Key saved", variant: "success" });
+    } catch {
+      toast({ title: "Failed to save key", variant: "destructive" });
+    }
+  };
+
+  const isActive = status?.mode === "active";
+
+  return (
+    <div className="space-y-4">
+      <Card className="dark:bg-gray-900 dark:border-gray-800">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-sm dark:text-gray-100 flex items-center gap-2">
+                <Linkedin className="h-4 w-4 text-blue-600" />
+                LinkedIn Automation Status
+              </CardTitle>
+              <CardDescription className="dark:text-gray-400 text-xs mt-1">
+                {isActive
+                  ? "Phantombuster is configured — LinkedIn actions will be automated."
+                  : "No Phantombuster credentials — LinkedIn actions will be exported to CSV for manual execution."}
+              </CardDescription>
+            </div>
+            <Badge
+              className={
+                isActive
+                  ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                  : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300"
+              }
+            >
+              {isActive ? (
+                <><CheckCircle2 className="h-3 w-3 mr-1" /> Automation active</>
+              ) : (
+                <><AlertTriangle className="h-3 w-3 mr-1" /> Manual mode</>
+              )}
+            </Badge>
+          </div>
+        </CardHeader>
+      </Card>
+
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        Configure Phantombuster credentials to enable automated LinkedIn outreach.
+        Create phantoms at phantombuster.com and enter their IDs below.
+      </p>
+
+      {loading ? (
+        <p className="text-sm text-gray-400 py-4 text-center">Loading...</p>
+      ) : (
+        linkedinKeys.map((entry) => {
+          const maskedKey = serverKeys[entry.name] ?? "";
+          const hasKey = !!maskedKey;
+          const isEditing = editing === entry.name;
+
+          return (
+            <Card key={entry.name} className="dark:bg-gray-900 dark:border-gray-800">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-sm font-semibold dark:text-gray-100">{entry.label}</CardTitle>
+                    <CardDescription className="text-xs dark:text-gray-400">{entry.description}</CardDescription>
+                  </div>
+                  <StatusBadge connected={hasKey} />
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {isEditing ? (
+                  <div className="flex gap-2">
+                    <Input
+                      type="password"
+                      placeholder={entry.placeholder}
+                      value={draftKeys[entry.name] ?? ""}
+                      onChange={(e) => setDraftKeys((p) => ({ ...p, [entry.name]: e.target.value }))}
+                      className="font-mono text-sm dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+                      autoFocus
+                    />
+                    <Button size="sm" onClick={() => saveKey(entry.name)}>
+                      <Save className="h-4 w-4 mr-1" /> Save
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setEditing(null)}
+                      className="dark:border-gray-700 dark:text-gray-300">
+                      Cancel
+                    </Button>
+                  </div>
+                ) : hasKey ? (
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-xs bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-3 py-2 font-mono text-gray-600 dark:text-gray-300">
+                      {maskedKey}
+                    </code>
+                    <Button size="sm" variant="outline" onClick={() => { setDraftKeys((p) => ({ ...p, [entry.name]: "" })); setEditing(entry.name); }}
+                      className="dark:border-gray-700 dark:text-gray-300">
+                      <Key className="h-4 w-4 mr-1" /> Edit
+                    </Button>
+                  </div>
+                ) : (
+                  <Button size="sm" variant="outline" onClick={() => { setDraftKeys((p) => ({ ...p, [entry.name]: "" })); setEditing(entry.name); }}
+                    className="dark:border-gray-700 dark:text-gray-300">
+                    <Plus className="h-4 w-4 mr-1" /> Add Key
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────
 export default function SettingsPage() {
   return (
@@ -648,6 +800,9 @@ export default function SettingsPage() {
           <TabsTrigger value="identity" className="dark:text-gray-400 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-gray-100">
             <Mail className="h-4 w-4 mr-1.5" /> Sending Identity
           </TabsTrigger>
+          <TabsTrigger value="linkedin" className="dark:text-gray-400 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-gray-100">
+            <Linkedin className="h-4 w-4 mr-1.5" /> LinkedIn
+          </TabsTrigger>
         </TabsList>
 
         <div className="mt-6">
@@ -662,6 +817,9 @@ export default function SettingsPage() {
           </TabsContent>
           <TabsContent value="identity">
             <SendingIdentityTab />
+          </TabsContent>
+          <TabsContent value="linkedin">
+            <LinkedInTab />
           </TabsContent>
         </div>
       </Tabs>
