@@ -8,6 +8,10 @@ COPY package.json package-lock.json* ./
 RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
 FROM base AS builder
+ARG NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+ARG BACKEND_URL=http://localhost:8000
+ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL
+ENV BACKEND_URL=$BACKEND_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
