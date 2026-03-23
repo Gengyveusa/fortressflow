@@ -260,6 +260,7 @@ class ChannelOrchestrator:
             from app.services.deliverability_router import DeliverabilityRouter
             from app.services.email_service import send_email
             from app.services.template_engine import build_lead_context, render_template
+            from app.api.v1.tracking import generate_open_tracking_url
 
             router = DeliverabilityRouter(self.db)
             sending_inbox = await router.select_inbox()
@@ -279,14 +280,19 @@ class ChannelOrchestrator:
 
             message_id = f"<{uuid.uuid4()}@fortressflow>"
 
+            # Generate open tracking pixel URL
+            tracking_url = generate_open_tracking_url(
+                lead_id=lead.id,
+                sequence_id=enrollment.sequence_id if enrollment else None,
+            )
+
             result = await send_email(
                 to_email=lead.email,
                 subject=subject,
-                body_html=body_html,
-                body_text=body_text,
+                html_body=body_html,
+                plain_body=body_text,
                 from_email=sender_info["email"],
-                from_name=sender_info["name"],
-                message_id=message_id,
+                tracking_url=tracking_url,
             )
 
             if hasattr(result, "success"):
