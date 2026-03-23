@@ -11,7 +11,7 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
-from migration_helpers import enum_exists, table_exists, index_exists
+from migration_helpers import create_enum_idempotent, table_exists, index_exists
 
 revision = "003b_missing_tables"
 down_revision = "003_templates_and_outreach"
@@ -22,20 +22,17 @@ depends_on = None
 def upgrade() -> None:
     bind = op.get_bind()
 
-    # ── Enum types ──────────────────────────────────────────────────────
-    if not enum_exists(bind, "step_type"):
-        op.execute(
-            "CREATE TYPE step_type AS ENUM ('email', 'sms', 'linkedin', 'delay', 'condition')"
-        )
-    if not enum_exists(bind, "enrollment_status"):
-        op.execute(
-            "CREATE TYPE enrollment_status AS ENUM "
-            "('active', 'paused', 'completed', 'bounced', 'replied', 'unsubscribed', 'failed')"
-        )
-    if not enum_exists(bind, "sequence_status"):
-        op.execute(
-            "CREATE TYPE sequence_status AS ENUM ('draft', 'active', 'paused', 'archived')"
-        )
+    # ── Enum types — use DO blocks so creation is idempotent at the SQL level
+    create_enum_idempotent(
+        "step_type", ["email", "sms", "linkedin", "delay", "condition"]
+    )
+    create_enum_idempotent(
+        "enrollment_status",
+        ["active", "paused", "completed", "bounced", "replied", "unsubscribed", "failed"],
+    )
+    create_enum_idempotent(
+        "sequence_status", ["draft", "active", "paused", "archived"]
+    )
 
     # ── sending_domains ─────────────────────────────────────────────────
     if not table_exists(bind, "sending_domains"):

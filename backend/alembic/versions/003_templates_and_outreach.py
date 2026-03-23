@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
-from migration_helpers import enum_exists, table_exists, index_exists
+from migration_helpers import create_enum_idempotent, table_exists, index_exists
 
 revision = "003_templates_and_outreach"
 down_revision = "002_lead_enrichment"
@@ -20,13 +20,11 @@ depends_on = None
 def upgrade() -> None:
     bind = op.get_bind()
 
-    # Create enum types
-    if not enum_exists(bind, "template_channel"):
-        op.execute("CREATE TYPE template_channel AS ENUM ('email', 'sms', 'linkedin')")
-    if not enum_exists(bind, "template_category"):
-        op.execute(
-            "CREATE TYPE template_category AS ENUM ('cold_outreach', 'follow_up', 're_engagement', 'custom')"
-        )
+    # Create enum types — use DO blocks so creation is idempotent at the SQL level
+    create_enum_idempotent("template_channel", ["email", "sms", "linkedin"])
+    create_enum_idempotent(
+        "template_category", ["cold_outreach", "follow_up", "re_engagement", "custom"]
+    )
 
     # Create templates table
     if not table_exists(bind, "templates"):

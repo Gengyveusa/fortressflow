@@ -14,7 +14,7 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
 
-from migration_helpers import enum_exists, table_exists, index_exists
+from migration_helpers import create_enum_idempotent, table_exists, index_exists
 
 revision = "008_users_auth"
 down_revision = "007_chat_logs_phase7"
@@ -25,8 +25,8 @@ depends_on = None
 def upgrade() -> None:
     bind = op.get_bind()
 
-    role_enum = sa.Enum("admin", "user", "viewer", name="userrole")
-    role_enum.create(bind, checkfirst=True)
+    create_enum_idempotent("userrole", ["admin", "user", "viewer"])
+    role_enum = sa.Enum("admin", "user", "viewer", name="userrole", create_type=False)
 
     if not table_exists(bind, "users"):
         op.create_table(

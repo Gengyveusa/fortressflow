@@ -29,7 +29,14 @@ def upgrade() -> None:
         op.add_column("leads", sa.Column("meeting_proof", JSONB, nullable=True))
 
     # Change source from String(100) to Text to allow longer source descriptions
-    op.alter_column("leads", "source", type_=sa.Text(), existing_type=sa.String(100))
+    # Safe to re-run: altering to the same type is a no-op in PostgreSQL
+    result = bind.execute(sa.text(
+        "SELECT data_type FROM information_schema.columns "
+        "WHERE table_schema = 'public' AND table_name = 'leads' AND column_name = 'source'"
+    ))
+    row = result.fetchone()
+    if row and row[0] != "text":
+        op.alter_column("leads", "source", type_=sa.Text(), existing_type=sa.String(100))
 
     # Case-insensitive unique index on email
     if not index_exists(bind, "ix_leads_email_lower"):
