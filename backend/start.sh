@@ -44,14 +44,17 @@ try:
         has_users = result.scalar() is not None
 
         # 3. Check for orphaned enum types left by partial migration runs
-        KNOWN_ENUMS = (
+        KNOWN_ENUMS = [
             'template_channel', 'template_category', 'step_type',
             'enrollment_status', 'sequence_status', 'consent_channel',
             'consent_method', 'touch_action', 'userrole',
+        ]
+        placeholders = ', '.join(f':e{i}' for i in range(len(KNOWN_ENUMS)))
+        params = {f'e{i}': v for i, v in enumerate(KNOWN_ENUMS)}
+        result = conn.execute(
+            sa.text(f'SELECT typname FROM pg_type WHERE typname IN ({placeholders})'),
+            params,
         )
-        result = conn.execute(sa.text(
-            \"SELECT typname FROM pg_type WHERE typname IN :names\"
-        ), {'names': KNOWN_ENUMS})
         orphaned_enums = [r[0] for r in result.fetchall()]
 
         # ── Decision logic ──────────────────────────────────────────────
