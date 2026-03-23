@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
+  experimental: {
+    missingSuspenseWithCSRFallback: false,
+  },
   async rewrites() {
     return [
       {
