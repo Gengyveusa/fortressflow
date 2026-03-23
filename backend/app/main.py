@@ -226,9 +226,47 @@ async def health_check() -> dict:
     """Liveness probe — returns 200 OK when the application is running."""
     return {
         "status": "ok",
-        "version": "0.7.0",
+        "version": "0.7.1",
         "environment": settings.ENVIRONMENT,
     }
+
+
+@app.get("/debug/db-state", tags=["health"], include_in_schema=False)
+async def debug_db_state() -> dict:
+    """Temporary diagnostic endpoint to check database migration state."""
+    import asyncpg
+
+    result: dict = {}
+    try:
+        conn = await asyncpg.connect(
+            settings.DATABASE_URL.replace("+asyncpg", ""),
+            timeout=5,
+        )
+        # Check tables
+        tables = await conn.fetch(
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema = 'public' ORDER BY table_name"
+        )
+        result["tables"] = [r["table_name"] for r in tables]
+
+        # Check enums
+        enums = await conn.fetch(
+            "SELECT typname FROM pg_type WHERE typtype = 'e' ORDER BY typname"
+        )
+        result["enums"] = [r["typname"] for r in enums]
+
+        # Check alembic version
+        try:
+            rev = await conn.fetchval("SELECT version_num FROM alembic_version")
+            result["alembic_revision"] = rev
+        except Exception:
+            result["alembic_revision"] = None
+
+        await conn.close()
+        result["status"] = "ok"
+    except Exception as exc:
+        result["status"] = f"error: {exc}"
+    return result
 
 
 @app.get("/ready", tags=["health"], include_in_schema=True)
