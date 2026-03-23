@@ -17,6 +17,18 @@ from app.services.auth_service import (
     get_user_by_email,
     hash_password,
 )
+from app.services.brute_force_protection import (
+    check_login_allowed,
+    record_failed_attempt,
+    reset_attempts,
+)
+from app.services.token_rotation import (
+    generate_family_id,
+    generate_jti,
+    register_token,
+    validate_and_rotate,
+)
+from app.utils.password_validation import validate_password_strength
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -66,6 +78,7 @@ class AuthResponse(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: str | None = None
     token_type: str = "bearer"
 
 
@@ -87,6 +100,13 @@ def _user_response(user: User) -> UserResponse:
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
 async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     """Create a new user account."""
+    password_errors = validate_password_strength(body.password)
+    if password_errors:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": "Password does not meet requirements", "errors": password_errors},
+        )
+
     existing = await get_user_by_email(db, body.email)
     if existing:
         raise HTTPException(
@@ -105,7 +125,10 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     await db.refresh(user)
 
     access_token = create_access_token(str(user.id), user.email, user.role.value)
-    refresh_token = create_refresh_token(str(user.id))
+    family_id = generate_family_id()
+    jti = generate_jti()
+    refresh_token = create_refresh_token(str(user.id), jti=jti, family_id=family_id)
+    await register_token(jti, family_id, str(user.id))
 
     return AuthResponse(
         user=_user_response(user),
@@ -117,18 +140,34 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
 @router.post("/login", response_model=AuthResponse)
 async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
     """Authenticate with email and password."""
+    # Brute force protection — check if login is allowed for this email
+    allowed, retry_after = await check_login_allowed(body.email)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed login attempts. Please try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
     user = await authenticate_user(db, body.email, body.password)
     if user is None:
+        await record_failed_attempt(body.email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
 
+    # Successful login — reset failure counter
+    await reset_attempts(body.email)
+
     user.last_login_at = datetime.now(UTC)
     await db.flush()
 
     access_token = create_access_token(str(user.id), user.email, user.role.value)
-    refresh_token = create_refresh_token(str(user.id))
+    family_id = generate_family_id()
+    jti = generate_jti()
+    refresh_token = create_refresh_token(str(user.id), jti=jti, family_id=family_id)
+    await register_token(jti, family_id, str(user.id))
 
     return AuthResponse(
         user=_user_response(user),
@@ -139,13 +178,27 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
-    """Exchange a refresh token for a new access token."""
+    """Exchange a refresh token for a new access + refresh token pair (rotation)."""
     payload = decode_token(body.refresh_token)
     if payload is None or payload.get("type") != "refresh":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired refresh token",
         )
+
+    # Token rotation check
+    old_jti = payload.get("jti")
+    old_family_id = payload.get("family_id")
+
+    if old_jti:
+        valid, family_id, _ = await validate_and_rotate(old_jti)
+        if not valid:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token has been revoked",
+            )
+        if family_id:
+            old_family_id = family_id
 
     from app.services.auth_service import get_user_by_id
     from uuid import UUID
@@ -158,7 +211,16 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
         )
 
     access_token = create_access_token(str(user.id), user.email, user.role.value)
-    return TokenResponse(access_token=access_token)
+
+    # Issue new refresh token in the same family (rotation)
+    new_family_id = old_family_id or generate_family_id()
+    new_jti = generate_jti()
+    new_refresh_token = create_refresh_token(
+        str(user.id), jti=new_jti, family_id=new_family_id
+    )
+    await register_token(new_jti, new_family_id, str(user.id))
+
+    return TokenResponse(access_token=access_token, refresh_token=new_refresh_token)
 
 
 @router.get("/me", response_model=UserResponse)
@@ -189,6 +251,12 @@ async def update_me(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Current password is incorrect",
+            )
+        password_errors = validate_password_strength(body.new_password)
+        if password_errors:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"message": "Password does not meet requirements", "errors": password_errors},
             )
         current_user.password_hash = hash_password(body.new_password)
 

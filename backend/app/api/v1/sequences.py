@@ -10,8 +10,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import get_current_user
 from app.database import get_db
 from app.models.lead import Lead
+from app.models.user import User
 from app.models.sequence import (
     EnrollmentStatus,
     Sequence,
@@ -75,6 +77,7 @@ def _sequence_to_response(seq: Sequence) -> SequenceResponse:
 async def create_sequence(
     body: SequenceCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SequenceResponse:
     """Create a new sequence."""
     seq = Sequence(
@@ -97,6 +100,7 @@ async def list_sequences(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SequenceListResponse:
     """List all sequences with pagination."""
     total_result = await db.execute(select(func.count(Sequence.id)))
@@ -120,6 +124,7 @@ async def list_sequences(
 async def get_sequence(
     sequence_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SequenceResponse:
     """Retrieve a single sequence by ID."""
     result = await db.execute(select(Sequence).where(Sequence.id == sequence_id))
@@ -134,6 +139,7 @@ async def update_sequence(
     sequence_id: UUID,
     body: SequenceUpdate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SequenceResponse:
     """Update an existing sequence."""
     result = await db.execute(select(Sequence).where(Sequence.id == sequence_id))
@@ -155,6 +161,7 @@ async def update_sequence(
 async def delete_sequence(
     sequence_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> None:
     """Delete a sequence."""
     result = await db.execute(select(Sequence).where(Sequence.id == sequence_id))
@@ -177,6 +184,7 @@ async def add_step(
     sequence_id: UUID,
     body: SequenceStepCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SequenceStepResponse:
     """Add a step to a sequence."""
     result = await db.execute(select(Sequence).where(Sequence.id == sequence_id))
@@ -211,6 +219,7 @@ async def delete_step(
     sequence_id: UUID,
     step_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> None:
     """Delete a step from a sequence."""
     result = await db.execute(
@@ -236,6 +245,7 @@ async def enroll_leads(
     sequence_id: UUID,
     body: EnrollRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     """Enroll leads into a sequence (checks compliance gate first)."""
     result = await db.execute(select(Sequence).where(Sequence.id == sequence_id))
@@ -304,6 +314,7 @@ async def pause_enrollment(
     sequence_id: UUID,
     enrollment_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     """Pause an active enrollment."""
     from app.services.state_machine import can_transition, EnrollmentState
@@ -338,6 +349,7 @@ async def resume_enrollment(
     sequence_id: UUID,
     enrollment_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     """Resume a paused enrollment."""
     result = await db.execute(
@@ -372,6 +384,7 @@ async def resume_enrollment(
 async def generate_sequence(
     body: SequenceGenerateRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SequenceGenerateResponse:
     """
     AI-powered sequence generation.
@@ -450,6 +463,7 @@ async def generate_sequence(
 async def get_visual_config(
     sequence_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> VisualConfigResponse:
     """Load the visual builder config for a sequence."""
     result = await db.execute(select(Sequence).where(Sequence.id == sequence_id))
@@ -469,6 +483,7 @@ async def save_visual_config(
     sequence_id: UUID,
     body: VisualConfigSaveRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> VisualConfigResponse:
     """
     Save the visual builder config for a sequence.
@@ -527,6 +542,7 @@ async def save_visual_config(
 async def get_sequence_analytics(
     sequence_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SequenceAnalyticsResponse:
     """Get step-by-step analytics for a sequence, including A/B test results."""
     result = await db.execute(select(Sequence).where(Sequence.id == sequence_id))
@@ -703,6 +719,7 @@ async def get_reply_inbox(
     sentiment: str | None = Query(None),
     channel: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> ReplyListResponse:
     """
     List parsed replies with AI-suggested actions.
@@ -816,6 +833,7 @@ async def get_reply_inbox(
 async def get_sequence_monitor(
     sequence_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SequenceMonitorResponse:
     """
     Get full monitoring view for a sequence.
@@ -1023,6 +1041,7 @@ async def get_sequence_monitor(
 async def get_channel_health(
     sequence_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> list[ChannelHealthResponse]:
     """
     Get per-channel health metrics for a sequence.

@@ -4,8 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import get_current_user
 from app.database import get_db
 from app.models.template import Template, TemplateCategory, TemplateChannel
+from app.models.user import User
 from app.schemas.template import (
     TemplateCreate,
     TemplateListResponse,
@@ -47,6 +49,7 @@ def _template_to_response(t: Template) -> TemplateResponse:
 async def create_template(
     body: TemplateCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TemplateResponse:
     """Create a new message template."""
     template = Template(
@@ -75,6 +78,7 @@ async def list_templates(
     category: str | None = Query(None),
     active_only: bool = Query(True),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TemplateListResponse:
     """List templates with filtering."""
     filters = []
@@ -108,6 +112,7 @@ async def list_templates(
 async def get_template(
     template_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TemplateResponse:
     """Get a single template."""
     result = await db.execute(select(Template).where(Template.id == template_id))
@@ -122,6 +127,7 @@ async def update_template(
     template_id: UUID,
     body: TemplateUpdate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TemplateResponse:
     """Update an existing template."""
     result = await db.execute(select(Template).where(Template.id == template_id))
@@ -152,6 +158,7 @@ async def update_template(
 async def delete_template(
     template_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> None:
     """Delete a template (soft delete by deactivating)."""
     result = await db.execute(select(Template).where(Template.id == template_id))
@@ -171,6 +178,7 @@ async def delete_template(
 async def preview_template(
     body: TemplatePreviewRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TemplatePreviewResponse:
     """Preview a template with sample data."""
     plain_body = body.plain_body or ""

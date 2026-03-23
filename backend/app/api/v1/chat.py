@@ -11,18 +11,21 @@ Routes:
 """
 
 import logging
+import time
 import uuid
-from collections import defaultdict, deque
 from datetime import UTC, datetime
 from typing import Annotated
 
+import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.leads import get_current_user  # reuse existing auth dependency
+from app.auth import get_current_user
+from app.config import settings
 from app.database import get_db
+from app.models.user import User
 from app.models.chat import ChatLog
 from app.schemas.chat import ChatHistoryResponse, ChatRequest, ChatResponse
 from app.services.chat_service import ChatService
@@ -30,32 +33,70 @@ from app.services.chat_service import ChatService
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
-# ── Per-user in-memory rate limiting (sliding window) ────────────────────────
-# Limit: 30 messages per user per minute
-
-_CHAT_RATE_LIMIT = 30
+# ── Redis-backed per-user chat rate limiting (sliding window) ────────────────
+_CHAT_RATE_LIMIT = 20  # messages per minute per user
 _CHAT_RATE_WINDOW_SECONDS = 60
 
-# user_id -> deque of timestamps
-_chat_rate_buckets: dict[str, deque] = defaultdict(lambda: deque())
+_chat_redis: aioredis.Redis | None = None
 
 
-def _check_chat_rate_limit(user_id: str) -> None:
-    """Raise 429 if user exceeds rate limit. Modifies bucket in place."""
-    now = datetime.now(UTC).timestamp()
-    bucket = _chat_rate_buckets[user_id]
+async def _get_chat_redis() -> aioredis.Redis | None:
+    """Lazy singleton Redis client for chat rate limiting."""
+    global _chat_redis
+    if _chat_redis is not None:
+        try:
+            await _chat_redis.ping()
+            return _chat_redis
+        except Exception:
+            _chat_redis = None
 
-    # Evict old timestamps outside the window
-    while bucket and now - bucket[0] > _CHAT_RATE_WINDOW_SECONDS:
-        bucket.popleft()
-
-    if len(bucket) >= _CHAT_RATE_LIMIT:
-        raise HTTPException(
-            status_code=429,
-            detail=f"Chat rate limit exceeded. Max {_CHAT_RATE_LIMIT} messages per minute.",
+    try:
+        _chat_redis = aioredis.from_url(
+            settings.REDIS_URL,
+            encoding="utf-8",
+            decode_responses=True,
+            socket_connect_timeout=1.0,
+            socket_timeout=0.5,
         )
+        await _chat_redis.ping()
+        return _chat_redis
+    except Exception as exc:
+        logger.warning("Redis unavailable for chat rate limiting: %s", exc)
+        _chat_redis = None
+        return None
 
-    bucket.append(now)
+
+async def _check_chat_rate_limit(user_id: str) -> None:
+    """Raise 429 if user exceeds chat rate limit. Uses Redis sliding window."""
+    r = await _get_chat_redis()
+    if r is None:
+        # Fail open if Redis is unavailable
+        return
+
+    key = f"chat_rate:{user_id}"
+    now = time.time()
+    window_start = now - _CHAT_RATE_WINDOW_SECONDS
+    member = f"{now:.6f}"
+
+    try:
+        async with r.pipeline(transaction=True) as pipe:
+            pipe.zremrangebyscore(key, "-inf", window_start)
+            pipe.zcard(key)
+            pipe.zadd(key, {member: now})
+            pipe.expire(key, _CHAT_RATE_WINDOW_SECONDS + 10)
+            results = await pipe.execute()
+
+        count = results[1]
+        if count >= _CHAT_RATE_LIMIT:
+            await r.zrem(key, member)
+            raise HTTPException(
+                status_code=429,
+                detail=f"Chat rate limit exceeded. Max {_CHAT_RATE_LIMIT} messages per minute.",
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Chat rate limit check failed, allowing request: %s", exc)
 
 
 # ── Streaming endpoint ────────────────────────────────────────────────────────
@@ -65,6 +106,7 @@ def _check_chat_rate_limit(user_id: str) -> None:
 async def chat_stream(
     request: Request,
     body: ChatRequest,
+    current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
     """
     Stream a chat response as Server-Sent Events.
@@ -72,20 +114,10 @@ async def chat_stream(
     Each chunk is prefixed with `data: ` and terminated with `\\n\\n`.
     A final `data: [DONE]\\n\\n` or `data: [ERROR]\\n\\n` signals completion.
     """
-    # Try to get user_id from auth, fall back to anonymous
-    user_id = "anonymous"
-    try:
-        # Attempt to extract auth from request headers
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            # In production use proper JWT verification
-            # For now use a placeholder
-            user_id = "authenticated-user"
-    except Exception:
-        pass
+    user_id = str(current_user.id)
 
     # Rate limiting
-    _check_chat_rate_limit(user_id)
+    await _check_chat_rate_limit(user_id)
 
     # Determine session ID
     session_id = body.session_id or str(uuid.uuid4())
@@ -119,6 +151,7 @@ async def chat_stream(
 @router.post("/sync", response_model=ChatResponse, summary="Chat — synchronous")
 async def chat_sync(
     body: ChatRequest,
+    current_user: User = Depends(get_current_user),
 ) -> ChatResponse:
     """
     Non-streaming chat endpoint. Returns the full response at once.
@@ -126,7 +159,7 @@ async def chat_sync(
     """
     session_id = body.session_id or str(uuid.uuid4())
     svc = ChatService()
-    result = await svc.handle_message_sync(body.message, "anonymous", session_id)
+    result = await svc.handle_message_sync(body.message, str(current_user.id), session_id)
     return ChatResponse(
         session_id=result["session_id"],
         message=result["message"],
@@ -143,6 +176,7 @@ async def chat_sync(
 @router.get("/history", response_model=ChatHistoryResponse, summary="Chat history")
 async def chat_history(
     session_id: str,
+    current_user: User = Depends(get_current_user),
 ) -> ChatHistoryResponse:
     """
     Return chat history for a given session_id.
@@ -191,6 +225,7 @@ async def chat_history(
 
 @router.get("/sessions", summary="List chat sessions")
 async def list_sessions(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """List all distinct chat sessions with their latest message timestamp."""
@@ -222,6 +257,7 @@ async def list_sessions(
 @router.get("/sessions/{session_id}", summary="Get session messages")
 async def get_session_messages(
     session_id: str,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Get all messages for a specific chat session."""
@@ -253,7 +289,9 @@ async def get_session_messages(
 
 
 @router.post("/sessions", summary="Create a new session")
-async def create_session() -> dict:
+async def create_session(
+    current_user: User = Depends(get_current_user),
+) -> dict:
     """Create a new chat session and return its ID."""
     session_id = str(uuid.uuid4())
     return {"session_id": session_id}

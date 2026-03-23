@@ -9,7 +9,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import get_current_user
 from app.database import get_db
+from app.models.user import User
 from app.models.domain import SendingDomain
 from app.models.sending_inbox import InboxStatus, SendingInbox
 from app.models.warmup import WarmupConfig, WarmupQueue
@@ -34,6 +36,7 @@ router = APIRouter(prefix="/deliverability", tags=["deliverability"])
 
 @router.get("/domains", response_model=list[DomainResponse])
 async def list_domains(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[DomainResponse]:
     """List all sending domains with health scores and verification status."""
@@ -47,6 +50,7 @@ async def list_domains(
 @router.post("/domains", response_model=DomainResponse, status_code=status.HTTP_201_CREATED)
 async def add_domain(
     body: DomainCreate,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> DomainResponse:
     """Add a new sending domain and initiate SES verification."""
@@ -76,7 +80,10 @@ async def add_domain(
 
 
 @router.get("/domains/{domain_name}/dns", response_model=DomainDNSInstructions)
-async def get_dns_instructions(domain_name: str) -> DomainDNSInstructions:
+async def get_dns_instructions(
+    domain_name: str,
+    current_user: User = Depends(get_current_user),
+) -> DomainDNSInstructions:
     """Get DNS record setup instructions for SPF, DKIM, DMARC, and BIMI."""
     from app.services.ses_service import SESInfrastructureService
 
@@ -90,6 +97,7 @@ async def get_dns_instructions(domain_name: str) -> DomainDNSInstructions:
 
 @router.get("/inboxes", response_model=list[InboxResponse])
 async def list_inboxes(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[InboxResponse]:
     """List all sending inboxes with status and health metrics."""
@@ -103,6 +111,7 @@ async def list_inboxes(
 @router.post("/inboxes", response_model=InboxResponse, status_code=status.HTTP_201_CREATED)
 async def create_inbox(
     body: InboxCreate,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> InboxResponse:
     """Create a new sending inbox and initiate SES email identity verification."""
@@ -160,6 +169,7 @@ async def create_inbox(
 @router.post("/inboxes/{inbox_id}/pause")
 async def pause_inbox(
     inbox_id: UUID,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Pause a sending inbox (stops warmup and sending)."""
@@ -187,6 +197,7 @@ async def pause_inbox(
 @router.post("/inboxes/{inbox_id}/resume")
 async def resume_inbox(
     inbox_id: UUID,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Resume a paused sending inbox."""
@@ -215,6 +226,7 @@ async def resume_inbox(
 
 @router.get("/warmup", response_model=list[WarmupStatus])
 async def warmup_status(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[WarmupStatus]:
     """Get warmup queue status and progress."""
@@ -242,6 +254,7 @@ async def warmup_status(
 @router.get("/warmup/config/{inbox_id}", response_model=WarmupConfigResponse)
 async def get_warmup_config(
     inbox_id: UUID,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> WarmupConfigResponse:
     """Get warmup configuration for an inbox."""
@@ -258,6 +271,7 @@ async def get_warmup_config(
 async def update_warmup_config(
     inbox_id: UUID,
     body: WarmupConfigCreate,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> WarmupConfigResponse:
     """Update warmup configuration for an inbox."""
@@ -287,6 +301,7 @@ async def get_ramp_schedule(
     initial_volume: int = 5,
     target_volume: int = 50,
     ramp_multiplier: float = 1.15,
+    current_user: User = Depends(get_current_user),
 ) -> list[RampScheduleEntry]:
     """Preview the warmup ramp schedule for given parameters."""
     from app.services.warmup_ai import compute_ramp_schedule
@@ -305,6 +320,7 @@ async def get_ramp_schedule(
 
 @router.get("/dashboard", response_model=DeliverabilityDashboard)
 async def deliverability_dashboard(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> DeliverabilityDashboard:
     """Comprehensive deliverability status dashboard."""

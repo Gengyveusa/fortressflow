@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import and_, cast, func, select, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import get_current_user
 from app.database import get_db
+from app.models.user import User
 from app.models.consent import Consent
 from app.models.dnc import DNCBlock
 from app.models.lead import Lead
@@ -28,6 +30,7 @@ router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 @router.get("/dashboard", response_model=DashboardStats)
 async def dashboard_stats(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> DashboardStats:
     """Aggregate stats: total leads, active consents, touches sent, response rate."""
@@ -61,6 +64,7 @@ async def dashboard_stats(
 
 @router.get("/deliverability", response_model=DeliverabilityStats)
 async def deliverability_stats(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> DeliverabilityStats:
     """Bounce rates, spam complaints, warmup progress."""
@@ -107,6 +111,7 @@ async def deliverability_stats(
 
 @router.get("/sequences", response_model=AnalyticsSequencesResponse)
 async def sequences_analytics(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AnalyticsSequencesResponse:
     """Per-sequence performance metrics."""
@@ -199,6 +204,7 @@ async def sequences_analytics(
 
 @router.get("/outreach-daily")
 async def outreach_daily(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Last 7 days of outreach volume grouped by channel (email/sms/linkedin)."""
@@ -230,6 +236,7 @@ async def outreach_daily(
 
 @router.get("/recent-activity")
 async def recent_activity(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """10 most recent touch_log entries with lead name and action type."""
@@ -258,6 +265,7 @@ async def recent_activity(
 
 @router.get("/sequence-performance")
 async def sequence_performance(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Per-sequence metrics: total sends, opens, replies, bounces from touch_logs."""
@@ -315,6 +323,7 @@ async def sequence_performance(
 
 @router.get("/response-trends")
 async def response_trends(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Weekly response rates over the last 8 weeks from touch_logs."""
@@ -366,6 +375,7 @@ async def response_trends(
 
 @router.get("/channel-breakdown")
 async def channel_breakdown(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Total sends by channel (email/sms/linkedin) for pie chart."""
@@ -384,6 +394,7 @@ async def channel_breakdown(
 
 @router.get("/bounce-daily")
 async def bounce_daily(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Last 7 days of bounce counts from touch_logs."""
@@ -410,6 +421,7 @@ async def bounce_daily(
 
 @router.get("/audit-trail")
 async def audit_trail(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Compliance audit trail: recent consent events, DNC additions, compliance check results."""

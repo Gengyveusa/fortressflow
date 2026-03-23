@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # Apollo
     APOLLO_API_KEY: str = ""
 
+    # CORS
+    CORS_ORIGINS: str = ""  # Comma-separated allowed origins for production
+
     # Sentry
     SENTRY_DSN: str = ""
     ENVIRONMENT: str = "development"

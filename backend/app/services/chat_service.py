@@ -16,6 +16,7 @@ from collections.abc import AsyncGenerator
 from typing import Any
 
 from app.config import settings
+from app.utils.sanitize import sanitize_error
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +117,7 @@ class ChatService:
                 full_response += chunk
                 yield chunk
         except Exception as exc:
-            logger.error("ChatService.handle_message: LLM streaming failed: %s", exc)
+            logger.error("ChatService.handle_message: LLM streaming failed: %s", sanitize_error(exc))
             error_msg = "I'm having trouble connecting right now. Please try again in a moment."
             yield error_msg
             full_response = error_msg
@@ -451,7 +452,7 @@ class ChatService:
                 if result:
                     insights[platform_key] = result
             except Exception as exc:
-                logger.warning("_route_to_ai_platforms: %s failed: %s", platform_key, exc)
+                logger.warning("_route_to_ai_platforms: %s failed: %s", platform_key, sanitize_error(exc))
 
         return insights
 
@@ -478,8 +479,8 @@ class ChatService:
                     lines.append(f"  Open rate: {r.signals['open_rate']:.1%}")
             return "\n".join(lines)
         except Exception as exc:
-            logger.warning("_query_hubspot_breeze failed: %s", exc)
-            return f"HubSpot Breeze: Unable to retrieve insights — {exc}"
+            logger.warning("_query_hubspot_breeze failed: %s", sanitize_error(exc))
+            return "HubSpot Breeze: Unable to retrieve insights at this time."
 
     async def _query_zoominfo_copilot(self, message: str) -> str:
         """Query ZoomInfo Copilot for lead intelligence via real platform API."""
@@ -502,8 +503,8 @@ class ChatService:
                     lines.append(f"  Tech stack: {', '.join(r.signals['tech_stack'][:3])}")
             return "\n".join(lines)
         except Exception as exc:
-            logger.warning("_query_zoominfo_copilot failed: %s", exc)
-            return f"ZoomInfo Copilot: Unable to retrieve intelligence — {exc}"
+            logger.warning("_query_zoominfo_copilot failed: %s", sanitize_error(exc))
+            return "ZoomInfo Copilot: Unable to retrieve intelligence at this time."
 
     async def _query_apollo_ai(self, message: str) -> str:
         """Query Apollo AI for action recommendations via real platform API."""
@@ -526,8 +527,8 @@ class ChatService:
                     lines.append(f"  Org: {r.signals['organization']}")
             return "\n".join(lines)
         except Exception as exc:
-            logger.warning("_query_apollo_ai failed: %s", exc)
-            return f"Apollo AI: Unable to retrieve recommendations — {exc}"
+            logger.warning("_query_apollo_ai failed: %s", sanitize_error(exc))
+            return "Apollo AI: Unable to retrieve recommendations at this time."
 
     async def _stream_llm(
         self,
@@ -559,7 +560,7 @@ class ChatService:
             except ImportError:
                 pass
             except Exception as exc:
-                logger.error("Groq streaming failed: %s", exc)
+                logger.error("Groq streaming failed: %s", sanitize_error(exc))
                 # Fall through to fallback
 
         # OpenAI fallback
@@ -581,7 +582,7 @@ class ChatService:
                         yield delta
                 return
             except Exception as exc:
-                logger.error("OpenAI fallback streaming failed: %s", exc)
+                logger.error("OpenAI fallback streaming failed: %s", sanitize_error(exc))
 
         # Static fallback response when no LLM is configured
         response = (
