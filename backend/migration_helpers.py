@@ -2,9 +2,30 @@
 
 These functions check for the existence of database objects before creating
 them, allowing migrations to be safely re-run on partially-migrated databases.
+
+The create_enum_idempotent function uses a PL/pgSQL DO block with exception
+handling, which is the most reliable approach when running through asyncpg's
+run_sync bridge — the EXCEPTION WHEN duplicate_object guard works regardless
+of driver quirks with parameterised catalog queries.
 """
 
 import sqlalchemy as sa
+from alembic import op
+
+
+def create_enum_idempotent(enum_name: str, values: list[str]) -> None:
+    """Create a PostgreSQL ENUM type, silently skipping if it already exists.
+
+    Uses a DO block so the CREATE TYPE is guarded at the SQL level — no
+    Python-side catalog query needed.
+    """
+    values_sql = ", ".join(f"'{v}'" for v in values)
+    op.execute(
+        f"DO $$ BEGIN "
+        f"CREATE TYPE {enum_name} AS ENUM ({values_sql}); "
+        f"EXCEPTION WHEN duplicate_object THEN null; "
+        f"END $$;"
+    )
 
 
 def enum_exists(bind, enum_name: str) -> bool:

@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-from migration_helpers import enum_exists, table_exists, index_exists
+from migration_helpers import create_enum_idempotent, table_exists, index_exists
 
 revision: str = "001"
 down_revision: Union[str, None] = None
@@ -22,7 +22,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     bind = op.get_bind()
 
-    # Enums
+    # Enums — use DO blocks so creation is idempotent at the SQL level
     consent_channel = postgresql.ENUM(
         "email", "sms", "linkedin", name="consent_channel", create_type=False
     )
@@ -35,15 +35,12 @@ def upgrade() -> None:
         create_type=False,
     )
 
-    if not enum_exists(bind, "consent_channel"):
-        op.execute("CREATE TYPE consent_channel AS ENUM ('email', 'sms', 'linkedin')")
-    if not enum_exists(bind, "consent_method"):
-        op.execute("CREATE TYPE consent_method AS ENUM ('meeting_card', 'web_form', 'import_verified')")
-    if not enum_exists(bind, "touch_action"):
-        op.execute(
-            "CREATE TYPE touch_action AS ENUM "
-            "('sent', 'delivered', 'opened', 'replied', 'bounced', 'complained', 'unsubscribed')"
-        )
+    create_enum_idempotent("consent_channel", ["email", "sms", "linkedin"])
+    create_enum_idempotent("consent_method", ["meeting_card", "web_form", "import_verified"])
+    create_enum_idempotent(
+        "touch_action",
+        ["sent", "delivered", "opened", "replied", "bounced", "complained", "unsubscribed"],
+    )
 
     # leads
     if not table_exists(bind, "leads"):
