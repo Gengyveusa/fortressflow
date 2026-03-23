@@ -39,6 +39,7 @@ import {
   CartesianGrid,
   BarChart,
   Bar,
+  Legend,
 } from "recharts";
 import { InsightsBannerList } from "@/components/chat/InsightsBanner";
 import { useChatPanel } from "@/components/chat/ChatPanelContext";
@@ -111,7 +112,8 @@ export default function DashboardPage() {
   const seqBarData = (seqAnalytics?.sequences ?? [])
     .slice(0, 6)
     .map((s) => ({
-      name: s.sequence_name.length > 14 ? s.sequence_name.slice(0, 12) + "…" : s.sequence_name,
+      name: s.sequence_name,
+      shortName: s.sequence_name.length > 12 ? s.sequence_name.slice(0, 10) + "…" : s.sequence_name,
       "Open Rate": Math.round(s.open_rate * 100),
       "Reply Rate": Math.round(s.reply_rate * 100),
     }));
@@ -177,11 +179,11 @@ export default function DashboardPage() {
                         <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="linkedinGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                        <stop offset="5%" stopColor="#a78bfa" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#a78bfa" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:[stroke:#374151]" />
+                    <CartesianGrid strokeDasharray="3 3" className="[&>line]:stroke-gray-200 dark:[&>line]:stroke-gray-700" />
                     <XAxis
                       dataKey="day"
                       tick={{ fontSize: 11, fill: "#9ca3af" }}
@@ -194,16 +196,16 @@ export default function DashboardPage() {
                       tickLine={false}
                     />
                     <Tooltip content={<CustomTooltip />} />
-                    <Area type="monotone" dataKey="email" stroke="#3b82f6" fill="url(#emailGrad)" strokeWidth={2} name="email" />
-                    <Area type="monotone" dataKey="sms" stroke="#10b981" fill="url(#smsGrad)" strokeWidth={2} name="sms" />
-                    <Area type="monotone" dataKey="linkedin" stroke="#8b5cf6" fill="url(#linkedinGrad)" strokeWidth={2} name="linkedin" />
+                    <Area type="monotone" dataKey="email" stroke="#3b82f6" fill="url(#emailGrad)" strokeWidth={2.5} name="email" />
+                    <Area type="monotone" dataKey="sms" stroke="#10b981" fill="url(#smsGrad)" strokeWidth={2.5} name="sms" />
+                    <Area type="monotone" dataKey="linkedin" stroke="#a78bfa" fill="url(#linkedinGrad)" strokeWidth={2.5} name="linkedin" />
                   </AreaChart>
                 </ResponsiveContainer>
                 <div className="flex items-center gap-4 mt-2 px-1">
                   {[
                     { label: "Email", color: "#3b82f6" },
                     { label: "SMS", color: "#10b981" },
-                    { label: "LinkedIn", color: "#8b5cf6" },
+                    { label: "LinkedIn", color: "#a78bfa" },
                   ].map(({ label, color }) => (
                     <span key={label} className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                       <span className="w-2.5 h-2.5 rounded-sm" style={{ background: color }} />
@@ -230,14 +232,18 @@ export default function DashboardPage() {
                 <p className="text-sm text-gray-400 dark:text-gray-500">No sequence data yet.</p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={seqBarData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={seqBarData} margin={{ top: 4, right: 8, left: -16, bottom: 40 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="[&>line]:stroke-gray-200 dark:[&>line]:stroke-gray-700" />
                   <XAxis
-                    dataKey="name"
+                    dataKey="shortName"
                     tick={{ fontSize: 10, fill: "#9ca3af" }}
                     axisLine={false}
                     tickLine={false}
+                    angle={-35}
+                    textAnchor="end"
+                    interval={0}
+                    height={50}
                   />
                   <YAxis
                     tick={{ fontSize: 11, fill: "#9ca3af" }}
@@ -245,9 +251,13 @@ export default function DashboardPage() {
                     tickLine={false}
                     domain={[0, 100]}
                   />
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip
+                    content={<CustomTooltip />}
+                    cursor={{ fill: "rgba(107,114,128,0.1)" }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
                   <Bar dataKey="Open Rate" fill="#3b82f6" radius={[3, 3, 0, 0]} maxBarSize={32} />
-                  <Bar dataKey="Reply Rate" fill="#10b981" radius={[3, 3, 0, 0]} maxBarSize={32} />
+                  <Bar dataKey="Reply Rate" fill="#34d399" radius={[3, 3, 0, 0]} maxBarSize={32} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -317,13 +327,13 @@ export default function DashboardPage() {
                   <span className="text-gray-500 dark:text-gray-400">Bounce Rate</span>
                   <span className="font-medium dark:text-gray-200">{(deliv.bounce_rate * 100).toFixed(1)}%</span>
                 </div>
-                <Progress value={Math.min(deliv.bounce_rate * 100, 100)} className="h-2" />
+                <Progress value={Math.max(deliv.bounce_rate * 100, deliv.bounce_rate > 0 ? 3 : 0)} className="h-2.5" />
 
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">Spam Rate</span>
                   <span className="font-medium dark:text-gray-200">{(deliv.spam_rate * 100).toFixed(1)}%</span>
                 </div>
-                <Progress value={Math.min(deliv.spam_rate * 100, 100)} className="h-2" />
+                <Progress value={Math.max(deliv.spam_rate * 100, deliv.spam_rate > 0 ? 3 : 0)} className="h-2.5" />
 
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">Emails Sent</span>

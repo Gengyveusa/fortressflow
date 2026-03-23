@@ -117,13 +117,13 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md dark:bg-gray-900 dark:border-gray-800">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <Shield className="w-12 h-12 text-blue-600" />
+            <Shield className="w-12 h-12 text-blue-600 dark:text-blue-400" />
           </div>
-          <CardTitle className="text-2xl">Create Account</CardTitle>
-          <CardDescription>Get started with FortressFlow</CardDescription>
+          <CardTitle className="text-2xl dark:text-gray-100">Create Account</CardTitle>
+          <CardDescription className="dark:text-gray-400">Get started with FortressFlow</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">

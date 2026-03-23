@@ -61,13 +61,13 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 function TemplateSkeleton() {
   return (
-    <Card className="animate-pulse">
+    <Card className="animate-pulse dark:bg-gray-900 dark:border-gray-800">
       <CardHeader>
-        <div className="h-5 w-32 bg-gray-200 rounded" />
-        <div className="h-3 w-48 bg-gray-100 rounded mt-2" />
+        <div className="h-5 w-32 bg-gray-200 dark:bg-gray-700 rounded" />
+        <div className="h-3 w-48 bg-gray-100 dark:bg-gray-800 rounded mt-2" />
       </CardHeader>
       <CardContent>
-        <div className="h-16 bg-gray-100 rounded" />
+        <div className="h-16 bg-gray-100 dark:bg-gray-800 rounded" />
       </CardContent>
     </Card>
   );
@@ -145,7 +145,7 @@ export default function TemplatesPage() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-xl font-semibold">Templates</h1>
+        <h1 className="text-xl font-semibold dark:text-gray-100">Templates</h1>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button size="sm">
@@ -295,10 +295,10 @@ export default function TemplatesPage() {
             {data.items.map((template) => {
               const ChannelIcon = CHANNEL_ICONS[template.channel] ?? Mail;
               return (
-                <Card key={template.id} className="h-full">
+                <Card key={template.id} className="h-full dark:bg-gray-900 dark:border-gray-800">
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between gap-2">
-                      <CardTitle className="text-base leading-tight">{template.name}</CardTitle>
+                      <CardTitle className="text-base leading-tight dark:text-gray-100">{template.name}</CardTitle>
                       <Badge className={`shrink-0 ${CHANNEL_COLORS[template.channel] ?? ""}`}>
                         <ChannelIcon className="h-3 w-3 mr-1" />
                         {template.channel}
@@ -311,7 +311,7 @@ export default function TemplatesPage() {
                     )}
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <p className="text-sm text-gray-600 line-clamp-3 whitespace-pre-wrap">
+                    <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3 whitespace-pre-wrap">
                       {template.plain_body}
                     </p>
                     <div className="flex items-center justify-between">
@@ -338,7 +338,7 @@ export default function TemplatesPage() {
                         {template.variables.map((v) => (
                           <span
                             key={v}
-                            className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-mono"
+                            className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded font-mono"
                           >
                             {`{{${v}}}`}
                           </span>
