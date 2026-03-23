@@ -49,6 +49,9 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
     PORT=8000
 
+# Ensure start.sh is executable
+RUN chmod +x /app/start.sh
+
 # Ensure the appuser owns the application directory
 RUN chown -R appuser:appgroup /app
 
@@ -61,13 +64,5 @@ EXPOSE 8000
 # Run as non-root
 USER appuser
 
-# Production server: 4 workers, no --reload, bind to all interfaces
-CMD ["uvicorn", "app.main:app", \
-     "--host", "0.0.0.0", \
-     "--port", "8000", \
-     "--workers", "4", \
-     "--loop", "uvloop", \
-     "--http", "httptools", \
-     "--proxy-headers", \
-     "--forwarded-allow-ips", "*", \
-     "--access-log"]
+# Production server with migration retry logic
+CMD ["bash", "start.sh"]
