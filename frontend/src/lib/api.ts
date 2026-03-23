@@ -9,8 +9,10 @@ const api = axios.create({
 // Attach the JWT access token to every outgoing request
 api.interceptors.request.use(async (config) => {
   const session = await getSession();
-  if ((session as any)?.accessToken) {
-    config.headers.Authorization = `Bearer ${(session as any).accessToken}`;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const s = session as Record<string, any>;
+  if (s?.accessToken) {
+    config.headers.Authorization = `Bearer ${s.accessToken}`;
   }
   return config;
 });
@@ -570,8 +572,10 @@ export const chatApi = {
   sendMessage: async (message: string, session_id?: string) => {
     const session = await getSession();
     const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if ((session as any)?.accessToken) {
-      headers["Authorization"] = `Bearer ${(session as any).accessToken}`;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const s = session as Record<string, any>;
+    if (s?.accessToken) {
+      headers["Authorization"] = `Bearer ${s.accessToken}`;
     }
     return fetch("/api/v1/chat/", {
       method: "POST",

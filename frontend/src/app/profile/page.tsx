@@ -83,8 +83,6 @@ export default function ProfilePage() {
       return () => clearTimeout(timer);
     }
   }, [session, toast]);
-    if (session) fetchProfile();
-  }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
