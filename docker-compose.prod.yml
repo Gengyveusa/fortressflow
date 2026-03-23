@@ -124,13 +124,14 @@ services:
   # RabbitMQ 3.13 — No management UI exposed in production
   # ----------------------------------------------------------
   rabbitmq:
-    image: rabbitmq:3.13-alpine
+    image: rabbitmq:3.13-management-alpine
     restart: unless-stopped
     env_file: .env.prod
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
       RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbit log [{console,[{level,warning}]}]"
+      RABBITMQ_PLUGINS: "rabbitmq_management,rabbitmq_prometheus"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
@@ -193,6 +194,10 @@ services:
       LINKEDIN_OAUTH_CLIENT_ID: ${LINKEDIN_OAUTH_CLIENT_ID}
       LINKEDIN_OAUTH_CLIENT_SECRET: ${LINKEDIN_OAUTH_CLIENT_SECRET}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
     depends_on:
       postgres:
         condition: service_healthy
