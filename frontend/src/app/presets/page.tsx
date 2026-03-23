@@ -100,8 +100,8 @@ export default function PresetsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold">Gengyve Sequence Presets</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-xl font-semibold dark:text-gray-100">Gengyve Sequence Presets</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           One-click deploy pre-built outreach sequences with proven templates for dental office and DSO outreach.
         </p>
       </div>
@@ -119,12 +119,12 @@ export default function PresetsPage() {
           );
 
           return (
-            <Card key={index} className="overflow-hidden">
+            <Card key={index} className="overflow-hidden dark:bg-gray-900 dark:border-gray-800">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <CardTitle className="text-lg">{preset.name}</CardTitle>
+                      <CardTitle className="text-lg dark:text-gray-100">{preset.name}</CardTitle>
                       <Badge className={badge.color}>{badge.label}</Badge>
                     </div>
                     <CardDescription>{preset.description}</CardDescription>
@@ -151,7 +151,7 @@ export default function PresetsPage() {
                   </Button>
                 </div>
                 {/* Stats */}
-                <div className="flex items-center gap-4 text-sm text-gray-500 mt-2">
+                <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mt-2">
                   <span>{preset.steps.length} steps</span>
                   <span>{templateSteps.length} templates</span>
                   <span>~{totalDays} days total</span>
@@ -184,17 +184,17 @@ export default function PresetsPage() {
                 {/* Template Details */}
                 {templateSteps.length > 0 && (
                   <div className="mt-4 space-y-2">
-                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Templates Included</p>
+                    <p className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Templates Included</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {templateSteps.map((step, ti) => {
                         const StepIcon = STEP_ICONS[step.step_type] ?? Mail;
                         return (
                           <div
                             key={ti}
-                            className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg text-sm"
+                            className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg text-sm"
                           >
                             <StepIcon className="h-4 w-4 text-gray-400 shrink-0" />
-                            <span className="text-gray-700 truncate">
+                            <span className="text-gray-700 dark:text-gray-300 truncate">
                               {step.template_name}
                             </span>
                           </div>

@@ -21,6 +21,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip as RTooltip,
+  Legend,
 } from "recharts";
 import { useDomains, useDeliverabilityStats, useBounceDaily } from "@/lib/hooks";
 import { deliverabilityApi } from "@/lib/api";
@@ -28,11 +29,11 @@ import { useQueryClient } from "@tanstack/react-query";
 
 function DomainSkeleton() {
   return (
-    <Card className="animate-pulse">
+    <Card className="animate-pulse dark:bg-gray-900 dark:border-gray-800">
       <CardContent className="pt-6 space-y-3">
-        <div className="h-5 w-40 bg-gray-200 rounded" />
-        <div className="h-3 w-full bg-gray-100 rounded" />
-        <div className="h-4 w-20 bg-gray-100 rounded" />
+        <div className="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded" />
+        <div className="h-3 w-full bg-gray-100 dark:bg-gray-800 rounded" />
+        <div className="h-4 w-20 bg-gray-100 dark:bg-gray-800 rounded" />
       </CardContent>
     </Card>
   );
@@ -65,7 +66,7 @@ export default function DeliverabilityPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Deliverability</h1>
+      <h1 className="text-xl font-semibold dark:text-gray-100">Deliverability</h1>
 
       {/* ── Summary stats ────────────────────────────── */}
       {statsLoading ? (
@@ -81,25 +82,25 @@ export default function DeliverabilityPage() {
         </div>
       ) : stats ? (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card>
+          <Card className="dark:bg-gray-900 dark:border-gray-800">
             <CardContent className="pt-6">
-              <p className="text-sm text-gray-500">Bounce Rate</p>
-              <p className="text-2xl font-bold">{(stats.bounce_rate * 100).toFixed(1)}%</p>
-              <p className="text-xs text-gray-400">{stats.total_bounced} of {stats.total_sent} emails</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Bounce Rate</p>
+              <p className="text-2xl font-bold dark:text-gray-100">{(stats.bounce_rate * 100).toFixed(1)}%</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">{stats.total_bounced} of {stats.total_sent} emails</p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="dark:bg-gray-900 dark:border-gray-800">
             <CardContent className="pt-6">
-              <p className="text-sm text-gray-500">Spam Complaints</p>
-              <p className="text-2xl font-bold">{stats.spam_complaints}</p>
-              <p className="text-xs text-gray-400">{(stats.spam_rate * 100).toFixed(2)}% spam rate</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Spam Complaints</p>
+              <p className="text-2xl font-bold dark:text-gray-100">{stats.spam_complaints}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">{(stats.spam_rate * 100).toFixed(2)}% spam rate</p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="dark:bg-gray-900 dark:border-gray-800">
             <CardContent className="pt-6">
-              <p className="text-sm text-gray-500">Warmup Status</p>
-              <p className="text-2xl font-bold">{stats.warmup_active} active</p>
-              <p className="text-xs text-gray-400">{stats.warmup_completed} completed</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Warmup Status</p>
+              <p className="text-2xl font-bold dark:text-gray-100">{stats.warmup_active} active</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">{stats.warmup_completed} completed</p>
             </CardContent>
           </Card>
         </div>
@@ -107,7 +108,7 @@ export default function DeliverabilityPage() {
 
       {/* ── Domain health cards ──────────────────────── */}
       <div>
-        <h2 className="text-base font-medium mb-3">Domain Health</h2>
+        <h2 className="text-base font-medium mb-3 dark:text-gray-100">Domain Health</h2>
         {domainsLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -129,12 +130,12 @@ export default function DeliverabilityPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {domains.map((d) => (
-              <Card key={d.id}>
+              <Card key={d.id} className="dark:bg-gray-900 dark:border-gray-800">
                 <CardContent className="pt-6 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Globe className="h-4 w-4 text-blue-600" />
-                      <span className="font-medium text-sm">{d.domain}</span>
+                      <Globe className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      <span className="font-medium text-sm dark:text-gray-200">{d.domain}</span>
                     </div>
                     <Badge
                       variant={d.health_score >= 80 ? "default" : d.health_score >= 50 ? "secondary" : "destructive"}
@@ -143,13 +144,13 @@ export default function DeliverabilityPage() {
                     </Badge>
                   </div>
                   <div>
-                    <div className="flex justify-between text-xs text-gray-500 mb-1">
+                    <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
                       <span>Warmup Progress</span>
                       <span>{d.warmup_progress}%</span>
                     </div>
                     <Progress value={d.warmup_progress} className="h-2" />
                   </div>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
                     {d.total_sent} sent · {d.total_bounced} bounced
                   </p>
                 </CardContent>
@@ -160,10 +161,10 @@ export default function DeliverabilityPage() {
       </div>
 
       {/* ── Add domain form ──────────────────────────── */}
-      <Card>
+      <Card className="dark:bg-gray-900 dark:border-gray-800">
         <CardHeader>
-          <CardTitle className="text-base">Add Domain</CardTitle>
-          <CardDescription>Register a new sending domain for warmup and monitoring.</CardDescription>
+          <CardTitle className="text-base dark:text-gray-100">Add Domain</CardTitle>
+          <CardDescription className="dark:text-gray-400">Register a new sending domain for warmup and monitoring.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex gap-2 max-w-md">
@@ -186,9 +187,9 @@ export default function DeliverabilityPage() {
       </Card>
 
       {/* ── Bounce rate chart ────────────────────────── */}
-      <Card>
+      <Card className="dark:bg-gray-900 dark:border-gray-800">
         <CardHeader>
-          <CardTitle className="text-base">Bounce Rate (Last 7 Days)</CardTitle>
+          <CardTitle className="text-base dark:text-gray-100">Bounce Rate (Last 7 Days)</CardTitle>
         </CardHeader>
         <CardContent>
           {bounceLoading ? (
@@ -207,12 +208,13 @@ export default function DeliverabilityPage() {
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={bounceData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" fontSize={12} />
-                  <YAxis fontSize={12} />
-                  <RTooltip />
+                  <CartesianGrid strokeDasharray="3 3" className="[&>line]:stroke-gray-200 dark:[&>line]:stroke-gray-700" />
+                  <XAxis dataKey="date" fontSize={12} tick={{ fill: "#9ca3af" }} />
+                  <YAxis fontSize={12} tick={{ fill: "#9ca3af" }} />
+                  <RTooltip contentStyle={{ borderRadius: 8, fontSize: 12 }} />
+                  <Legend wrapperStyle={{ fontSize: 12, paddingTop: 4 }} />
                   <Bar dataKey="sent" fill="#3b82f6" name="Sent" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="bounced" fill="#ef4444" name="Bounced" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="bounced" fill="#f87171" name="Bounced" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -221,29 +223,29 @@ export default function DeliverabilityPage() {
       </Card>
 
       {/* ── Spam complaint tracker ───────────────────── */}
-      <Card>
+      <Card className="dark:bg-gray-900 dark:border-gray-800">
         <CardHeader>
-          <CardTitle className="text-base">Spam Complaint Tracker</CardTitle>
+          <CardTitle className="text-base dark:text-gray-100">Spam Complaint Tracker</CardTitle>
         </CardHeader>
         <CardContent>
           {stats && stats.spam_complaints > 0 ? (
-            <div className="flex items-center gap-3 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-              <AlertTriangle className="h-5 w-5 text-yellow-600" />
+            <div className="flex items-center gap-3 p-4 bg-yellow-50 dark:bg-yellow-950/30 rounded-lg border border-yellow-200 dark:border-yellow-800">
+              <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-500" />
               <div>
-                <p className="text-sm font-medium text-yellow-800">
+                <p className="text-sm font-medium text-yellow-800 dark:text-yellow-400">
                   {stats.spam_complaints} spam complaint{stats.spam_complaints !== 1 ? "s" : ""} detected
                 </p>
-                <p className="text-xs text-yellow-600">
+                <p className="text-xs text-yellow-600 dark:text-yellow-500">
                   Spam rate: {(stats.spam_rate * 100).toFixed(2)}%. Keep it below 0.1% to maintain good deliverability.
                 </p>
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg border border-green-200">
-              <Activity className="h-5 w-5 text-green-600" />
+            <div className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-800">
+              <Activity className="h-5 w-5 text-green-600 dark:text-green-500" />
               <div>
-                <p className="text-sm font-medium text-green-800">No spam complaints</p>
-                <p className="text-xs text-green-600">Your sending reputation looks healthy.</p>
+                <p className="text-sm font-medium text-green-800 dark:text-green-400">No spam complaints</p>
+                <p className="text-xs text-green-600 dark:text-green-500">Your sending reputation looks healthy.</p>
               </div>
             </div>
           )}

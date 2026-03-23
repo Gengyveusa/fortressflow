@@ -481,10 +481,10 @@ export function ChatAssistantV2() {
     <>
       {/* Floating button — hidden when expanded */}
       {!isExpanded && (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
           {showProactive && !isOpen && (
             <div
-              className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xl px-4 py-3 max-w-xs text-sm text-gray-700 dark:text-gray-200 cursor-pointer animate-in slide-in-from-bottom-2 fade-in"
+              className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xl px-4 py-3 max-w-[260px] text-sm text-gray-700 dark:text-gray-200 cursor-pointer animate-in slide-in-from-bottom-2 fade-in mb-1"
               onClick={handleOpen}
               role="button"
               tabIndex={0}
@@ -549,7 +549,7 @@ export function ChatAssistantV2() {
 
           // Floating mode
           !isExpanded && [
-            "sm:bottom-24 sm:right-6 sm:w-96 sm:h-[560px] sm:rounded-2xl",
+            "sm:bottom-24 sm:right-6 sm:w-96 sm:h-[520px] sm:rounded-2xl",
             "bottom-0 right-0 w-full h-full sm:h-auto",
           ],
 

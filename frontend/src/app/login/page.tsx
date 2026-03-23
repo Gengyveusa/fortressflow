@@ -41,13 +41,13 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md dark:bg-gray-900 dark:border-gray-800">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <Shield className="w-12 h-12 text-blue-600" />
+            <Shield className="w-12 h-12 text-blue-600 dark:text-blue-400" />
           </div>
-          <CardTitle className="text-2xl">FortressFlow</CardTitle>
-          <CardDescription>Sign in to your account</CardDescription>
+          <CardTitle className="text-2xl dark:text-gray-100">FortressFlow</CardTitle>
+          <CardDescription className="dark:text-gray-400">Sign in to your account</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -62,7 +62,7 @@ export default function LoginPage() {
               </div>
             )}
             <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium text-gray-700">
+              <label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 Email
               </label>
               <Input
@@ -72,6 +72,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                className="dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
               />
             </div>
             <div className="space-y-2">
@@ -93,6 +94,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                className="dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>

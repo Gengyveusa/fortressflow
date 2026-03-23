@@ -131,21 +131,21 @@ export default function CompliancePage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Compliance</h1>
+      <h1 className="text-xl font-semibold dark:text-gray-100">Compliance</h1>
 
       <Tabs defaultValue="audit">
-        <TabsList>
-          <TabsTrigger value="audit">Audit Log</TabsTrigger>
-          <TabsTrigger value="dnc">DNC Management</TabsTrigger>
-          <TabsTrigger value="health">Compliance Health</TabsTrigger>
+        <TabsList className="dark:bg-gray-800">
+          <TabsTrigger value="audit" className="dark:data-[state=active]:bg-gray-700 dark:text-gray-400 dark:data-[state=active]:text-gray-100">Audit Log</TabsTrigger>
+          <TabsTrigger value="dnc" className="dark:data-[state=active]:bg-gray-700 dark:text-gray-400 dark:data-[state=active]:text-gray-100">DNC Management</TabsTrigger>
+          <TabsTrigger value="health" className="dark:data-[state=active]:bg-gray-700 dark:text-gray-400 dark:data-[state=active]:text-gray-100">Compliance Health</TabsTrigger>
         </TabsList>
 
         {/* ── Audit Log Tab ──────────────────────────── */}
         <TabsContent value="audit" className="space-y-4">
-          <Card>
+          <Card className="dark:bg-gray-900 dark:border-gray-800">
             <CardHeader>
-              <CardTitle className="text-base">Consent Audit Trail</CardTitle>
-              <CardDescription>Record of all consent-related activity.</CardDescription>
+              <CardTitle className="text-base dark:text-gray-100">Consent Audit Trail</CardTitle>
+              <CardDescription className="dark:text-gray-400">Record of all consent-related activity.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               {auditLoading ? (
@@ -192,10 +192,10 @@ export default function CompliancePage() {
 
         {/* ── DNC Management Tab ─────────────────────── */}
         <TabsContent value="dnc" className="space-y-4">
-          <Card>
+          <Card className="dark:bg-gray-900 dark:border-gray-800">
             <CardHeader>
-              <CardTitle className="text-base">Do-Not-Contact List</CardTitle>
-              <CardDescription>Manage contacts that should never be contacted.</CardDescription>
+              <CardTitle className="text-base dark:text-gray-100">Do-Not-Contact List</CardTitle>
+              <CardDescription className="dark:text-gray-400">Manage contacts that should never be contacted.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
@@ -233,11 +233,11 @@ export default function CompliancePage() {
                   {dncList.map((entry) => (
                     <div
                       key={entry.id}
-                      className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded text-sm"
+                      className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded text-sm"
                     >
                       <div>
-                        <span className="font-medium">{entry.identifier}</span>
-                        <span className="text-gray-400 ml-2 text-xs">
+                        <span className="font-medium dark:text-gray-200">{entry.identifier}</span>
+                        <span className="text-gray-400 dark:text-gray-500 ml-2 text-xs">
                           {entry.channel} · {entry.source}
                         </span>
                       </div>
@@ -261,14 +261,14 @@ export default function CompliancePage() {
         <TabsContent value="health" className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {CHANNELS.map((ch) => (
-              <Card key={ch}>
+              <Card key={ch} className="dark:bg-gray-900 dark:border-gray-800">
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-green-50">
-                      <ShieldCheck className="h-5 w-5 text-green-600" />
+                    <div className="p-2 rounded-lg bg-green-50 dark:bg-green-950">
+                      <ShieldCheck className="h-5 w-5 text-green-600 dark:text-green-400" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium capitalize">{ch}</p>
+                      <p className="text-sm font-medium capitalize dark:text-gray-200">{ch}</p>
                       <Badge className="bg-green-100 text-green-700 mt-1">Active</Badge>
                     </div>
                   </div>
@@ -278,10 +278,10 @@ export default function CompliancePage() {
           </div>
 
           {/* Compliance check tool */}
-          <Card>
+          <Card className="dark:bg-gray-900 dark:border-gray-800">
             <CardHeader>
-              <CardTitle className="text-base">Compliance Check Tool</CardTitle>
-              <CardDescription>
+              <CardTitle className="text-base dark:text-gray-100">Compliance Check Tool</CardTitle>
+              <CardDescription className="dark:text-gray-400">
                 Verify whether a lead can be contacted on a specific channel.
               </CardDescription>
             </CardHeader>
@@ -332,8 +332,8 @@ export default function CompliancePage() {
                 <div
                   className={`flex items-center gap-3 p-4 rounded-lg ${
                     checkResult.can_send
-                      ? "bg-green-50 border border-green-200"
-                      : "bg-red-50 border border-red-200"
+                      ? "bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800"
+                      : "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800"
                   }`}
                 >
                   {checkResult.can_send ? (

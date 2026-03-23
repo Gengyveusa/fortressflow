@@ -56,11 +56,33 @@ export default function ProfilePage() {
         setProfile(res.data);
         setFullName(res.data.full_name || session?.user?.name || "");
       } catch {
+        // Fall back to session data so page still renders
+        if (session?.user) {
+          const fallback: UserProfile = {
+            id: "",
+            email: session.user.email ?? "",
+            full_name: session.user.name ?? null,
+            role: (session.user as { role?: string }).role ?? "user",
+            is_active: true,
+            created_at: new Date().toISOString(),
+            last_login_at: null,
+          };
+          setProfile(fallback);
+          setFullName(fallback.full_name || "");
+        }
         // Non-critical — session data is already shown
       } finally {
         setLoading(false);
       }
     }
+    if (session) {
+      fetchProfile();
+    } else {
+      // If no session yet, wait briefly — but don't block forever
+      const timer = setTimeout(() => setLoading(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [session, toast]);
     if (session) fetchProfile();
   }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -114,6 +136,61 @@ export default function ProfilePage() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="max-w-2xl space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800">
+            <User className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+          </div>
+          <div>
+            <h1 className="text-xl font-semibold dark:text-gray-100">Profile</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Loading your profile…</p>
+          </div>
+        </div>
+        <Card className="dark:bg-gray-900 dark:border-gray-800">
+          <CardContent className="pt-6 space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="flex justify-between items-center">
+                <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+        <Card className="dark:bg-gray-900 dark:border-gray-800">
+          <CardContent className="pt-6 space-y-4">
+            <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+            <div className="h-10 w-full bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+            <div className="h-9 w-28 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="max-w-2xl space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800">
+            <User className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+          </div>
+          <div>
+            <h1 className="text-xl font-semibold dark:text-gray-100">Profile</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Manage your account settings</p>
+          </div>
+        </div>
+        <Card className="dark:bg-gray-900 dark:border-gray-800">
+          <CardContent className="py-10 text-center">
+            <User className="h-10 w-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+            <p className="text-gray-500 dark:text-gray-400 font-medium">Unable to load profile</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Please sign in to view your profile.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   // Show session-based info immediately; overlay backend data when ready
   const displayEmail = profile?.email || session?.user?.email || "";
   const displayName = profile?.full_name || session?.user?.name || "";

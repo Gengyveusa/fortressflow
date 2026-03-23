@@ -27,7 +27,7 @@ function TableSkeleton() {
   return (
     <div className="space-y-3 p-4">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="h-10 bg-gray-100 rounded animate-pulse" />
+        <div key={i} className="h-10 bg-gray-100 dark:bg-gray-800 rounded animate-pulse" />
       ))}
     </div>
   );
@@ -100,7 +100,7 @@ export default function LeadsPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">Leads</h1>
+        <h1 className="text-xl font-semibold dark:text-gray-100">Leads</h1>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={exportCsv} disabled={!filtered.length}>
             <Download className="h-4 w-4 mr-1" /> Export CSV
@@ -116,7 +116,7 @@ export default function LeadsPage() {
         </div>
       </div>
 
-      <Card>
+      <Card className="dark:bg-gray-900 dark:border-gray-800">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <Search className="h-4 w-4 text-gray-400" />
@@ -136,8 +136,8 @@ export default function LeadsPage() {
               Failed to load leads. Please try again.
             </div>
           ) : filtered.length === 0 ? (
-            <div className="p-10 text-center text-gray-400 text-sm">
-              {search ? "No leads match your search." : "No leads yet. Import some to get started."}
+            <div className="p-10 text-center text-gray-400 dark:text-gray-500 text-sm">
+              {search ? "No leads match your search." : "No leads yet — import your first list to get started."}
             </div>
           ) : (
             <Table>
@@ -160,7 +160,7 @@ export default function LeadsPage() {
                   <TableHead>Consent</TableHead>
                   <TableHead>Source</TableHead>
                   <TableHead>Created</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-right w-[80px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -174,18 +174,18 @@ export default function LeadsPage() {
                         onChange={() => toggleSelect(lead.id)}
                       />
                     </TableCell>
-                    <TableCell className="font-medium">
+                    <TableCell className="font-medium dark:text-gray-200">
                       {lead.first_name} {lead.last_name}
                     </TableCell>
-                    <TableCell className="text-gray-500">{lead.email}</TableCell>
-                    <TableCell>{lead.company}</TableCell>
+                    <TableCell className="text-gray-500 dark:text-gray-400 max-w-[200px] truncate">{lead.email}</TableCell>
+                    <TableCell className="dark:text-gray-300">{lead.company}</TableCell>
                     <TableCell>
                       <Badge variant={lead.meeting_verified ? "default" : "secondary"}>
                         {lead.meeting_verified ? "Verified" : "Pending"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-gray-500">{lead.source}</TableCell>
-                    <TableCell className="text-gray-400 text-xs">
+                    <TableCell className="text-gray-500 dark:text-gray-400">{lead.source}</TableCell>
+                    <TableCell className="text-gray-400 dark:text-gray-500 text-xs">
                       {format(new Date(lead.created_at), "MMM d, yyyy")}
                     </TableCell>
                     <TableCell className="text-right">
