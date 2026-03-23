@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Bell, Search, User, Sun, Moon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useTheme } from "@/app/providers";
@@ -43,14 +44,17 @@ export function Header() {
           </button>
 
           {/* User */}
-          <div className="flex items-center gap-2 pl-3 ml-1 border-l border-gray-200 dark:border-gray-700">
+          <Link
+            href="/profile"
+            className="flex items-center gap-2 pl-3 ml-1 border-l border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity"
+          >
             <div className="w-8 h-8 rounded-full bg-blue-600 dark:bg-blue-500 flex items-center justify-center">
               <User className="w-4 h-4 text-white" />
             </div>
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300 hidden lg:block">
-              Admin
+              Profile
             </span>
-          </div>
+          </Link>
         </div>
       </div>
     </header>

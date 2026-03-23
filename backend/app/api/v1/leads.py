@@ -1,6 +1,7 @@
 import csv
 import io
 import logging
+import re
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -25,6 +26,23 @@ from app.schemas.lead import (
 from app.services.email_validator import normalize_email
 
 logger = logging.getLogger(__name__)
+
+# CSV upload limits
+CSV_MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
+CSV_MAX_ROW_COUNT = 10_000
+CSV_ALLOWED_MIME_TYPES = {"text/csv", "application/vnd.ms-excel"}
+# Characters that can trigger formula injection in spreadsheet applications
+_FORMULA_INJECTION_RE = re.compile(r"^[=+\-@\t\r]")
+
+
+def _sanitize_cell(value: str) -> str:
+    """Strip leading characters that trigger formula execution in spreadsheet apps."""
+    if not value:
+        return value
+    if _FORMULA_INJECTION_RE.match(value):
+        # Strip all leading dangerous characters
+        return value.lstrip("=+-@\t\r")
+    return value
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
@@ -84,43 +102,88 @@ async def import_leads_csv(
     Required columns: email, first_name, last_name (minimum).
     Optional: company, title, phone, source.
     Deduplication by email (case-insensitive). Idempotent — re-running skips existing leads.
+
+    Security checks:
+    - Max file size 5 MB
+    - MIME type must be text/csv or application/vnd.ms-excel
+    - Max 10,000 rows
+    - Formula injection prevention on all string fields
+    - UTF-8 with BOM handling, latin-1 fallback
     """
     if not file.filename or not file.filename.endswith(".csv"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Only CSV files are accepted"
         )
+
+    # ── MIME type check ──────────────────────────────────────────────
+    content_type = (file.content_type or "").split(";")[0].strip().lower()
+    if content_type not in CSV_ALLOWED_MIME_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid file type '{content_type}'. Only text/csv and application/vnd.ms-excel are accepted.",
+        )
+
+    # ── File size check (before parsing) ─────────────────────────────
     content = await file.read()
+    if len(content) > CSV_MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File too large ({len(content)} bytes). Maximum allowed size is 5 MB.",
+        )
+
+    # ── Encoding: UTF-8 (strip BOM) → latin-1 fallback ──────────────
     try:
+        # Strip UTF-8 BOM if present
+        if content.startswith(b"\xef\xbb\xbf"):
+            content = content[3:]
         decoded = content.decode("utf-8")
     except UnicodeDecodeError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="File must be UTF-8 encoded"
-        )
+        try:
+            decoded = content.decode("latin-1")
+        except UnicodeDecodeError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File encoding not supported. Please use UTF-8 or Latin-1.",
+            )
 
     reader = csv.DictReader(io.StringIO(decoded))
     required = {"email", "first_name", "last_name"}
 
-    # Validate required columns exist in header
+    # ── Column validation ────────────────────────────────────────────
     if reader.fieldnames is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="CSV file is empty or malformed"
         )
-    missing_cols = required - set(reader.fieldnames)
+    header_set = {f.strip().lower() for f in reader.fieldnames if f}
+    missing_cols = required - header_set
     if missing_cols:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"CSV missing required columns: {missing_cols}",
+            detail=f"CSV missing required columns: {sorted(missing_cols)}. Found columns: {sorted(header_set)}",
         )
+
+    # ── Parse rows with row count limit ──────────────────────────────
+    rows: list[dict[str, str]] = []
+    for row in reader:
+        rows.append(row)
+        if len(rows) > CSV_MAX_ROW_COUNT:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"CSV exceeds maximum of {CSV_MAX_ROW_COUNT:,} rows. File contains more than {CSV_MAX_ROW_COUNT:,} rows.",
+            )
 
     total_rows = 0
     imported = 0
     skipped_dupes = 0
     errors: list[str] = []
 
-    for row_num, row in enumerate(reader, start=2):
+    for row_num, row in enumerate(rows, start=2):
         total_rows += 1
 
-        email_raw = (row.get("email") or "").strip()
+        # Sanitize all string cell values to prevent formula injection
+        sanitized_row = {k: _sanitize_cell((v or "").strip()) for k, v in row.items()}
+
+        email_raw = sanitized_row.get("email", "")
         if not email_raw:
             errors.append(f"Row {row_num}: missing email")
             continue
@@ -143,11 +206,11 @@ async def import_leads_csv(
         try:
             lead = Lead(
                 email=email_normalized,
-                first_name=(row.get("first_name") or "").strip(),
-                last_name=(row.get("last_name") or "").strip(),
-                company=(row.get("company") or "Unknown").strip(),
-                title=(row.get("title") or "Unknown").strip(),
-                phone=(row.get("phone") or "").strip() or None,
+                first_name=sanitized_row.get("first_name", ""),
+                last_name=sanitized_row.get("last_name", ""),
+                company=sanitized_row.get("company", "") or "Unknown",
+                title=sanitized_row.get("title", "") or "Unknown",
+                phone=sanitized_row.get("phone", "") or None,
                 source="csv_upload",
                 meeting_verified=False,
             )

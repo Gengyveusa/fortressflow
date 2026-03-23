@@ -1,12 +1,16 @@
-"""Auth routes — register, login, refresh, profile management."""
+"""Auth routes — register, login, refresh, profile management, password reset."""
 
+import logging
+import uuid as _uuid
 from datetime import UTC, datetime
 
+import redis as redis_lib
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
+from app.config import settings
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.services.auth_service import (
@@ -29,6 +33,8 @@ from app.services.token_rotation import (
     validate_and_rotate,
 )
 from app.utils.password_validation import validate_password_strength
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -55,6 +61,15 @@ class UpdateProfileRequest(BaseModel):
     full_name: str | None = None
     current_password: str | None = None
     new_password: str | None = None
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
 
 
 class UserResponse(BaseModel):
@@ -265,3 +280,78 @@ async def update_me(
     await db.refresh(current_user)
 
     return _user_response(current_user)
+
+
+# ── Password Reset ────────────────────────────────────────────────────────
+
+
+def _get_redis() -> redis_lib.Redis:
+    """Get a synchronous Redis client for password reset tokens."""
+    return redis_lib.from_url(settings.REDIS_URL, decode_responses=True)
+
+
+@router.post("/forgot-password")
+async def forgot_password(body: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
+    """Request a password reset link. Always returns success to avoid email enumeration."""
+    user = await get_user_by_email(db, body.email)
+
+    if user and user.is_active:
+        token = str(_uuid.uuid4())
+        r = _get_redis()
+        # Store token → user_id mapping in Redis with 1 hour expiry
+        r.setex(f"password_reset:{token}", 3600, str(user.id))
+        r.close()
+
+        # In production this would send an email; for now log the reset URL
+        reset_url = f"/reset-password?token={token}"
+        logger.info("Password reset requested for %s — reset URL: %s", body.email, reset_url)
+
+    return {"message": "If an account exists with that email, we've sent a password reset link."}
+
+
+@router.post("/reset-password")
+async def reset_password(body: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
+    """Reset a user's password using a valid reset token."""
+    if len(body.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters",
+        )
+
+    r = _get_redis()
+    redis_key = f"password_reset:{body.token}"
+    user_id_str = r.get(redis_key)
+
+    if not user_id_str:
+        r.close()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token",
+        )
+
+    from app.services.auth_service import get_user_by_id
+
+    user = await get_user_by_id(db, _uuid.UUID(user_id_str))
+    if not user:
+        r.close()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token",
+        )
+
+    # Update password
+    user.password_hash = hash_password(body.new_password)
+    user.updated_at = datetime.now(UTC)
+    await db.flush()
+
+    # Delete the used token
+    r.delete(redis_key)
+
+    # Invalidate all existing refresh tokens by deleting any stored sessions
+    pattern = f"refresh_token:{user_id_str}:*"
+    for key in r.scan_iter(pattern):
+        r.delete(key)
+
+    r.close()
+
+    return {"message": "Password reset successfully. You can now sign in with your new password."}

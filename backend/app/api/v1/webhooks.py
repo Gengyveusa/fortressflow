@@ -13,7 +13,7 @@ import hmac
 import json
 import logging
 import secrets
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import sentry_sdk
@@ -25,6 +25,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.utils.sanitize import sanitize_error
+from app.models.consent import Consent
+from app.models.dnc import DNCBlock
 from app.models.lead import Lead
 from app.models.sequence import EnrollmentStatus, SequenceEnrollment
 from app.models.touch_log import TouchAction, TouchLog
@@ -610,43 +612,122 @@ async def _handle_ses_bounce(
     hard_bounce: bool,
     db: AsyncSession,
 ) -> None:
-    """Process SES bounce: pause enrollment, optionally mark lead undeliverable."""
+    """Process SES bounce event.
+
+    Hard bounce:
+      - Add email to dnc_blocks with reason 'hard_bounce'
+      - Update lead status to 'bounced' (via email_deliverable flag)
+      - Pause ALL active sequence enrollments for the lead
+      - Log for audit trail
+
+    Soft bounce:
+      - Increment soft bounce counter (tracked in lead.enriched_data)
+      - After 3 soft bounces within 7 days, escalate to hard bounce treatment
+    """
     import uuid as _uuid
 
     try:
-        if enrollment_id_str:
+        lead_result = await db.execute(select(Lead).where(Lead.id == lead_id))
+        lead = lead_result.scalar_one_or_none()
+
+        if hard_bounce:
+            # ── Hard bounce: DNC + status update + pause all enrollments ──
+            if lead:
+                # Add to DNC list
+                existing_dnc = await db.execute(
+                    select(DNCBlock).where(
+                        DNCBlock.identifier == lead.email,
+                        DNCBlock.channel == "email",
+                        DNCBlock.reason == "hard_bounce",
+                    )
+                )
+                if existing_dnc.scalar_one_or_none() is None:
+                    dnc = DNCBlock(
+                        identifier=lead.email,
+                        channel="email",
+                        reason="hard_bounce",
+                        blocked_at=datetime.now(UTC),
+                        source="ses_webhook",
+                    )
+                    db.add(dnc)
+                    logger.info("SES hard bounce: added %s to DNC (hard_bounce)", lead.email)
+
+                # Mark lead email as undeliverable
+                if hasattr(lead, "email_deliverable"):
+                    lead.email_deliverable = False
+                logger.info("SES hard bounce: marked lead %s as bounced", lead_id)
+
+            # Pause ALL active enrollments for this lead
             enr_result = await db.execute(
                 select(SequenceEnrollment).where(
-                    SequenceEnrollment.id == _uuid.UUID(enrollment_id_str)
+                    SequenceEnrollment.lead_id == lead_id,
+                    SequenceEnrollment.status.in_([
+                        EnrollmentStatus.active,
+                        EnrollmentStatus.pending,
+                        EnrollmentStatus.sent,
+                        EnrollmentStatus.opened,
+                    ]),
                 )
             )
-            enrollment = enr_result.scalar_one_or_none()
-            if enrollment and enrollment.status not in (
-                EnrollmentStatus.completed,
-                EnrollmentStatus.bounced,
-                EnrollmentStatus.unsubscribed,
-                EnrollmentStatus.failed,
-            ):
-                enrollment.status = (
-                    EnrollmentStatus.bounced if hard_bounce else EnrollmentStatus.paused
-                )
+            for enrollment in enr_result.scalars().all():
+                enrollment.status = EnrollmentStatus.bounced
                 enrollment.last_state_change_at = datetime.now(UTC)
+                logger.info("SES hard bounce: enrollment %s → bounced", enrollment.id)
+
+        else:
+            # ── Soft bounce: track counter, escalate after 3 in 7 days ───
+            if lead:
+                # Count soft bounces in last 7 days from touch_logs
+                seven_days_ago = datetime.now(UTC) - timedelta(days=7)
+                count_result = await db.execute(
+                    select(func.count(TouchLog.id)).where(
+                        TouchLog.lead_id == lead_id,
+                        TouchLog.channel == "email",
+                        TouchLog.action == TouchAction.bounced,
+                        TouchLog.created_at >= seven_days_ago,
+                    )
+                )
+                soft_bounce_count = count_result.scalar_one()
                 logger.info(
-                    "SES bounce: enrollment %s → %s (hard=%s)",
-                    enrollment_id_str,
-                    enrollment.status,
-                    hard_bounce,
+                    "SES soft bounce: lead %s has %d bounces in last 7 days",
+                    lead_id,
+                    soft_bounce_count,
                 )
 
-        # Hard bounce → mark lead email as undeliverable
-        if hard_bounce:
-            lead_result = await db.execute(select(Lead).where(Lead.id == lead_id))
-            lead = lead_result.scalar_one_or_none()
-            if lead and hasattr(lead, "email_deliverable"):
-                lead.email_deliverable = False
-                logger.info(
-                    "SES hard bounce: marked lead %s email as undeliverable", lead_id
+                # The current bounce is already logged in touch_logs by the caller,
+                # so count includes it. Escalate at 3+.
+                if soft_bounce_count >= 3:
+                    logger.info(
+                        "SES soft bounce: escalating lead %s to hard bounce (%d soft bounces in 7 days)",
+                        lead_id,
+                        soft_bounce_count,
+                    )
+                    await _handle_ses_bounce(
+                        lead_id=lead_id,
+                        enrollment_id_str=enrollment_id_str,
+                        hard_bounce=True,
+                        db=db,
+                    )
+                    return
+
+            # Pause only the specific enrollment (if any) on soft bounce
+            if enrollment_id_str:
+                enr_result = await db.execute(
+                    select(SequenceEnrollment).where(
+                        SequenceEnrollment.id == _uuid.UUID(enrollment_id_str)
+                    )
                 )
+                enrollment = enr_result.scalar_one_or_none()
+                if enrollment and enrollment.status not in (
+                    EnrollmentStatus.completed,
+                    EnrollmentStatus.bounced,
+                    EnrollmentStatus.unsubscribed,
+                    EnrollmentStatus.failed,
+                ):
+                    enrollment.status = EnrollmentStatus.paused
+                    enrollment.last_state_change_at = datetime.now(UTC)
+                    logger.info("SES soft bounce: paused enrollment %s", enrollment_id_str)
+
     except Exception as exc:
         logger.warning("SES bounce handler error: %s", exc)
         raise
@@ -657,44 +738,73 @@ async def _handle_ses_complaint(
     enrollment_id_str: str | None,
     db: AsyncSession,
 ) -> None:
-    """Process SES complaint: pause enrollment, add to DNC."""
-    import uuid as _uuid
+    """Process SES complaint (spam report).
 
+    - Add email to dnc_blocks with reason 'spam_complaint'
+    - Update lead status to 'unsubscribed'
+    - Pause ALL active enrollments for the lead
+    - Revoke consent records if any exist
+    - Log for audit trail
+    """
     try:
-        if enrollment_id_str:
-            enr_result = await db.execute(
-                select(SequenceEnrollment).where(
-                    SequenceEnrollment.id == _uuid.UUID(enrollment_id_str)
-                )
-            )
-            enrollment = enr_result.scalar_one_or_none()
-            if enrollment and enrollment.status not in (
-                EnrollmentStatus.completed,
-                EnrollmentStatus.unsubscribed,
-                EnrollmentStatus.failed,
-            ):
-                enrollment.status = EnrollmentStatus.paused
-                enrollment.last_state_change_at = datetime.now(UTC)
-                logger.info(
-                    "SES complaint: paused enrollment %s", enrollment_id_str
-                )
-
-        # Add to DNC
-        from app.models.dnc import DNCBlock
-
         lead_result = await db.execute(select(Lead).where(Lead.id == lead_id))
         lead = lead_result.scalar_one_or_none()
+
         if lead:
-            dnc = DNCBlock(
-                identifier=lead.email,
-                identifier_type="email",
-                reason="ses_complaint",
-                source="ses_webhook",
+            # Add to DNC (idempotent — skip if already blocked for spam_complaint)
+            existing_dnc = await db.execute(
+                select(DNCBlock).where(
+                    DNCBlock.identifier == lead.email,
+                    DNCBlock.channel == "email",
+                    DNCBlock.reason == "spam_complaint",
+                )
             )
-            db.add(dnc)
-            logger.info(
-                "SES complaint: added %s to DNC", lead.email
+            if existing_dnc.scalar_one_or_none() is None:
+                dnc = DNCBlock(
+                    identifier=lead.email,
+                    channel="email",
+                    reason="spam_complaint",
+                    blocked_at=datetime.now(UTC),
+                    source="ses_webhook",
+                )
+                db.add(dnc)
+                logger.info("SES complaint: added %s to DNC (spam_complaint)", lead.email)
+
+            # Mark lead email as undeliverable (unsubscribed)
+            if hasattr(lead, "email_deliverable"):
+                lead.email_deliverable = False
+
+            # Revoke all active email consents for this lead
+            consent_result = await db.execute(
+                select(Consent).where(
+                    Consent.lead_id == lead_id,
+                    Consent.channel == "email",
+                    Consent.revoked_at.is_(None),
+                )
             )
+            now = datetime.now(UTC)
+            for consent in consent_result.scalars().all():
+                consent.revoked_at = now
+                logger.info("SES complaint: revoked consent %s for lead %s", consent.id, lead_id)
+
+        # Pause ALL active enrollments for this lead
+        enr_result = await db.execute(
+            select(SequenceEnrollment).where(
+                SequenceEnrollment.lead_id == lead_id,
+                SequenceEnrollment.status.in_([
+                    EnrollmentStatus.active,
+                    EnrollmentStatus.pending,
+                    EnrollmentStatus.sent,
+                    EnrollmentStatus.opened,
+                    EnrollmentStatus.paused,
+                ]),
+            )
+        )
+        for enrollment in enr_result.scalars().all():
+            enrollment.status = EnrollmentStatus.unsubscribed
+            enrollment.last_state_change_at = datetime.now(UTC)
+            logger.info("SES complaint: enrollment %s → unsubscribed", enrollment.id)
+
     except Exception as exc:
         logger.warning("SES complaint handler error: %s", exc)
         raise
