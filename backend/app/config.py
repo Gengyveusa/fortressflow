@@ -105,6 +105,11 @@ class Settings(BaseSettings):
     LINKEDIN_OAUTH_REDIRECT_URI: str = ""
     LINKEDIN_PROXY_ENDPOINT: str = ""  # Cloud automation proxy URL
 
+    # Phantombuster (LinkedIn automation)
+    PHANTOMBUSTER_API_KEY: str = ""
+    PHANTOMBUSTER_CONNECT_AGENT_ID: str = ""
+    PHANTOMBUSTER_MESSAGE_AGENT_ID: str = ""
+
     # Channel orchestrator
     GLOBAL_DAILY_EMAIL_LIMIT: int = 400  # 300-400 target
     GLOBAL_DAILY_SMS_LIMIT: int = 30

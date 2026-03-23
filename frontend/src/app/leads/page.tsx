@@ -190,7 +190,7 @@ export default function LeadsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/leads`}>View</Link>
+                        <Link href={`/leads/${lead.id}`}>View</Link>
                       </Button>
                     </TableCell>
                   </TableRow>

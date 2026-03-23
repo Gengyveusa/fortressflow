@@ -274,10 +274,14 @@ class ChatService:
         return None
 
     async def _gather_context(self) -> dict[str, Any]:
-        """Gather live context from the database for LLM prompts."""
+        """Gather live context from the database for LLM prompts using ORM."""
         try:
+            from sqlalchemy import case, func, select
+
             from app.database import AsyncSessionLocal
-            from sqlalchemy import func, select, text
+            from app.models.lead import Lead
+            from app.models.sending_inbox import SendingInbox
+            from app.models.sequence import Sequence, SequenceEnrollment
 
             async with AsyncSessionLocal() as db:
                 context: dict[str, Any] = {}
@@ -285,64 +289,65 @@ class ChatService:
                 # Sequences
                 try:
                     result = await db.execute(
-                        text(
-                            "SELECT COUNT(*) as total, "
-                            "SUM(CASE WHEN status='active' THEN 1 ELSE 0 END) as active_count, "
-                            "SUM(enrolled_count) as total_enrolled "
-                            "FROM sequences"
+                        select(
+                            func.count(Sequence.id),
+                            func.sum(
+                                case(
+                                    (Sequence.status == "active", 1),
+                                    else_=0,
+                                )
+                            ),
                         )
                     )
-                    row = result.fetchone()
-                    if row:
-                        context["sequences"] = {
-                            "active_count": int(row[1] or 0),
-                            "total_enrolled": int(row[2] or 0),
-                            "recent": [],
-                        }
-                    else:
-                        context["sequences"] = {
-                            "active_count": 0,
-                            "total_enrolled": 0,
-                            "recent": [],
-                        }
+                    row = result.one()
+                    active_count = int(row[1] or 0)
+
+                    enrolled_result = await db.execute(
+                        select(func.count(SequenceEnrollment.id))
+                    )
+                    total_enrolled = enrolled_result.scalar_one() or 0
+
+                    context["sequences"] = {
+                        "active_count": active_count,
+                        "total_enrolled": int(total_enrolled),
+                        "recent": [],
+                    }
                 except Exception:
                     context["sequences"] = {"active_count": 0, "total_enrolled": 0, "recent": []}
 
                 # Deliverability
                 try:
                     result = await db.execute(
-                        text(
-                            "SELECT COALESCE(SUM(total_sent),0), "
-                            "COALESCE(SUM(total_bounced),0), "
-                            "COUNT(CASE WHEN warmup_status='warming' THEN 1 END), "
-                            "COUNT(CASE WHEN warmup_status='completed' THEN 1 END) "
-                            "FROM sending_inboxes"
+                        select(
+                            func.coalesce(func.sum(SendingInbox.total_sent), 0),
+                            func.coalesce(func.sum(SendingInbox.total_bounced), 0),
+                            func.count(
+                                case(
+                                    (SendingInbox.status == "warming", SendingInbox.id),
+                                )
+                            ),
+                            func.count(
+                                case(
+                                    (SendingInbox.status == "active", SendingInbox.id),
+                                )
+                            ),
                         )
                     )
-                    row = result.fetchone()
-                    if row:
-                        total_sent = int(row[0] or 0)
-                        total_bounced = int(row[1] or 0)
-                        bounce_rate = (
-                            f"{(total_bounced / total_sent * 100):.2f}%"
-                            if total_sent > 0
-                            else "0.00%"
-                        )
-                        context["deliverability"] = {
-                            "total_sent": total_sent,
-                            "bounce_rate": bounce_rate,
-                            "spam_rate": "N/A",
-                            "warmup_active": int(row[2] or 0),
-                            "warmup_completed": int(row[3] or 0),
-                        }
-                    else:
-                        context["deliverability"] = {
-                            "total_sent": 0,
-                            "bounce_rate": "0.00%",
-                            "spam_rate": "N/A",
-                            "warmup_active": 0,
-                            "warmup_completed": 0,
-                        }
+                    row = result.one()
+                    total_sent = int(row[0])
+                    total_bounced = int(row[1])
+                    bounce_rate = (
+                        f"{(total_bounced / total_sent * 100):.2f}%"
+                        if total_sent > 0
+                        else "0.00%"
+                    )
+                    context["deliverability"] = {
+                        "total_sent": total_sent,
+                        "bounce_rate": bounce_rate,
+                        "spam_rate": "N/A",
+                        "warmup_active": int(row[2]),
+                        "warmup_completed": int(row[3]),
+                    }
                 except Exception:
                     context["deliverability"] = {
                         "total_sent": 0,
@@ -354,9 +359,11 @@ class ChatService:
 
                 # Leads
                 try:
-                    result = await db.execute(text("SELECT COUNT(*) FROM leads"))
-                    row = result.fetchone()
-                    context["leads"] = {"total": int(row[0] or 0) if row else 0}
+                    result = await db.execute(
+                        select(func.count(Lead.id))
+                    )
+                    count = result.scalar_one() or 0
+                    context["leads"] = {"total": int(count)}
                 except Exception:
                     context["leads"] = {"total": 0}
 

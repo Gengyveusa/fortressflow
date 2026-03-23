@@ -596,12 +596,69 @@ export interface ApiKeyEntry {
   updated_at: string | null;
 }
 
+// ── Integration Status Types ──────────────────────────────
+
+export interface IntegrationStatusEntry {
+  name: string;
+  configured: boolean;
+  mode: "active" | "manual" | "not_configured";
+}
+
+export interface IntegrationStatusResponse {
+  integrations: IntegrationStatusEntry[];
+}
+
+// ── Deal Types ────────────────────────────────────────────
+
+export interface Deal {
+  deal_id: string;
+  deal_name: string;
+  pipeline: string;
+  stage: string;
+  amount: number | null;
+  created_at: string | null;
+  updated_at: string | null;
+  hs_deal_id: string | null;
+}
+
+export interface DealCreateRequest {
+  deal_name: string;
+  pipeline?: string;
+  stage?: string;
+  amount?: number;
+}
+
+export interface DealStageUpdateRequest {
+  stage: string;
+}
+
+export interface HubSpotPipeline {
+  pipeline_id: string;
+  label: string;
+  stages: { stage_id: string; label: string }[];
+}
+
 export const settingsApi = {
   listApiKeys: () => api.get<ApiKeyEntry[]>("/settings/api-keys"),
   upsertApiKey: (service: string, apiKey: string) =>
     api.put<ApiKeyEntry>(`/settings/api-keys/${service}`, { api_key: apiKey }),
   deleteApiKey: (service: string) =>
     api.delete(`/settings/api-keys/${service}`),
+  integrationStatus: () =>
+    api.get<IntegrationStatusResponse>("/settings/integration-status"),
+};
+
+// ── Deals API ─────────────────────────────────────────────
+
+export const dealsApi = {
+  listForLead: (leadId: string) =>
+    api.get<Deal[]>(`/leads/${leadId}/deals`),
+  create: (leadId: string, data: DealCreateRequest) =>
+    api.post<Deal>(`/leads/${leadId}/deals`, data),
+  updateStage: (dealId: string, stage: string) =>
+    api.put<Deal>(`/deals/${dealId}/stage`, { stage }),
+  listPipelines: () =>
+    api.get<HubSpotPipeline[]>("/deals/pipelines"),
 };
 
 export default api;
