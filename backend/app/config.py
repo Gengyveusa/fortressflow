@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     # HubSpot
     HUBSPOT_API_KEY: str = ""
     HUBSPOT_APP_ID: str = ""
+    HUBSPOT_CLIENT_SECRET: str = ""  # Used for webhook signature validation
 
     # ZoomInfo
     ZOOMINFO_CLIENT_ID: str = ""

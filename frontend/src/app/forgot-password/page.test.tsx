@@ -86,9 +86,9 @@ describe("ForgotPasswordPage", () => {
   });
 
   it("shows loading state while submitting", async () => {
-    let resolveFetch: (value: unknown) => void;
+    let resolveFetch: (value: Response) => void;
     vi.mocked(global.fetch).mockReturnValue(
-      new Promise((resolve) => {
+      new Promise<Response>((resolve) => {
         resolveFetch = resolve;
       })
     );
@@ -103,7 +103,7 @@ describe("ForgotPasswordPage", () => {
 
     expect(screen.getByRole("button", { name: /sending/i })).toBeDisabled();
 
-    resolveFetch!({ ok: true, json: () => Promise.resolve({}) });
+    resolveFetch!({ ok: true, json: () => Promise.resolve({}) } as Response);
   });
 
   it("shows back to sign in button after success", async () => {

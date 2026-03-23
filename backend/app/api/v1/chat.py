@@ -190,7 +190,10 @@ async def chat_history(
         async with AsyncSessionLocal() as db:
             result = await db.execute(
                 select(ChatLog)
-                .where(ChatLog.session_id == session_id)
+                .where(
+                    ChatLog.session_id == session_id,
+                    ChatLog.user_id == str(current_user.id),
+                )
                 .order_by(ChatLog.created_at.desc())
                 .limit(50)
             )
@@ -236,6 +239,7 @@ async def list_sessions(
             func.max(ChatLog.created_at).label("last_message_at"),
             func.count(ChatLog.id).label("message_count"),
         )
+        .where(ChatLog.user_id == str(current_user.id))
         .group_by(ChatLog.session_id)
         .order_by(func.max(ChatLog.created_at).desc())
         .limit(50)
@@ -263,11 +267,22 @@ async def get_session_messages(
     """Get all messages for a specific chat session."""
     result = await db.execute(
         select(ChatLog)
-        .where(ChatLog.session_id == session_id)
+        .where(
+            ChatLog.session_id == session_id,
+            ChatLog.user_id == str(current_user.id),
+        )
         .order_by(ChatLog.created_at.asc())
         .limit(200)
     )
     logs = result.scalars().all()
+
+    if not logs:
+        # Check if session exists but belongs to another user
+        exists_result = await db.execute(
+            select(ChatLog.id).where(ChatLog.session_id == session_id).limit(1)
+        )
+        if exists_result.scalar_one_or_none() is not None:
+            raise HTTPException(status_code=404, detail="Session not found")
 
     messages = []
     for log in logs:
