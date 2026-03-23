@@ -269,7 +269,7 @@ async def debug_db_state() -> dict:
     return result
 
 
-@app.post("/debug/run-migrations", tags=["health"], include_in_schema=False)
+@app.get("/debug/run-migrations", tags=["health"], include_in_schema=False)
 async def debug_run_migrations() -> dict:
     """Temporary endpoint to manually trigger Alembic migrations."""
     import subprocess
