@@ -129,8 +129,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response: Response = await call_next(request)
 
         # Information-disclosure reduction
-        response.headers.pop("server", None)
-        response.headers.pop("Server", None)
+        if "server" in response.headers:
+            del response.headers["server"]
+        if "Server" in response.headers:
+            del response.headers["Server"]
         response.headers["X-Powered-By"] = "FortressFlow"
 
         # Standard hardening headers
