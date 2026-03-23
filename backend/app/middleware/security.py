@@ -89,11 +89,13 @@ CSP_DEVELOPMENT = (
 CSP_PRODUCTION = (
     "default-src 'self'; "
     "script-src 'self'; "
-    "style-src 'self'; "
+    "style-src 'self' 'unsafe-inline'; "
     "font-src 'self'; "
     "img-src 'self' data:; "
     "connect-src 'self'; "
     "frame-ancestors 'none'; "
+    "base-uri 'self'; "
+    "form-action 'self'; "
     "upgrade-insecure-requests;"
 )
 

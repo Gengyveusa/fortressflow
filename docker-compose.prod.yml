@@ -31,6 +31,8 @@ volumes:
   rabbitmq_data:
   prometheus_data:
   grafana_data:
+  loki_data:
+  backup_data:
 
 # ============================================================
 # Services
@@ -372,6 +374,7 @@ services:
       - --web.enable-admin-api
     volumes:
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus_data:/prometheus
     networks:
       - backend_net
@@ -427,3 +430,159 @@ services:
         reservations:
           cpus: "0.1"
           memory: 64m
+
+  # ----------------------------------------------------------
+  # Node Exporter — host OS metrics (CPU, memory, disk, network)
+  # ----------------------------------------------------------
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: fortressflow-node-exporter
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - monitoring_net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+
+  # ----------------------------------------------------------
+  # PostgreSQL Exporter — database metrics for Prometheus
+  # ----------------------------------------------------------
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: fortressflow-postgres-exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-fortressflow}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-fortressflow}?sslmode=disable"
+    networks:
+      - backend_net
+      - monitoring_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+
+  # ----------------------------------------------------------
+  # Redis Exporter — Redis metrics for Prometheus
+  # ----------------------------------------------------------
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.58.0
+    container_name: fortressflow-redis-exporter
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: "redis://redis:6379"
+    networks:
+      - backend_net
+      - monitoring_net
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+
+  # ----------------------------------------------------------
+  # AlertManager — Prometheus alert routing and notification
+  # ----------------------------------------------------------
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: fortressflow-alertmanager
+    restart: unless-stopped
+    volumes:
+      - ./infra/alertmanager:/etc/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    networks:
+      - monitoring_net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+
+  # ----------------------------------------------------------
+  # Loki — Log aggregation backend
+  # ----------------------------------------------------------
+  loki:
+    image: grafana/loki:2.9.4
+    container_name: fortressflow-loki
+    restart: unless-stopped
+    volumes:
+      - ./infra/loki:/etc/loki
+      - loki_data:/loki
+    command: -config.file=/etc/loki/loki-config.yml
+    networks:
+      - monitoring_net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # ----------------------------------------------------------
+  # Promtail — Log collector, ships to Loki
+  # ----------------------------------------------------------
+  promtail:
+    image: grafana/promtail:2.9.4
+    container_name: fortressflow-promtail
+    restart: unless-stopped
+    volumes:
+      - ./infra/promtail:/etc/promtail
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/promtail-config.yml
+    networks:
+      - monitoring_net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  # ----------------------------------------------------------
+  # Database Backup — Automated PostgreSQL backups
+  # ----------------------------------------------------------
+  backup:
+    build:
+      context: ./infra/backup
+      dockerfile: Dockerfile
+    container_name: fortressflow-backup
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fortressflow}
+      POSTGRES_DB: ${POSTGRES_DB:-fortressflow}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      AWS_S3_BACKUP_BUCKET: ${AWS_S3_BACKUP_BUCKET:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+    volumes:
+      - backup_data:/backups
+    networks:
+      - backend_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
