@@ -40,6 +40,8 @@ import {
   BarChart,
   Bar,
 } from "recharts";
+import { InsightsBannerList } from "@/components/chat/InsightsBanner";
+import { useChatPanel } from "@/components/chat/ChatPanelContext";
 
 // ── Skeleton ──────────────────────────────────────────────
 function StatSkeleton() {
@@ -91,6 +93,7 @@ export default function DashboardPage() {
   const { data: seqAnalytics, isLoading: seqLoading } = useSequencesAnalytics();
   const { data: outreachData, isLoading: outreachLoading, error: outreachError } = useOutreachDaily();
   const { data: recentActivity, isLoading: activityLoading, error: activityError } = useRecentActivity();
+  const { sendFromExternal } = useChatPanel();
 
   const statCards = [
     { label: "Total Leads", value: stats?.total_leads, icon: Users, color: "text-blue-600 bg-blue-50 dark:bg-blue-950 dark:text-blue-300" },
@@ -115,6 +118,9 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* ── Proactive Insights ── */}
+      <InsightsBannerList onOpenChat={sendFromExternal} />
+
       {/* ── Stat cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {statsLoading

@@ -15,6 +15,7 @@ import {
   Inbox,
   Settings,
   Menu,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -24,6 +25,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { useChatPanel } from "@/components/chat/ChatPanelContext";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -67,6 +69,32 @@ function NavLink({ href, label, icon: Icon, pathname, onClick }: NavLinkProps) {
   );
 }
 
+function AIAssistantButton({ onNavClick }: { onNavClick?: () => void }) {
+  const { open, hasInsights, mode } = useChatPanel();
+  const isActive = mode !== "closed";
+
+  return (
+    <button
+      onClick={() => {
+        open(true);
+        onNavClick?.();
+      }}
+      className={cn(
+        "w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors relative",
+        isActive
+          ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+          : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
+      )}
+    >
+      <Sparkles className="w-5 h-5 flex-shrink-0" />
+      AI Assistant
+      {hasInsights && (
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 w-2 h-2 bg-red-500 rounded-full" />
+      )}
+    </button>
+  );
+}
+
 function SidebarContent({
   pathname,
   onNavClick,
@@ -83,6 +111,11 @@ function SidebarContent({
         </span>
       </div>
       <nav className="flex-1 space-y-1 px-3">
+        {/* AI Assistant — primary nav item */}
+        <AIAssistantButton onNavClick={onNavClick} />
+
+        <div className="my-2 border-t border-gray-100 dark:border-gray-800" />
+
         {navItems.map((item) => (
           <NavLink
             key={item.href}

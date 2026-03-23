@@ -9,6 +9,7 @@ import {
   useCallback,
 } from "react";
 import { Toaster } from "@/components/ui/toaster";
+import { ChatPanelProvider } from "@/components/chat/ChatPanelContext";
 
 // ── Theme Context ──────────────────────────────────────
 
@@ -103,8 +104,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        {children}
-        <Toaster />
+        <ChatPanelProvider>
+          {children}
+          <Toaster />
+        </ChatPanelProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );
