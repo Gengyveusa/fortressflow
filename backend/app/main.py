@@ -269,6 +269,23 @@ async def debug_db_state() -> dict:
     return result
 
 
+@app.get("/debug/promote-admin/{email}", tags=["health"], include_in_schema=False)
+async def debug_promote_admin(email: str) -> dict:
+    """Temporary: promote a user to admin."""
+    import asyncpg
+    try:
+        conn = await asyncpg.connect(
+            settings.DATABASE_URL.replace("+asyncpg", ""), timeout=5,
+        )
+        result = await conn.execute(
+            "UPDATE users SET role = 'admin' WHERE email = $1", email
+        )
+        await conn.close()
+        return {"status": "ok", "result": result, "email": email}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
 @app.get("/debug/test-register", tags=["health"], include_in_schema=False)
 async def debug_test_register() -> dict:
     """Test register flow step by step."""
