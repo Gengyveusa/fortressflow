@@ -29,11 +29,11 @@ class ChatLog(Base):
     session_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     response: Mapped[str] = mapped_column(Text, nullable=False)
-    ai_model: Mapped[str] = mapped_column(String(100), nullable=False, default="groq")
-    ai_sources: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    ai_model: Mapped[str | None] = mapped_column(String(100), nullable=True, default="groq")
+    ai_sources: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=dict)
+    context_snapshot: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     tokens_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    topic: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

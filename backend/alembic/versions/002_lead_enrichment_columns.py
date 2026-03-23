@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 
 # revision identifiers
 revision = "002_lead_enrichment"
-down_revision = "001_initial_schema"
+down_revision = "001"
 branch_labels = None
 depends_on = None
 
