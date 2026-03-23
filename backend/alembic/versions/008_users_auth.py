@@ -12,7 +12,7 @@ Create Date: 2026-03-22
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, ENUM
 
 from migration_helpers import create_enum_idempotent, table_exists, index_exists
 
@@ -26,7 +26,7 @@ def upgrade() -> None:
     bind = op.get_bind()
 
     create_enum_idempotent("userrole", ["admin", "user", "viewer"])
-    role_enum = sa.Enum("admin", "user", "viewer", name="userrole", create_type=False)
+    role_enum = ENUM("admin", "user", "viewer", name="userrole", create_type=False)
 
     if not table_exists(bind, "users"):
         op.create_table(
@@ -49,4 +49,4 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("ix_users_email", table_name="users")
     op.drop_table("users")
-    sa.Enum(name="userrole").drop(op.get_bind(), checkfirst=True)
+    op.execute("DROP TYPE IF EXISTS userrole")

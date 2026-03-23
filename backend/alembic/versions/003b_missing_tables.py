@@ -9,7 +9,7 @@ Create Date: 2026-03-23
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID, JSONB, ENUM
 
 from migration_helpers import create_enum_idempotent, table_exists, index_exists
 
@@ -93,7 +93,7 @@ def upgrade() -> None:
             sa.Column("description", sa.Text, nullable=True),
             sa.Column(
                 "status",
-                sa.Enum(
+                ENUM(
                     "draft", "active", "paused", "archived",
                     name="sequence_status",
                     create_type=False,
@@ -133,7 +133,7 @@ def upgrade() -> None:
             ),
             sa.Column(
                 "step_type",
-                sa.Enum(
+                ENUM(
                     "email", "sms", "linkedin", "delay", "condition",
                     name="step_type",
                     create_type=False,
@@ -178,7 +178,7 @@ def upgrade() -> None:
             sa.Column("current_step", sa.Integer, nullable=False, server_default=sa.text("0")),
             sa.Column(
                 "status",
-                sa.Enum(
+                ENUM(
                     "active", "paused", "completed", "bounced", "replied",
                     "unsubscribed", "failed",
                     name="enrollment_status",

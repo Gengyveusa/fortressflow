@@ -7,7 +7,7 @@ Create Date: 2026-03-19
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID, JSONB, ENUM
 
 from migration_helpers import create_enum_idempotent, table_exists, index_exists
 
@@ -34,12 +34,12 @@ def upgrade() -> None:
             sa.Column("name", sa.String(255), nullable=False),
             sa.Column(
                 "channel",
-                sa.Enum("email", "sms", "linkedin", name="template_channel", create_type=False),
+                ENUM("email", "sms", "linkedin", name="template_channel", create_type=False),
                 nullable=False,
             ),
             sa.Column(
                 "category",
-                sa.Enum("cold_outreach", "follow_up", "re_engagement", "custom", name="template_category", create_type=False),
+                ENUM("cold_outreach", "follow_up", "re_engagement", "custom", name="template_category", create_type=False),
                 nullable=False,
                 server_default="custom",
             ),
