@@ -1,9 +1,9 @@
 """
-Phase 7: Chat API — In-app AI assistant endpoint.
+Phase 7+8: Chat API — In-app AI assistant with command engine.
 
 Routes:
   POST /chat/          — Streaming SSE chat endpoint
-  POST /chat/sync      — Non-streaming chat (for testing)
+  POST /chat/sync      — Synchronous chat (returns structured CommandResponse)
   GET  /chat/history   — Chat history for a session
   GET  /chat/sessions  — List chat sessions
   GET  /chat/sessions/{session_id} — Get messages for a session
@@ -27,7 +27,12 @@ from app.config import settings
 from app.database import get_db
 from app.models.user import User
 from app.models.chat import ChatLog
-from app.schemas.chat import ChatHistoryResponse, ChatRequest, ChatResponse
+from app.schemas.chat import (
+    ChatHistoryResponse,
+    ChatRequest,
+    ChatResponse,
+    CommandResponse,
+)
 from app.services.chat_service import ChatService
 
 logger = logging.getLogger(__name__)
@@ -112,6 +117,7 @@ async def chat_stream(
     Stream a chat response as Server-Sent Events.
 
     Each chunk is prefixed with `data: ` and terminated with `\\n\\n`.
+    Command engine responses are prefixed with `data: [CMD]` followed by JSON.
     A final `data: [DONE]\\n\\n` or `data: [ERROR]\\n\\n` signals completion.
     """
     user_id = str(current_user.id)
@@ -126,9 +132,13 @@ async def chat_stream(
     async def event_stream():
         try:
             async for chunk in svc.handle_message(body.message, user_id, session_id):
-                # Escape newlines in SSE data field
-                safe_chunk = chunk.replace("\n", " ")
-                yield f"data: {safe_chunk}\n\n"
+                if chunk.startswith("[CMD]"):
+                    # Structured command engine response — pass through as-is
+                    yield f"data: {chunk}\n\n"
+                else:
+                    # Escape newlines in SSE data field
+                    safe_chunk = chunk.replace("\n", " ")
+                    yield f"data: {safe_chunk}\n\n"
             yield "data: [DONE]\n\n"
         except Exception as exc:
             logger.error("chat_stream: streaming error: %s", exc)
@@ -148,24 +158,29 @@ async def chat_stream(
 # ── Sync endpoint ─────────────────────────────────────────────────────────────
 
 
-@router.post("/sync", response_model=ChatResponse, summary="Chat — synchronous")
+@router.post("/sync", response_model=CommandResponse, summary="Chat — synchronous")
 async def chat_sync(
     body: ChatRequest,
     current_user: User = Depends(get_current_user),
-) -> ChatResponse:
+) -> CommandResponse:
     """
     Non-streaming chat endpoint. Returns the full response at once.
-    Useful for testing and slash commands.
+
+    Returns a CommandResponse which supports all response types:
+    text, question, action_preview, progress, metrics.
     """
     session_id = body.session_id or str(uuid.uuid4())
     svc = ChatService()
     result = await svc.handle_message_sync(body.message, str(current_user.id), session_id)
-    return ChatResponse(
-        session_id=result["session_id"],
-        message=result["message"],
-        response=result["response"],
-        ai_model=result["ai_model"],
-        ai_sources=result["ai_sources"],
+    return CommandResponse(
+        session_id=result.get("session_id", session_id),
+        type=result.get("type", "text"),
+        content=result.get("response", ""),
+        options=result.get("options", []),
+        data=result.get("data", {}),
+        campaign_params=result.get("campaign_params", {}),
+        ai_model=result.get("ai_model", "groq"),
+        ai_sources=result.get("ai_sources", []),
         created_at=datetime.now(UTC),
     )
 
@@ -204,6 +219,7 @@ async def chat_history(
                     id=str(log.id),
                     message=log.message,
                     response=log.response,
+                    response_type=log.response_type or "text",
                     ai_sources=log.ai_sources.get("sources", []) if log.ai_sources else [],
                     created_at=log.created_at,
                 )
@@ -292,13 +308,17 @@ async def get_session_messages(
             "content": log.message,
             "timestamp": log.created_at.isoformat(),
         })
-        messages.append({
+        response_entry = {
             "id": f"{log.id}-response",
             "role": "assistant",
             "content": log.response,
             "timestamp": log.created_at.isoformat(),
             "sources": log.ai_sources.get("sources", []) if log.ai_sources else [],
-        })
+            "type": log.response_type or "text",
+        }
+        if log.response_metadata:
+            response_entry["data"] = log.response_metadata
+        messages.append(response_entry)
 
     return {"session_id": session_id, "messages": messages}
 
