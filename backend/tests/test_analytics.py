@@ -5,12 +5,15 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
+from app.auth import get_current_user
 from app.main import app
 
 
 @pytest.fixture
-def client():
-    return TestClient(app)
+def client(mock_user):
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+    yield TestClient(app)
+    app.dependency_overrides.clear()
 
 
 class TestDashboardAnalytics:
@@ -44,7 +47,6 @@ class TestDashboardAnalytics:
         assert data["active_consents"] == 5
         assert data["touches_sent"] == 100
         assert data["response_rate"] == 15.0  # 15/100*100
-        app.dependency_overrides.clear()
 
     def test_dashboard_stats_zero_touches(self, client):
         """Dashboard should handle zero touches gracefully (no division by zero)."""
@@ -66,7 +68,6 @@ class TestDashboardAnalytics:
         assert response.status_code == 200
         data = response.json()
         assert data["response_rate"] == 0.0
-        app.dependency_overrides.clear()
 
 
 class TestDeliverabilityAnalytics:
@@ -98,7 +99,6 @@ class TestDeliverabilityAnalytics:
         assert data["spam_complaints"] == 2
         assert data["warmup_active"] == 3
         assert data["warmup_completed"] == 7
-        app.dependency_overrides.clear()
 
 
 class TestSequencesAnalytics:
@@ -124,4 +124,3 @@ class TestSequencesAnalytics:
         assert response.status_code == 200
         data = response.json()
         assert data["sequences"] == []
-        app.dependency_overrides.clear()

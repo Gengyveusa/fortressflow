@@ -12,8 +12,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from app.auth import get_current_user
 from app.database import get_db
 from app.main import app
+from app.models.user import UserRole
 
 
 def _make_lead(email: str = "test@example.com", **kwargs) -> MagicMock:
@@ -36,6 +38,17 @@ def _make_lead(email: str = "test@example.com", **kwargs) -> MagicMock:
     for k, v in kwargs.items():
         setattr(lead, k, v)
     return lead
+
+
+def _mock_current_user():
+    """Create a mock user for auth override."""
+    user = MagicMock()
+    user.id = uuid.uuid4()
+    user.email = "testuser@fortressflow.io"
+    user.full_name = "Test User"
+    user.role = UserRole.user
+    user.is_active = True
+    return user
 
 
 def _csv_content(rows: list[dict]) -> bytes:
@@ -74,8 +87,9 @@ async def test_csv_import_valid():
         yield db
 
     app.dependency_overrides[get_db] = override_db
+    app.dependency_overrides[get_current_user] = lambda: _mock_current_user()
     try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers={"Authorization": "Bearer test-csrf-bypass"}) as ac:
             resp = await ac.post(
                 "/api/v1/leads/import/csv",
                 files={"file": ("leads.csv", io.BytesIO(csv_data), "text/csv")},
@@ -125,8 +139,9 @@ async def test_csv_import_duplicate_handling():
         yield db
 
     app.dependency_overrides[get_db] = override_db
+    app.dependency_overrides[get_current_user] = lambda: _mock_current_user()
     try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers={"Authorization": "Bearer test-csrf-bypass"}) as ac:
             resp = await ac.post(
                 "/api/v1/leads/import/csv",
                 files={"file": ("leads.csv", io.BytesIO(csv_data), "text/csv")},
@@ -150,8 +165,9 @@ async def test_csv_import_invalid_format():
         yield db
 
     app.dependency_overrides[get_db] = override_db
+    app.dependency_overrides[get_current_user] = lambda: _mock_current_user()
     try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers={"Authorization": "Bearer test-csrf-bypass"}) as ac:
             resp = await ac.post(
                 "/api/v1/leads/import/csv",
                 files={"file": ("leads.txt", io.BytesIO(b"not csv"), "text/plain")},
@@ -174,8 +190,9 @@ async def test_csv_import_missing_required_columns():
         yield db
 
     app.dependency_overrides[get_db] = override_db
+    app.dependency_overrides[get_current_user] = lambda: _mock_current_user()
     try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers={"Authorization": "Bearer test-csrf-bypass"}) as ac:
             resp = await ac.post(
                 "/api/v1/leads/import/csv",
                 files={"file": ("leads.csv", io.BytesIO(csv_data), "text/csv")},
@@ -216,12 +233,13 @@ async def test_hubspot_sync_import():
         yield db
 
     app.dependency_overrides[get_db] = override_db
+    app.dependency_overrides[get_current_user] = lambda: _mock_current_user()
     try:
         with patch("app.services.hubspot.HubSpotService") as MockHS:
             instance = MockHS.return_value
             instance.pull_contacts_from_hubspot = AsyncMock(return_value=mock_contacts)
 
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers={"Authorization": "Bearer test-csrf-bypass"}) as ac:
                 resp = await ac.post("/api/v1/leads/import/hubspot")
             assert resp.status_code == 200
             body = resp.json()

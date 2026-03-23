@@ -360,3 +360,15 @@ def sample_twilio_status_callback():
         "MessageStatus": "delivered",
         "NumMedia": "0",
     }
+
+
+@pytest.fixture
+def auth_headers(auth_token):
+    """HTTP headers with a valid JWT for a regular user."""
+    return {"Authorization": f"Bearer {auth_token}"}
+
+
+@pytest.fixture
+def admin_auth_headers(admin_auth_token):
+    """HTTP headers with a valid JWT for an admin user."""
+    return {"Authorization": f"Bearer {admin_auth_token}"}

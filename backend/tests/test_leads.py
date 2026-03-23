@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.auth import get_current_user
 from app.main import app
 from app.database import get_db
 
@@ -53,7 +54,7 @@ def client():
 
 
 @pytest.mark.asyncio
-async def test_create_lead_duplicate_email():
+async def test_create_lead_duplicate_email(mock_user):
     """Creating a lead with a duplicate email returns 409."""
     existing_lead = _make_lead()
 
@@ -67,25 +68,32 @@ async def test_create_lead_duplicate_email():
         yield db
 
     app.dependency_overrides[get_db] = override_db
+    app.dependency_overrides[get_current_user] = lambda: mock_user
     from httpx import AsyncClient, ASGITransport
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        resp = await ac.post(
-            "/api/v1/leads/",
-            json={
-                "email": "test@example.com",
-                "first_name": "Jane",
-                "last_name": "Doe",
-                "company": "ACME",
-                "title": "CTO",
-                "source": "test",
-            },
-        )
-    app.dependency_overrides.clear()
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+            headers={"Authorization": "Bearer test-csrf-bypass"},
+        ) as ac:
+            resp = await ac.post(
+                "/api/v1/leads/",
+                json={
+                    "email": "test@example.com",
+                    "first_name": "Jane",
+                    "last_name": "Doe",
+                    "company": "ACME",
+                    "title": "CTO",
+                    "source": "test",
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
     assert resp.status_code == 409
 
 
 @pytest.mark.asyncio
-async def test_get_lead_not_found():
+async def test_get_lead_not_found(mock_user):
     """Getting a non-existent lead returns 404."""
     async def override_db():
         db = AsyncMock()
@@ -97,10 +105,13 @@ async def test_get_lead_not_found():
         yield db
 
     app.dependency_overrides[get_db] = override_db
+    app.dependency_overrides[get_current_user] = lambda: mock_user
     from httpx import AsyncClient, ASGITransport
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        resp = await ac.get(f"/api/v1/leads/{uuid.uuid4()}")
-    app.dependency_overrides.clear()
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            resp = await ac.get(f"/api/v1/leads/{uuid.uuid4()}")
+    finally:
+        app.dependency_overrides.clear()
     assert resp.status_code == 404
 
 

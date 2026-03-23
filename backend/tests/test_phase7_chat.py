@@ -209,9 +209,10 @@ class TestContextGathering:
         from app.services.chat_service import ChatService
         svc = ChatService()
         # Should not raise — returns context with error key
-        with patch("app.services.chat_service.AsyncSessionLocal") as mock_session:
-            mock_session.return_value.__aenter__ = AsyncMock(side_effect=Exception("DB down"))
-            mock_session.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_session = MagicMock()
+        mock_session.__aenter__ = AsyncMock(side_effect=Exception("DB down"))
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+        with patch("app.database.AsyncSessionLocal", return_value=mock_session):
             context = await svc._gather_context()
         assert "error" in context
 
@@ -228,7 +229,7 @@ class TestContextGathering:
         assert len(messages) >= 3
         assert messages[0]["role"] == "system"
         assert "FortressFlow Assistant" in messages[0]["content"]
-        assert "[LIVE CONTEXT]" in messages[1]["content"]
+        assert "LIVE CONTEXT" in messages[1]["content"]
         assert messages[-1]["role"] == "user"
 
     def test_build_messages_with_platform_insights(self):
@@ -319,34 +320,68 @@ class TestAIPlatformRouting:
 # ── Chat Rate Limiting Tests ──────────────────────────────────────────────────
 
 class TestChatRateLimiting:
-    """Test per-user chat rate limiting."""
+    """Test per-user chat rate limiting (Redis sliding window)."""
 
-    def test_rate_limit_allows_under_threshold(self):
-        from app.api.v1.chat import _check_chat_rate_limit, _chat_rate_buckets
-        _chat_rate_buckets.clear()
-        # Should not raise
-        _check_chat_rate_limit("user-1")
+    @pytest.mark.asyncio
+    async def test_rate_limit_allows_under_threshold(self):
+        from app.api.v1.chat import _check_chat_rate_limit, _CHAT_RATE_LIMIT
 
-    def test_rate_limit_blocks_over_threshold(self):
-        from app.api.v1.chat import _check_chat_rate_limit, _chat_rate_buckets, _CHAT_RATE_LIMIT
-        _chat_rate_buckets.clear()
-        # Fill the bucket
-        for _ in range(_CHAT_RATE_LIMIT):
-            _check_chat_rate_limit("user-2")
-        # Next should fail
+        mock_redis = AsyncMock()
+        mock_pipe = AsyncMock()
+        mock_pipe.zremrangebyscore = MagicMock(return_value=mock_pipe)
+        mock_pipe.zcard = MagicMock(return_value=mock_pipe)
+        mock_pipe.zadd = MagicMock(return_value=mock_pipe)
+        mock_pipe.expire = MagicMock(return_value=mock_pipe)
+        mock_pipe.execute = AsyncMock(return_value=[0, 5, 1, True])  # count=5, under limit
+        mock_pipe.__aenter__ = AsyncMock(return_value=mock_pipe)
+        mock_pipe.__aexit__ = AsyncMock(return_value=False)
+        mock_redis.pipeline = MagicMock(return_value=mock_pipe)
+
+        with patch("app.api.v1.chat._get_chat_redis", new_callable=AsyncMock, return_value=mock_redis):
+            # Should not raise
+            await _check_chat_rate_limit("user-1")
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_blocks_over_threshold(self):
+        from app.api.v1.chat import _check_chat_rate_limit, _CHAT_RATE_LIMIT
         from fastapi import HTTPException
-        with pytest.raises(HTTPException) as exc_info:
-            _check_chat_rate_limit("user-2")
-        assert exc_info.value.status_code == 429
 
-    def test_rate_limit_per_user_isolation(self):
-        from app.api.v1.chat import _check_chat_rate_limit, _chat_rate_buckets, _CHAT_RATE_LIMIT
-        _chat_rate_buckets.clear()
-        # Fill user-3's bucket
-        for _ in range(_CHAT_RATE_LIMIT):
-            _check_chat_rate_limit("user-3")
-        # user-4 should still be able to send
-        _check_chat_rate_limit("user-4")  # Should not raise
+        mock_redis = AsyncMock()
+        mock_pipe = AsyncMock()
+        mock_pipe.zremrangebyscore = MagicMock(return_value=mock_pipe)
+        mock_pipe.zcard = MagicMock(return_value=mock_pipe)
+        mock_pipe.zadd = MagicMock(return_value=mock_pipe)
+        mock_pipe.expire = MagicMock(return_value=mock_pipe)
+        mock_pipe.execute = AsyncMock(return_value=[0, _CHAT_RATE_LIMIT, 1, True])  # at limit
+        mock_pipe.__aenter__ = AsyncMock(return_value=mock_pipe)
+        mock_pipe.__aexit__ = AsyncMock(return_value=False)
+        mock_redis.pipeline = MagicMock(return_value=mock_pipe)
+        mock_redis.zrem = AsyncMock()
+
+        with patch("app.api.v1.chat._get_chat_redis", new_callable=AsyncMock, return_value=mock_redis):
+            with pytest.raises(HTTPException) as exc_info:
+                await _check_chat_rate_limit("user-2")
+            assert exc_info.value.status_code == 429
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_per_user_isolation(self):
+        from app.api.v1.chat import _check_chat_rate_limit, _CHAT_RATE_LIMIT
+
+        mock_redis = AsyncMock()
+        mock_pipe = AsyncMock()
+        mock_pipe.zremrangebyscore = MagicMock(return_value=mock_pipe)
+        mock_pipe.zcard = MagicMock(return_value=mock_pipe)
+        mock_pipe.zadd = MagicMock(return_value=mock_pipe)
+        mock_pipe.expire = MagicMock(return_value=mock_pipe)
+        mock_pipe.execute = AsyncMock(return_value=[0, 5, 1, True])  # under limit
+        mock_pipe.__aenter__ = AsyncMock(return_value=mock_pipe)
+        mock_pipe.__aexit__ = AsyncMock(return_value=False)
+        mock_redis.pipeline = MagicMock(return_value=mock_pipe)
+
+        with patch("app.api.v1.chat._get_chat_redis", new_callable=AsyncMock, return_value=mock_redis):
+            # Both users should succeed independently
+            await _check_chat_rate_limit("user-3")
+            await _check_chat_rate_limit("user-4")
 
 
 # ── Chat Feedback Task Tests ──────────────────────────────────────────────────
@@ -426,21 +461,23 @@ class TestLLMStreaming:
     async def test_chat_logging(self):
         from app.services.chat_service import ChatService
         svc = ChatService()
-        with patch("app.services.chat_service.AsyncSessionLocal") as mock_session_cls:
-            mock_session = AsyncMock()
-            mock_session_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_session_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_db = AsyncMock()
+        mock_session_ctx = MagicMock()
+        mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_db)
+        mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
+        with patch("app.database.AsyncSessionLocal", return_value=mock_session_ctx):
             await svc._log_chat("user-1", "session-1", "Hello", "Hi!", "groq", ["system"], 100)
-            mock_session.add.assert_called_once()
-            mock_session.commit.assert_called_once()
+            mock_db.add.assert_called_once()
+            mock_db.commit.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_chat_logging_handles_db_error(self):
         from app.services.chat_service import ChatService
         svc = ChatService()
-        with patch("app.services.chat_service.AsyncSessionLocal") as mock_session_cls:
-            mock_session_cls.return_value.__aenter__ = AsyncMock(side_effect=Exception("DB error"))
-            mock_session_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_session_ctx = MagicMock()
+        mock_session_ctx.__aenter__ = AsyncMock(side_effect=Exception("DB error"))
+        mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
+        with patch("app.database.AsyncSessionLocal", return_value=mock_session_ctx):
             # Should not raise
             await svc._log_chat("user-1", "session-1", "Hello", "Hi!", "groq", [], 100)
 

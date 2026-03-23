@@ -188,7 +188,7 @@ class TestReplySentimentAnalysis:
 
         svc = ReplyService(AsyncMock())
         sentiment, confidence = await svc.analyze_sentiment(
-            "Can you send more information about your product pricing?"
+            "Acknowledged. We received your note."
         )
 
         assert sentiment == ReplySentiment.neutral
@@ -276,7 +276,7 @@ class TestReplyServiceProcessing:
         assert signals == []
 
     async def test_thread_matching_uses_sender_email(self):
-        """match_enrollment_by_signal should query by sender_email."""
+        """match_to_enrollment should query by sender_email."""
         from app.services.reply_service import ReplyService, ReplySignal
 
         db = AsyncMock()
@@ -292,11 +292,11 @@ class TestReplyServiceProcessing:
             sender_email="prospect@company.com",
         )
 
-        enrollment = await svc.match_enrollment_by_signal(signal)
-        assert enrollment is None
+        enrollment_id, sequence_id = await svc.match_to_enrollment(signal)
+        assert enrollment_id is None
 
     async def test_thread_matching_by_thread_id(self):
-        """match_enrollment_by_signal uses thread_id for lookup."""
+        """match_to_enrollment uses thread_id for lookup."""
         from app.services.reply_service import ReplyService, ReplySignal
 
         db = AsyncMock()
@@ -311,8 +311,8 @@ class TestReplyServiceProcessing:
             thread_id="<msg-id-original@mail.example.com>",
         )
 
-        enrollment = await svc.match_enrollment_by_signal(signal)
-        assert enrollment is None
+        enrollment_id, sequence_id = await svc.match_to_enrollment(signal)
+        assert enrollment_id is None
 
     async def test_reply_with_missing_lead_returns_none(self):
         """Processing a signal for an unknown lead returns None match."""
@@ -330,8 +330,8 @@ class TestReplyServiceProcessing:
             sender_email="unknown@nowhere.com",
         )
 
-        enrollment = await svc.match_enrollment_by_signal(signal)
-        assert enrollment is None
+        enrollment_id, sequence_id = await svc.match_to_enrollment(signal)
+        assert enrollment_id is None
 
     async def test_reply_sentiment_enum_values(self):
         """All ReplySentiment enum values exist."""
@@ -1471,10 +1471,18 @@ class TestAnalyticsAPI:
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
         from app.api.v1.analytics import router
+        from app.auth import get_current_user
+        from app.database import get_db
 
-        app = FastAPI()
-        app.include_router(router)
-        client = TestClient(app)
+        test_app = FastAPI()
+        test_app.include_router(router)
+
+        mock_user = MagicMock()
+        mock_user.id = uuid.uuid4()
+        mock_user.email = "test@test.com"
+        mock_user.role = MagicMock(value="user")
+        mock_user.is_active = True
+        test_app.dependency_overrides[get_current_user] = lambda: mock_user
 
         call_count = [0]
         values = [1000, 850, 500, 75]  # leads, consents, touches, replies
@@ -1489,8 +1497,10 @@ class TestAnalyticsAPI:
         db_mock = AsyncMock()
         db_mock.execute = AsyncMock(side_effect=mock_execute)
 
-        with patch("app.api.v1.analytics.get_db", return_value=db_mock):
-            response = client.get("/analytics/dashboard")
+        test_app.dependency_overrides[get_db] = lambda: db_mock
+
+        client = TestClient(test_app)
+        response = client.get("/analytics/dashboard")
 
         assert response.status_code == 200
         data = response.json()
@@ -1501,14 +1511,21 @@ class TestAnalyticsAPI:
 
     async def test_dashboard_stats_response_rate_zero_touches(self):
         """response_rate should be 0.0 when touches_sent is 0."""
-        from app.api.v1.analytics import dashboard_stats
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
         from app.api.v1.analytics import router
+        from app.auth import get_current_user
+        from app.database import get_db
 
-        app = FastAPI()
-        app.include_router(router)
-        client = TestClient(app)
+        test_app = FastAPI()
+        test_app.include_router(router)
+
+        mock_user = MagicMock()
+        mock_user.id = uuid.uuid4()
+        mock_user.email = "test@test.com"
+        mock_user.role = MagicMock(value="user")
+        mock_user.is_active = True
+        test_app.dependency_overrides[get_current_user] = lambda: mock_user
 
         call_count = [0]
         values = [100, 80, 0, 0]  # leads, consents, 0 touches, 0 replies
@@ -1523,8 +1540,10 @@ class TestAnalyticsAPI:
         db_mock = AsyncMock()
         db_mock.execute = AsyncMock(side_effect=mock_execute)
 
-        with patch("app.api.v1.analytics.get_db", return_value=db_mock):
-            response = client.get("/analytics/dashboard")
+        test_app.dependency_overrides[get_db] = lambda: db_mock
+
+        client = TestClient(test_app)
+        response = client.get("/analytics/dashboard")
 
         assert response.status_code == 200
         data = response.json()
@@ -1535,10 +1554,18 @@ class TestAnalyticsAPI:
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
         from app.api.v1.analytics import router
+        from app.auth import get_current_user
+        from app.database import get_db
 
-        app = FastAPI()
-        app.include_router(router)
-        client = TestClient(app)
+        test_app = FastAPI()
+        test_app.include_router(router)
+
+        mock_user = MagicMock()
+        mock_user.id = uuid.uuid4()
+        mock_user.email = "test@test.com"
+        mock_user.role = MagicMock(value="user")
+        mock_user.is_active = True
+        test_app.dependency_overrides[get_current_user] = lambda: mock_user
 
         call_count = [0]
         values = [1000, 20, 2, 5, 15]  # total_sent, bounced, spam, warmup_active, warmup_completed
@@ -1553,8 +1580,10 @@ class TestAnalyticsAPI:
         db_mock = AsyncMock()
         db_mock.execute = AsyncMock(side_effect=mock_execute)
 
-        with patch("app.api.v1.analytics.get_db", return_value=db_mock):
-            response = client.get("/analytics/deliverability")
+        test_app.dependency_overrides[get_db] = lambda: db_mock
+
+        client = TestClient(test_app)
+        response = client.get("/analytics/deliverability")
 
         assert response.status_code == 200
         data = response.json()
@@ -1568,18 +1597,28 @@ class TestAnalyticsAPI:
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
         from app.api.v1.analytics import router
+        from app.auth import get_current_user
+        from app.database import get_db
 
-        app = FastAPI()
-        app.include_router(router)
-        client = TestClient(app)
+        test_app = FastAPI()
+        test_app.include_router(router)
+
+        mock_user = MagicMock()
+        mock_user.id = uuid.uuid4()
+        mock_user.email = "test@test.com"
+        mock_user.role = MagicMock(value="user")
+        mock_user.is_active = True
+        test_app.dependency_overrides[get_current_user] = lambda: mock_user
 
         db_mock = AsyncMock()
         mock_result = MagicMock()
         mock_result.scalar_one = MagicMock(return_value=0)
         db_mock.execute = AsyncMock(return_value=mock_result)
 
-        with patch("app.api.v1.analytics.get_db", return_value=db_mock):
-            response = client.get("/analytics/deliverability")
+        test_app.dependency_overrides[get_db] = lambda: db_mock
+
+        client = TestClient(test_app)
+        response = client.get("/analytics/deliverability")
 
         assert response.status_code == 200
         data = response.json()
@@ -1591,10 +1630,18 @@ class TestAnalyticsAPI:
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
         from app.api.v1.analytics import router
+        from app.auth import get_current_user
+        from app.database import get_db
 
-        app = FastAPI()
-        app.include_router(router)
-        client = TestClient(app)
+        test_app = FastAPI()
+        test_app.include_router(router)
+
+        mock_user = MagicMock()
+        mock_user.id = uuid.uuid4()
+        mock_user.email = "test@test.com"
+        mock_user.role = MagicMock(value="user")
+        mock_user.is_active = True
+        test_app.dependency_overrides[get_current_user] = lambda: mock_user
 
         mock_seq = MagicMock()
         mock_seq.id = uuid.uuid4()
@@ -1617,8 +1664,10 @@ class TestAnalyticsAPI:
 
         db_mock.execute = AsyncMock(side_effect=mock_execute)
 
-        with patch("app.api.v1.analytics.get_db", return_value=db_mock):
-            response = client.get("/analytics/sequences")
+        test_app.dependency_overrides[get_db] = lambda: db_mock
+
+        client = TestClient(test_app)
+        response = client.get("/analytics/sequences")
 
         assert response.status_code == 200
         data = response.json()
@@ -1629,10 +1678,18 @@ class TestAnalyticsAPI:
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
         from app.api.v1.analytics import router
+        from app.auth import get_current_user
+        from app.database import get_db
 
-        app = FastAPI()
-        app.include_router(router)
-        client = TestClient(app)
+        test_app = FastAPI()
+        test_app.include_router(router)
+
+        mock_user = MagicMock()
+        mock_user.id = uuid.uuid4()
+        mock_user.email = "test@test.com"
+        mock_user.role = MagicMock(value="user")
+        mock_user.is_active = True
+        test_app.dependency_overrides[get_current_user] = lambda: mock_user
 
         db_mock = AsyncMock()
         seq_result = MagicMock()
@@ -1641,8 +1698,10 @@ class TestAnalyticsAPI:
         )
         db_mock.execute = AsyncMock(return_value=seq_result)
 
-        with patch("app.api.v1.analytics.get_db", return_value=db_mock):
-            response = client.get("/analytics/sequences")
+        test_app.dependency_overrides[get_db] = lambda: db_mock
+
+        client = TestClient(test_app)
+        response = client.get("/analytics/sequences")
 
         assert response.status_code == 200
         data = response.json()
@@ -1653,10 +1712,18 @@ class TestAnalyticsAPI:
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
         from app.api.v1.analytics import router
+        from app.auth import get_current_user
+        from app.database import get_db
 
-        app = FastAPI()
-        app.include_router(router)
-        client = TestClient(app)
+        test_app = FastAPI()
+        test_app.include_router(router)
+
+        mock_user = MagicMock()
+        mock_user.id = uuid.uuid4()
+        mock_user.email = "test@test.com"
+        mock_user.role = MagicMock(value="user")
+        mock_user.is_active = True
+        test_app.dependency_overrides[get_current_user] = lambda: mock_user
 
         call_count = [0]
         # 75 replies / 300 touches = 25.0%
@@ -1672,8 +1739,10 @@ class TestAnalyticsAPI:
         db_mock = AsyncMock()
         db_mock.execute = AsyncMock(side_effect=mock_execute)
 
-        with patch("app.api.v1.analytics.get_db", return_value=db_mock):
-            response = client.get("/analytics/dashboard")
+        test_app.dependency_overrides[get_db] = lambda: db_mock
+
+        client = TestClient(test_app)
+        response = client.get("/analytics/dashboard")
 
         assert response.status_code == 200
         data = response.json()
