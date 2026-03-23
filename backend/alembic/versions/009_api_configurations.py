@@ -14,6 +14,8 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
 
+from migration_helpers import table_exists, index_exists, constraint_exists
+
 revision = "009_api_configurations"
 down_revision = "008_users_auth"
 branch_labels = None
@@ -21,22 +23,27 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "api_configurations",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("service_name", sa.String(100), nullable=False),
-        sa.Column("encrypted_key", sa.Text(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-    )
+    bind = op.get_bind()
 
-    op.create_index("ix_api_configurations_user_id", "api_configurations", ["user_id"])
-    op.create_unique_constraint(
-        "uq_api_config_user_service",
-        "api_configurations",
-        ["user_id", "service_name"],
-    )
+    if not table_exists(bind, "api_configurations"):
+        op.create_table(
+            "api_configurations",
+            sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+            sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+            sa.Column("service_name", sa.String(100), nullable=False),
+            sa.Column("encrypted_key", sa.Text(), nullable=False),
+            sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+            sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        )
+
+    if not index_exists(bind, "ix_api_configurations_user_id"):
+        op.create_index("ix_api_configurations_user_id", "api_configurations", ["user_id"])
+    if not constraint_exists(bind, "uq_api_config_user_service"):
+        op.create_unique_constraint(
+            "uq_api_config_user_service",
+            "api_configurations",
+            ["user_id", "service_name"],
+        )
 
 
 def downgrade() -> None:

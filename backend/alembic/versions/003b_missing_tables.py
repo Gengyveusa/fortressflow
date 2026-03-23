@@ -11,6 +11,8 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
+from migration_helpers import enum_exists, table_exists, index_exists
+
 revision = "003b_missing_tables"
 down_revision = "003_templates_and_outreach"
 branch_labels = None
@@ -18,174 +20,187 @@ depends_on = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+
     # ── Enum types ──────────────────────────────────────────────────────
-    op.execute(
-        "CREATE TYPE step_type AS ENUM ('email', 'sms', 'linkedin', 'delay', 'condition')"
-    )
-    op.execute(
-        "CREATE TYPE enrollment_status AS ENUM "
-        "('active', 'paused', 'completed', 'bounced', 'replied', 'unsubscribed', 'failed')"
-    )
-    op.execute(
-        "CREATE TYPE sequence_status AS ENUM ('draft', 'active', 'paused', 'archived')"
-    )
+    if not enum_exists(bind, "step_type"):
+        op.execute(
+            "CREATE TYPE step_type AS ENUM ('email', 'sms', 'linkedin', 'delay', 'condition')"
+        )
+    if not enum_exists(bind, "enrollment_status"):
+        op.execute(
+            "CREATE TYPE enrollment_status AS ENUM "
+            "('active', 'paused', 'completed', 'bounced', 'replied', 'unsubscribed', 'failed')"
+        )
+    if not enum_exists(bind, "sequence_status"):
+        op.execute(
+            "CREATE TYPE sequence_status AS ENUM ('draft', 'active', 'paused', 'archived')"
+        )
 
     # ── sending_domains ─────────────────────────────────────────────────
-    op.create_table(
-        "sending_domains",
-        sa.Column(
-            "id",
-            UUID(as_uuid=True),
-            primary_key=True,
-            server_default=sa.text("gen_random_uuid()"),
-        ),
-        sa.Column("domain", sa.String(255), unique=True, nullable=False),
-        sa.Column(
-            "health_score",
-            sa.Float,
-            nullable=False,
-            server_default=sa.text("100.0"),
-        ),
-        sa.Column(
-            "warmup_progress",
-            sa.Float,
-            nullable=False,
-            server_default=sa.text("0.0"),
-        ),
-        sa.Column(
-            "total_sent",
-            sa.Integer,
-            nullable=False,
-            server_default=sa.text("0"),
-        ),
-        sa.Column(
-            "total_bounced",
-            sa.Integer,
-            nullable=False,
-            server_default=sa.text("0"),
-        ),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.func.now(),
-            nullable=False,
-        ),
-    )
-    op.create_index("ix_sending_domains_domain", "sending_domains", ["domain"], unique=True)
+    if not table_exists(bind, "sending_domains"):
+        op.create_table(
+            "sending_domains",
+            sa.Column(
+                "id",
+                UUID(as_uuid=True),
+                primary_key=True,
+                server_default=sa.text("gen_random_uuid()"),
+            ),
+            sa.Column("domain", sa.String(255), unique=True, nullable=False),
+            sa.Column(
+                "health_score",
+                sa.Float,
+                nullable=False,
+                server_default=sa.text("100.0"),
+            ),
+            sa.Column(
+                "warmup_progress",
+                sa.Float,
+                nullable=False,
+                server_default=sa.text("0.0"),
+            ),
+            sa.Column(
+                "total_sent",
+                sa.Integer,
+                nullable=False,
+                server_default=sa.text("0"),
+            ),
+            sa.Column(
+                "total_bounced",
+                sa.Integer,
+                nullable=False,
+                server_default=sa.text("0"),
+            ),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.func.now(),
+                nullable=False,
+            ),
+        )
+    if not index_exists(bind, "ix_sending_domains_domain"):
+        op.create_index("ix_sending_domains_domain", "sending_domains", ["domain"], unique=True)
 
     # ── sequences ───────────────────────────────────────────────────────
-    op.create_table(
-        "sequences",
-        sa.Column(
-            "id",
-            UUID(as_uuid=True),
-            primary_key=True,
-            server_default=sa.text("gen_random_uuid()"),
-        ),
-        sa.Column("name", sa.String(255), nullable=False),
-        sa.Column("description", sa.Text, nullable=True),
-        sa.Column(
-            "status",
-            sa.Enum(
-                "draft", "active", "paused", "archived",
-                name="sequence_status",
-                create_type=False,
+    if not table_exists(bind, "sequences"):
+        op.create_table(
+            "sequences",
+            sa.Column(
+                "id",
+                UUID(as_uuid=True),
+                primary_key=True,
+                server_default=sa.text("gen_random_uuid()"),
             ),
-            nullable=False,
-            server_default="draft",
-        ),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.func.now(),
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.func.now(),
-            nullable=False,
-        ),
-    )
+            sa.Column("name", sa.String(255), nullable=False),
+            sa.Column("description", sa.Text, nullable=True),
+            sa.Column(
+                "status",
+                sa.Enum(
+                    "draft", "active", "paused", "archived",
+                    name="sequence_status",
+                    create_type=False,
+                ),
+                nullable=False,
+                server_default="draft",
+            ),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.func.now(),
+                nullable=False,
+            ),
+            sa.Column(
+                "updated_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.func.now(),
+                nullable=False,
+            ),
+        )
 
     # ── sequence_steps ──────────────────────────────────────────────────
-    op.create_table(
-        "sequence_steps",
-        sa.Column(
-            "id",
-            UUID(as_uuid=True),
-            primary_key=True,
-            server_default=sa.text("gen_random_uuid()"),
-        ),
-        sa.Column(
-            "sequence_id",
-            UUID(as_uuid=True),
-            sa.ForeignKey("sequences.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "step_type",
-            sa.Enum(
-                "email", "sms", "linkedin", "delay", "condition",
-                name="step_type",
-                create_type=False,
+    if not table_exists(bind, "sequence_steps"):
+        op.create_table(
+            "sequence_steps",
+            sa.Column(
+                "id",
+                UUID(as_uuid=True),
+                primary_key=True,
+                server_default=sa.text("gen_random_uuid()"),
             ),
-            nullable=False,
-        ),
-        sa.Column("position", sa.Integer, nullable=False, server_default=sa.text("0")),
-        sa.Column("config", JSONB, nullable=True),
-        sa.Column("delay_hours", sa.Float, nullable=False, server_default=sa.text("0")),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.func.now(),
-            nullable=False,
-        ),
-    )
-    op.create_index("ix_sequence_steps_sequence_id", "sequence_steps", ["sequence_id"])
+            sa.Column(
+                "sequence_id",
+                UUID(as_uuid=True),
+                sa.ForeignKey("sequences.id", ondelete="CASCADE"),
+                nullable=False,
+            ),
+            sa.Column(
+                "step_type",
+                sa.Enum(
+                    "email", "sms", "linkedin", "delay", "condition",
+                    name="step_type",
+                    create_type=False,
+                ),
+                nullable=False,
+            ),
+            sa.Column("position", sa.Integer, nullable=False, server_default=sa.text("0")),
+            sa.Column("config", JSONB, nullable=True),
+            sa.Column("delay_hours", sa.Float, nullable=False, server_default=sa.text("0")),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.func.now(),
+                nullable=False,
+            ),
+        )
+    if not index_exists(bind, "ix_sequence_steps_sequence_id"):
+        op.create_index("ix_sequence_steps_sequence_id", "sequence_steps", ["sequence_id"])
 
     # ── sequence_enrollments ────────────────────────────────────────────
-    op.create_table(
-        "sequence_enrollments",
-        sa.Column(
-            "id",
-            UUID(as_uuid=True),
-            primary_key=True,
-            server_default=sa.text("gen_random_uuid()"),
-        ),
-        sa.Column(
-            "sequence_id",
-            UUID(as_uuid=True),
-            sa.ForeignKey("sequences.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "lead_id",
-            UUID(as_uuid=True),
-            sa.ForeignKey("leads.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("current_step", sa.Integer, nullable=False, server_default=sa.text("0")),
-        sa.Column(
-            "status",
-            sa.Enum(
-                "active", "paused", "completed", "bounced", "replied",
-                "unsubscribed", "failed",
-                name="enrollment_status",
-                create_type=False,
+    if not table_exists(bind, "sequence_enrollments"):
+        op.create_table(
+            "sequence_enrollments",
+            sa.Column(
+                "id",
+                UUID(as_uuid=True),
+                primary_key=True,
+                server_default=sa.text("gen_random_uuid()"),
             ),
-            nullable=False,
-            server_default="active",
-        ),
-        sa.Column(
-            "enrolled_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.func.now(),
-            nullable=False,
-        ),
-    )
-    op.create_index("ix_sequence_enrollments_sequence_id", "sequence_enrollments", ["sequence_id"])
-    op.create_index("ix_sequence_enrollments_lead_id", "sequence_enrollments", ["lead_id"])
+            sa.Column(
+                "sequence_id",
+                UUID(as_uuid=True),
+                sa.ForeignKey("sequences.id", ondelete="CASCADE"),
+                nullable=False,
+            ),
+            sa.Column(
+                "lead_id",
+                UUID(as_uuid=True),
+                sa.ForeignKey("leads.id", ondelete="CASCADE"),
+                nullable=False,
+            ),
+            sa.Column("current_step", sa.Integer, nullable=False, server_default=sa.text("0")),
+            sa.Column(
+                "status",
+                sa.Enum(
+                    "active", "paused", "completed", "bounced", "replied",
+                    "unsubscribed", "failed",
+                    name="enrollment_status",
+                    create_type=False,
+                ),
+                nullable=False,
+                server_default="active",
+            ),
+            sa.Column(
+                "enrolled_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.func.now(),
+                nullable=False,
+            ),
+        )
+    if not index_exists(bind, "ix_sequence_enrollments_sequence_id"):
+        op.create_index("ix_sequence_enrollments_sequence_id", "sequence_enrollments", ["sequence_id"])
+    if not index_exists(bind, "ix_sequence_enrollments_lead_id"):
+        op.create_index("ix_sequence_enrollments_lead_id", "sequence_enrollments", ["lead_id"])
 
 
 def downgrade() -> None:

@@ -9,6 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
 
+from migration_helpers import column_exists, index_exists
+
 # revision identifiers
 revision = "002_lead_enrichment"
 down_revision = "001"
@@ -17,23 +19,30 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("leads", sa.Column("enriched_data", JSONB, nullable=True))
-    op.add_column("leads", sa.Column("last_enriched_at", sa.DateTime(timezone=True), nullable=True))
-    op.add_column("leads", sa.Column("meeting_proof", JSONB, nullable=True))
+    bind = op.get_bind()
+
+    if not column_exists(bind, "leads", "enriched_data"):
+        op.add_column("leads", sa.Column("enriched_data", JSONB, nullable=True))
+    if not column_exists(bind, "leads", "last_enriched_at"):
+        op.add_column("leads", sa.Column("last_enriched_at", sa.DateTime(timezone=True), nullable=True))
+    if not column_exists(bind, "leads", "meeting_proof"):
+        op.add_column("leads", sa.Column("meeting_proof", JSONB, nullable=True))
 
     # Change source from String(100) to Text to allow longer source descriptions
     op.alter_column("leads", "source", type_=sa.Text(), existing_type=sa.String(100))
 
     # Case-insensitive unique index on email
-    op.create_index(
-        "ix_leads_email_lower",
-        "leads",
-        [sa.text("lower(email)")],
-        unique=True,
-    )
+    if not index_exists(bind, "ix_leads_email_lower"):
+        op.create_index(
+            "ix_leads_email_lower",
+            "leads",
+            [sa.text("lower(email)")],
+            unique=True,
+        )
 
     # Index on last_enriched_at for stale-lead queries
-    op.create_index("ix_leads_last_enriched_at", "leads", ["last_enriched_at"])
+    if not index_exists(bind, "ix_leads_last_enriched_at"):
+        op.create_index("ix_leads_last_enriched_at", "leads", ["last_enriched_at"])
 
 
 def downgrade() -> None:

@@ -14,6 +14,8 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
 
+from migration_helpers import enum_exists, table_exists, index_exists
+
 revision = "008_users_auth"
 down_revision = "007_chat_logs_phase7"
 branch_labels = None
@@ -21,23 +23,27 @@ depends_on = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+
     role_enum = sa.Enum("admin", "user", "viewer", name="userrole")
-    role_enum.create(op.get_bind(), checkfirst=True)
+    role_enum.create(bind, checkfirst=True)
 
-    op.create_table(
-        "users",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("email", sa.String(320), nullable=False),
-        sa.Column("password_hash", sa.String(255), nullable=False),
-        sa.Column("full_name", sa.String(255), nullable=True),
-        sa.Column("role", role_enum, nullable=False, server_default="user"),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("last_login_at", sa.DateTime(timezone=True), nullable=True),
-    )
+    if not table_exists(bind, "users"):
+        op.create_table(
+            "users",
+            sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+            sa.Column("email", sa.String(320), nullable=False),
+            sa.Column("password_hash", sa.String(255), nullable=False),
+            sa.Column("full_name", sa.String(255), nullable=True),
+            sa.Column("role", role_enum, nullable=False, server_default="user"),
+            sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+            sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+            sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+            sa.Column("last_login_at", sa.DateTime(timezone=True), nullable=True),
+        )
 
-    op.create_index("ix_users_email", "users", ["email"], unique=True)
+    if not index_exists(bind, "ix_users_email"):
+        op.create_index("ix_users_email", "users", ["email"], unique=True)
 
 
 def downgrade() -> None:

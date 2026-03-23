@@ -11,6 +11,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
+from migration_helpers import enum_exists, table_exists, index_exists
+
 revision: str = "001"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
@@ -18,6 +20,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+
     # Enums
     consent_channel = postgresql.ENUM(
         "email", "sms", "linkedin", name="consent_channel", create_type=False
@@ -31,131 +35,144 @@ def upgrade() -> None:
         create_type=False,
     )
 
-    op.execute("CREATE TYPE consent_channel AS ENUM ('email', 'sms', 'linkedin')")
-    op.execute("CREATE TYPE consent_method AS ENUM ('meeting_card', 'web_form', 'import_verified')")
-    op.execute(
-        "CREATE TYPE touch_action AS ENUM "
-        "('sent', 'delivered', 'opened', 'replied', 'bounced', 'complained', 'unsubscribed')"
-    )
+    if not enum_exists(bind, "consent_channel"):
+        op.execute("CREATE TYPE consent_channel AS ENUM ('email', 'sms', 'linkedin')")
+    if not enum_exists(bind, "consent_method"):
+        op.execute("CREATE TYPE consent_method AS ENUM ('meeting_card', 'web_form', 'import_verified')")
+    if not enum_exists(bind, "touch_action"):
+        op.execute(
+            "CREATE TYPE touch_action AS ENUM "
+            "('sent', 'delivered', 'opened', 'replied', 'bounced', 'complained', 'unsubscribed')"
+        )
 
     # leads
-    op.create_table(
-        "leads",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("email", sa.String(255), nullable=False),
-        sa.Column("phone", sa.String(50), nullable=True),
-        sa.Column("first_name", sa.String(100), nullable=False),
-        sa.Column("last_name", sa.String(100), nullable=False),
-        sa.Column("company", sa.String(255), nullable=False),
-        sa.Column("title", sa.String(255), nullable=False),
-        sa.Column("source", sa.String(100), nullable=False),
-        sa.Column("meeting_verified", sa.Boolean(), nullable=False, server_default="false"),
-        sa.Column("proof_data", postgresql.JSONB(), nullable=True),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("email"),
-    )
-    op.create_index("ix_leads_email", "leads", ["email"])
+    if not table_exists(bind, "leads"):
+        op.create_table(
+            "leads",
+            sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("email", sa.String(255), nullable=False),
+            sa.Column("phone", sa.String(50), nullable=True),
+            sa.Column("first_name", sa.String(100), nullable=False),
+            sa.Column("last_name", sa.String(100), nullable=False),
+            sa.Column("company", sa.String(255), nullable=False),
+            sa.Column("title", sa.String(255), nullable=False),
+            sa.Column("source", sa.String(100), nullable=False),
+            sa.Column("meeting_verified", sa.Boolean(), nullable=False, server_default="false"),
+            sa.Column("proof_data", postgresql.JSONB(), nullable=True),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.text("now()"),
+                nullable=False,
+            ),
+            sa.Column(
+                "updated_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.text("now()"),
+                nullable=False,
+            ),
+            sa.PrimaryKeyConstraint("id"),
+            sa.UniqueConstraint("email"),
+        )
+    if not index_exists(bind, "ix_leads_email"):
+        op.create_index("ix_leads_email", "leads", ["email"])
 
     # consents
-    op.create_table(
-        "consents",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("lead_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("channel", consent_channel, nullable=False),
-        sa.Column("method", consent_method, nullable=False),
-        sa.Column("proof", postgresql.JSONB(), nullable=False),
-        sa.Column("granted_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.ForeignKeyConstraint(["lead_id"], ["leads.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index("ix_consents_lead_id", "consents", ["lead_id"])
+    if not table_exists(bind, "consents"):
+        op.create_table(
+            "consents",
+            sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("lead_id", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("channel", consent_channel, nullable=False),
+            sa.Column("method", consent_method, nullable=False),
+            sa.Column("proof", postgresql.JSONB(), nullable=False),
+            sa.Column("granted_at", sa.DateTime(timezone=True), nullable=False),
+            sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.text("now()"),
+                nullable=False,
+            ),
+            sa.ForeignKeyConstraint(["lead_id"], ["leads.id"], ondelete="CASCADE"),
+            sa.PrimaryKeyConstraint("id"),
+        )
+    if not index_exists(bind, "ix_consents_lead_id"):
+        op.create_index("ix_consents_lead_id", "consents", ["lead_id"])
 
     # dnc_blocks
-    op.create_table(
-        "dnc_blocks",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("identifier", sa.String(255), nullable=False),
-        sa.Column("channel", sa.String(50), nullable=False),
-        sa.Column("reason", sa.String(500), nullable=False),
-        sa.Column("blocked_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("source", sa.String(100), nullable=False),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index("ix_dnc_blocks_identifier", "dnc_blocks", ["identifier"])
+    if not table_exists(bind, "dnc_blocks"):
+        op.create_table(
+            "dnc_blocks",
+            sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("identifier", sa.String(255), nullable=False),
+            sa.Column("channel", sa.String(50), nullable=False),
+            sa.Column("reason", sa.String(500), nullable=False),
+            sa.Column("blocked_at", sa.DateTime(timezone=True), nullable=False),
+            sa.Column("source", sa.String(100), nullable=False),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.text("now()"),
+                nullable=False,
+            ),
+            sa.PrimaryKeyConstraint("id"),
+        )
+    if not index_exists(bind, "ix_dnc_blocks_identifier"):
+        op.create_index("ix_dnc_blocks_identifier", "dnc_blocks", ["identifier"])
 
     # touch_logs
-    op.create_table(
-        "touch_logs",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("lead_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("channel", sa.String(50), nullable=False),
-        sa.Column("action", touch_action, nullable=False),
-        sa.Column("sequence_id", postgresql.UUID(as_uuid=True), nullable=True),
-        sa.Column("step_number", sa.Integer(), nullable=True),
-        sa.Column("metadata", postgresql.JSONB(), nullable=True),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.ForeignKeyConstraint(["lead_id"], ["leads.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index("ix_touch_logs_lead_id", "touch_logs", ["lead_id"])
+    if not table_exists(bind, "touch_logs"):
+        op.create_table(
+            "touch_logs",
+            sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("lead_id", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("channel", sa.String(50), nullable=False),
+            sa.Column("action", touch_action, nullable=False),
+            sa.Column("sequence_id", postgresql.UUID(as_uuid=True), nullable=True),
+            sa.Column("step_number", sa.Integer(), nullable=True),
+            sa.Column("metadata", postgresql.JSONB(), nullable=True),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.text("now()"),
+                nullable=False,
+            ),
+            sa.ForeignKeyConstraint(["lead_id"], ["leads.id"], ondelete="CASCADE"),
+            sa.PrimaryKeyConstraint("id"),
+        )
+    if not index_exists(bind, "ix_touch_logs_lead_id"):
+        op.create_index("ix_touch_logs_lead_id", "touch_logs", ["lead_id"])
 
     # warmup_queue
-    op.create_table(
-        "warmup_queue",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("inbox_id", sa.String(255), nullable=False),
-        sa.Column("date", sa.Date(), nullable=False),
-        sa.Column("emails_sent", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("emails_target", sa.Integer(), nullable=False),
-        sa.Column("bounce_rate", sa.Float(), nullable=False, server_default="0.0"),
-        sa.Column("spam_rate", sa.Float(), nullable=False, server_default="0.0"),
-        sa.Column("open_rate", sa.Float(), nullable=False, server_default="0.0"),
-        sa.Column("status", sa.String(50), nullable=False, server_default="'pending'"),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index("ix_warmup_queue_inbox_id", "warmup_queue", ["inbox_id"])
+    if not table_exists(bind, "warmup_queue"):
+        op.create_table(
+            "warmup_queue",
+            sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("inbox_id", sa.String(255), nullable=False),
+            sa.Column("date", sa.Date(), nullable=False),
+            sa.Column("emails_sent", sa.Integer(), nullable=False, server_default="0"),
+            sa.Column("emails_target", sa.Integer(), nullable=False),
+            sa.Column("bounce_rate", sa.Float(), nullable=False, server_default="0.0"),
+            sa.Column("spam_rate", sa.Float(), nullable=False, server_default="0.0"),
+            sa.Column("open_rate", sa.Float(), nullable=False, server_default="0.0"),
+            sa.Column("status", sa.String(50), nullable=False, server_default="'pending'"),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.text("now()"),
+                nullable=False,
+            ),
+            sa.Column(
+                "updated_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.text("now()"),
+                nullable=False,
+            ),
+            sa.PrimaryKeyConstraint("id"),
+        )
+    if not index_exists(bind, "ix_warmup_queue_inbox_id"):
+        op.create_index("ix_warmup_queue_inbox_id", "warmup_queue", ["inbox_id"])
 
 
 def downgrade() -> None:
