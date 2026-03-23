@@ -45,19 +45,24 @@ export default function ProfilePage() {
   const [savingPassword, setSavingPassword] = useState(false);
 
   useEffect(() => {
+    // Pre-populate name from session while we fetch the full profile
+    if (session?.user?.name && !fullName) {
+      setFullName(session.user.name);
+    }
+
     async function fetchProfile() {
       try {
         const res = await api.get<UserProfile>("/auth/me");
         setProfile(res.data);
-        setFullName(res.data.full_name || "");
+        setFullName(res.data.full_name || session?.user?.name || "");
       } catch {
-        toast({ title: "Failed to load profile", variant: "destructive" });
+        // Non-critical — session data is already shown
       } finally {
         setLoading(false);
       }
     }
     if (session) fetchProfile();
-  }, [session, toast]);
+  }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,25 +114,10 @@ export default function ProfilePage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="max-w-2xl space-y-6">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800">
-            <User className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold dark:text-gray-100">
-              Profile
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Loading...
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Show session-based info immediately; overlay backend data when ready
+  const displayEmail = profile?.email || session?.user?.email || "";
+  const displayName = profile?.full_name || session?.user?.name || "";
+  const displayRole = profile?.role || (session?.user as any)?.role || "user";
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -161,7 +151,7 @@ export default function ProfilePage() {
               Email
             </span>
             <span className="text-sm font-medium dark:text-gray-200">
-              {profile?.email}
+              {displayEmail}
             </span>
           </div>
           <div className="flex items-center justify-between">
@@ -169,7 +159,7 @@ export default function ProfilePage() {
               Role
             </span>
             <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-              {profile?.role}
+              {displayRole}
             </Badge>
           </div>
           <div className="flex items-center justify-between">
@@ -179,7 +169,9 @@ export default function ProfilePage() {
             <span className="text-sm dark:text-gray-300">
               {profile?.created_at
                 ? new Date(profile.created_at).toLocaleDateString()
-                : "—"}
+                : loading
+                  ? "Loading..."
+                  : "—"}
             </span>
           </div>
         </CardContent>

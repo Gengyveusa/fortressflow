@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { getSession } from "next-auth/react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -54,6 +55,15 @@ const PROACTIVE_MESSAGE =
 const LS_PROACTIVE_KEY = "fortressflow-chat-proactive-dismissed";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const session = await getSession() as { accessToken?: string } | null;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (session?.accessToken) {
+    headers["Authorization"] = `Bearer ${session.accessToken}`;
+  }
+  return headers;
+}
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -112,9 +122,10 @@ export function ChatAssistant() {
 
   useEffect(() => {
     const initSession = async () => {
+      const headers = await getAuthHeaders();
       // Try to load sessions from backend
       try {
-        const res = await fetch("/api/v1/chat/sessions");
+        const res = await fetch("/api/v1/chat/sessions", { headers });
         if (res.ok) {
           const data = await res.json();
           if (data.sessions && data.sessions.length > 0) {
@@ -132,7 +143,7 @@ export function ChatAssistant() {
 
       // Create a new session
       try {
-        const res = await fetch("/api/v1/chat/sessions", { method: "POST" });
+        const res = await fetch("/api/v1/chat/sessions", { method: "POST", headers });
         if (res.ok) {
           const data = await res.json();
           setSessionId(data.session_id);
@@ -161,7 +172,8 @@ export function ChatAssistant() {
 
   const loadSessionMessages = async (sid: string) => {
     try {
-      const res = await fetch(`/api/v1/chat/sessions/${sid}`);
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/v1/chat/sessions/${sid}`, { headers });
       if (res.ok) {
         const data = await res.json();
         if (data.messages && data.messages.length > 0) {
@@ -291,9 +303,10 @@ export function ChatAssistant() {
       const controller = new AbortController();
       abortRef.current = controller;
 
+      const headers = await getAuthHeaders();
       const response = await fetch("/api/v1/chat/", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ message: text, session_id: sessionId }),
         signal: controller.signal,
       });
