@@ -171,10 +171,17 @@ app = FastAPI(
 # 5. Rate limiting (innermost — closest to the route handlers)
 app.add_middleware(RedisRateLimitMiddleware)
 
-# 4. CORS
+# 4. CORS — never use wildcard origins
+_DEV_ORIGINS = ["http://localhost:3000", "http://localhost:8000"]
+if settings.ENVIRONMENT == "production":
+    _cors_env = getattr(settings, "CORS_ORIGINS", "")
+    _CORS_ORIGINS = [o.strip() for o in _cors_env.split(",") if o.strip()] if _cors_env else []
+else:
+    _CORS_ORIGINS = _DEV_ORIGINS
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.ENVIRONMENT == "development" else [],
+    allow_origins=_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

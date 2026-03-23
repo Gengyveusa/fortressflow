@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import get_current_user, require_role
 from app.database import get_db
+from app.models.user import User, UserRole
 from app.models.dnc import DNCBlock
 from app.schemas.compliance import (
     AuditTrailResponse,
@@ -24,6 +26,7 @@ router = APIRouter(prefix="/compliance", tags=["compliance"])
 @router.post("/check", response_model=ComplianceCheckResponse)
 async def check_compliance(
     body: ComplianceCheckRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ComplianceCheckResponse:
     """Hard gate: determine whether a message may be sent to a lead on a channel."""
@@ -38,6 +41,7 @@ async def check_compliance(
 )
 async def grant_consent(
     body: ConsentGrantRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ConsentGrantResponse:
     """Record explicit consent for a lead/channel combination."""
@@ -50,6 +54,7 @@ async def grant_consent(
 @router.post("/revoke", response_model=ConsentRevokeResponse)
 async def revoke_consent(
     body: ConsentRevokeRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ConsentRevokeResponse:
     """Revoke all active consents for a lead/channel."""
@@ -60,6 +65,7 @@ async def revoke_consent(
 @router.get("/audit/{lead_id}", response_model=AuditTrailResponse)
 async def get_audit_trail(
     lead_id: UUID,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AuditTrailResponse:
     """Return the full audit trail for a lead (consents, touch logs, DNC records)."""
@@ -75,6 +81,7 @@ async def list_dnc(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     search: str = Query("", description="Filter by identifier (email/phone)"),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """List all DNC entries with optional search and pagination."""
@@ -114,6 +121,7 @@ async def list_dnc(
 @router.post("/dnc", status_code=status.HTTP_201_CREATED)
 async def add_dnc(
     body: DNCAddRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Add an email or phone to the DNC list."""
@@ -133,6 +141,7 @@ async def add_dnc(
 @router.delete("/dnc/{dnc_id}", status_code=status.HTTP_200_OK)
 async def remove_dnc(
     dnc_id: UUID,
+    current_user: User = Depends(require_role(UserRole.admin)),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Remove a DNC entry by ID."""

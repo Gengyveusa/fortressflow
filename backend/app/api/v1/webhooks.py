@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
+from app.utils.sanitize import sanitize_error
 from app.models.consent import Consent
 from app.models.dnc import DNCBlock
 from app.models.lead import Lead
@@ -397,7 +398,7 @@ async def email_reply_webhook(
         logger.error("Email reply webhook: processing error: %s", exc, exc_info=True)
         sentry_sdk.capture_exception(exc)
         # Return 200 to prevent retries
-        return {"status": "error", "reason": str(exc)[:200]}
+        return {"status": "error", "reason": sanitize_error(exc)[:200]}
 
 
 # ── SES Event Notifications (Phase 5) ────────────────────────────────
@@ -599,7 +600,7 @@ async def ses_events_webhook(
         except Exception:
             pass
         # Return 200 to prevent SNS retries
-        return {"status": "error", "reason": str(exc)[:200]}
+        return {"status": "error", "reason": sanitize_error(exc)[:200]}
 
 
 # ── SES Event Helpers ─────────────────────────────────────────────────

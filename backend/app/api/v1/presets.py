@@ -5,9 +5,11 @@ Sequence presets API — deploy pre-built outreach sequences with one click.
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import get_current_user
 from app.database import get_db
 from app.models.sequence import Sequence, SequenceStatus, SequenceStep, StepType
 from app.models.template import Template, TemplateCategory, TemplateChannel
+from app.models.user import User
 from app.schemas.template import SequencePreset
 from app.services.gengyve_presets import SEQUENCE_PRESETS
 from app.services.template_engine import extract_variables
@@ -16,7 +18,7 @@ router = APIRouter(prefix="/presets", tags=["presets"])
 
 
 @router.get("/", response_model=list[SequencePreset])
-async def list_presets() -> list[SequencePreset]:
+async def list_presets(current_user: User = Depends(get_current_user)) -> list[SequencePreset]:
     """List all available sequence presets."""
     return [
         SequencePreset(
@@ -43,6 +45,7 @@ async def list_presets() -> list[SequencePreset]:
 async def deploy_preset(
     preset_index: int,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     """
     Deploy a preset: creates the sequence, all templates, and wires them together.

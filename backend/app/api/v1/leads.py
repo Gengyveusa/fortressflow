@@ -9,8 +9,10 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import get_current_user
 from app.database import get_db
 from app.models.lead import Lead
+from app.models.user import User
 from app.models.touch_log import TouchLog, TouchAction
 from app.schemas.lead import (
     CSVImportResponse,
@@ -49,6 +51,7 @@ router = APIRouter(prefix="/leads", tags=["leads"])
 async def create_lead(
     body: LeadCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> LeadResponse:
     """Create a new lead."""
     result = await db.execute(
@@ -68,6 +71,7 @@ async def list_leads(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> LeadListResponse:
     """List leads with pagination."""
     total_result = await db.execute(select(func.count(Lead.id)))
@@ -91,6 +95,7 @@ async def list_leads(
 async def import_leads_csv(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> CSVImportResponse:
     """Bulk-import leads from a CSV file.
 
@@ -228,6 +233,7 @@ async def import_leads_csv(
 @router.post("/import/hubspot", response_model=HubSpotSyncResponse, status_code=status.HTTP_200_OK)
 async def import_leads_hubspot(
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> HubSpotSyncResponse:
     """Pull contacts from HubSpot CRM and sync to local leads table.
 
@@ -306,6 +312,7 @@ async def import_leads_hubspot(
 async def get_lead(
     lead_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> LeadResponse:
     """Retrieve a single lead by ID."""
     result = await db.execute(select(Lead).where(Lead.id == lead_id))
@@ -320,6 +327,7 @@ async def log_touch(
     lead_id: UUID,
     body: TouchLogCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TouchLogResponse:
     """Log a touch event for a lead."""
     result = await db.execute(select(Lead).where(Lead.id == lead_id))
