@@ -80,3 +80,108 @@ class ApolloService:
                 raise
             logger.error("Apollo error for %s: %s", email, exc)
             return {}
+
+    async def enrich_person_waterfall(
+                self,
+        email=None,
+        first_name=None,
+        last_name=None,
+        organization_name=None,
+        domain=None,
+        linkedin_url=None,
+        run_waterfall_email=True,
+        run_waterfall_phone=True,
+        reveal_personal_emails=True,
+        reveal_phone_number=True,
+    ) -> dict:
+        """Enrich with waterfall enrichment for emails and phone numbers.
+
+        When reveal_phone_number=True, Apollo delivers phone numbers
+        asynchronously via webhook. The sync response has demographic data.
+        """
+        if not settings.APOLLO_API_KEY:
+            logger.debug("Apollo API key not configured, skipping waterfall")
+            return {}
+
+        webhook_url = getattr(settings, "APOLLO_WEBHOOK_URL", "")
+        if reveal_phone_number and not webhook_url:
+            logger.error("reveal_phone_number requires APOLLO_WEBHOOK_URL")
+            return {"error": "webhook_url required for phone number reveal"}
+
+        payload = {
+            "api_key": settings.APOLLO_API_KEY,
+            "reveal_personal_emails": reveal_personal_emails,
+            "reveal_phone_number": reveal_phone_number,
+        }
+        if run_waterfall_email:
+            payload["run_waterfall_email"] = True
+        if run_waterfall_phone:
+            payload["run_waterfall_phone"] = True
+        if reveal_phone_number and webhook_url:
+            payload["webhook_url"] = webhook_url
+        if email:
+            payload["email"] = email
+        if first_name:
+            payload["first_name"] = first_name
+        if last_name:
+            payload["last_name"] = last_name
+        if organization_name:
+            payload["organization_name"] = organization_name
+        if domain:
+            payload["domain"] = domain
+        if linkedin_url:
+            payload["linkedin_url"] = linkedin_url
+
+        try:
+            async with self._limiter:
+                logger.info(
+                    "Apollo waterfall: email=%s, name=%s %s, org=%s",
+                    email, first_name, last_name, organization_name,
+                )
+                resp = await self._client.post(
+                    f"{_APOLLO_BASE}/v1/people/match",
+                    json=payload,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                person = data.get("person")
+                if not person:
+                    logger.info("Apollo waterfall: no results")
+                    return {}
+
+                return {
+                    "source": "apollo_waterfall",
+                    "data": {
+                        "id": person.get("id"),
+                        "first_name": person.get("first_name"),
+                        "last_name": person.get("last_name"),
+                        "email": person.get("email"),
+                        "email_status": person.get("email_status"),
+                        "phone": person.get("phone_number"),
+                        "title": person.get("title"),
+                        "headline": person.get("headline"),
+                        "organization_name": person.get("organization", {}).get("name"),
+                        "linkedin_url": person.get("linkedin_url"),
+                        "city": person.get("city"),
+                        "state": person.get("state"),
+                        "country": person.get("country"),
+                    },
+                    "waterfall_status": {
+                        "email_waterfall": data.get("email_waterfall_status"),
+                        "phone_waterfall": data.get("phone_waterfall_status"),
+                        "phone_reveal_pending": reveal_phone_number,
+                    },
+                    "enriched_at": datetime.now(UTC).isoformat(),
+                }
+        except httpx.TimeoutException:
+            logger.warning("Apollo waterfall timeout")
+            raise
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code in (429, 500, 502, 503):
+                logger.warning(
+                    "Apollo waterfall transient error %d",
+                    exc.response.status_code,
+                )
+                raise
+            logger.error("Apollo waterfall error: %s", exc)
+            return {}
