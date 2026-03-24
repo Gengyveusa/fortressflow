@@ -356,10 +356,14 @@ export interface RecentActivityEntry {
 
 export interface SequencePerformanceEntry {
   sequence_id: string;
-  total_sends: number;
-  opens: number;
-  replies: number;
-  bounces: number;
+  sequence_name: string;
+  sent: number;
+  opened: number;
+  replied: number;
+  bounced: number;
+  open_rate: number;
+  reply_rate: number;
+  bounce_rate: number;
 }
 
 export interface ResponseTrendEntry {
@@ -497,17 +501,17 @@ export const analyticsApi = {
   sequences: () =>
     api.get<{ sequences: SequencePerformance[] }>("/analytics/sequences"),
   outreachDaily: () =>
-    api.get<OutreachDailyEntry[]>("/analytics/outreach-daily"),
+    api.get<{ items: OutreachDailyEntry[] }>("/analytics/outreach-daily").then((r) => ({ ...r, data: r.data.items ?? [] })),
   recentActivity: () =>
-    api.get<RecentActivityEntry[]>("/analytics/recent-activity"),
+    api.get<{ items: RecentActivityEntry[] }>("/analytics/recent-activity").then((r) => ({ ...r, data: r.data.items ?? [] })),
   sequencePerformance: () =>
-    api.get<SequencePerformanceEntry[]>("/analytics/sequence-performance"),
+    api.get<{ items: SequencePerformanceEntry[] }>("/analytics/sequence-performance").then((r) => ({ ...r, data: r.data.items ?? [] })),
   responseTrends: () =>
-    api.get<ResponseTrendEntry[]>("/analytics/response-trends"),
+    api.get<{ items: ResponseTrendEntry[] }>("/analytics/response-trends").then((r) => ({ ...r, data: r.data.items ?? [] })),
   channelBreakdown: () =>
-    api.get<ChannelBreakdownEntry[]>("/analytics/channel-breakdown"),
+    api.get<{ items: ChannelBreakdownEntry[] }>("/analytics/channel-breakdown").then((r) => ({ ...r, data: r.data.items ?? [] })),
   bounceDaily: () =>
-    api.get<BounceDailyEntry[]>("/analytics/bounce-daily"),
+    api.get<{ items: BounceDailyEntry[] }>("/analytics/bounce-daily").then((r) => ({ ...r, data: r.data.items ?? [] })),
 };
 
 export const deliverabilityApi = {

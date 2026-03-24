@@ -241,15 +241,13 @@ export default function SequencesPage() {
 
   const perfMap = useMemo(() => {
     const map: Record<string, SequencePerf> = {};
-    if (perfData) {
-      for (const entry of perfData) {
-        const total = entry.total_sends || 0;
-        map[entry.sequence_id] = {
-          open_rate: total > 0 ? entry.opens / total : 0,
-          reply_rate: total > 0 ? entry.replies / total : 0,
-          bounce_rate: total > 0 ? entry.bounces / total : 0,
-        };
-      }
+    const entries = Array.isArray(perfData) ? perfData : [];
+    for (const entry of entries) {
+      map[entry.sequence_id] = {
+        open_rate: (entry.open_rate ?? 0) / 100,
+        reply_rate: (entry.reply_rate ?? 0) / 100,
+        bounce_rate: (entry.bounce_rate ?? 0) / 100,
+      };
     }
     return map;
   }, [perfData]);

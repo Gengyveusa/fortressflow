@@ -82,15 +82,60 @@ export function useSequencesAnalytics() {
 export function useOutreachDaily() {
   return useQuery({
     queryKey: ["outreach-daily"],
-    queryFn: () => analyticsApi.outreachDaily().then((r) => r.data),
+    queryFn: async () => {
+      const raw = (await analyticsApi.outreachDaily().then((r) => r.data)) as any[];
+      // Backend returns [{date, channel, count}] — pivot to [{day, email, sms, linkedin}]
+      const byDay: Record<string, { day: string; email: number; sms: number; linkedin: number }> = {};
+      for (const row of raw) {
+        const day = row.date ?? row.day;
+        if (!byDay[day]) byDay[day] = { day, email: 0, sms: 0, linkedin: 0 };
+        const ch = (row.channel ?? "").toLowerCase();
+        if (ch === "email") byDay[day].email += row.count ?? 0;
+        else if (ch === "sms") byDay[day].sms += row.count ?? 0;
+        else if (ch === "linkedin") byDay[day].linkedin += row.count ?? 0;
+      }
+      return Object.values(byDay).sort((a, b) => a.day.localeCompare(b.day));
+    },
   });
 }
 
 export function useRecentActivity() {
   return useQuery({
     queryKey: ["recent-activity"],
-    queryFn: () => analyticsApi.recentActivity().then((r) => r.data),
+    queryFn: async () => {
+      const raw = (await analyticsApi.recentActivity().then((r) => r.data)) as any[];
+      // Backend returns [{id, lead_name, action, channel, created_at}]
+      // Dashboard expects [{id, text, time, type}]
+      const actionTypeMap: Record<string, string> = {
+        sent: "sequence",
+        opened: "sequence",
+        replied: "lead",
+        bounced: "bounce",
+        complained: "bounce",
+      };
+      return raw.map((r) => {
+        const action = r.action ?? "unknown";
+        const ago = r.created_at ? formatTimeAgo(r.created_at) : "";
+        return {
+          id: r.id ?? Math.random(),
+          text: `${r.lead_name ?? r.lead_email ?? "Unknown"} — ${action} via ${r.channel ?? "email"}`,
+          time: ago,
+          type: actionTypeMap[action] ?? "lead",
+        };
+      });
+    },
   });
+}
+
+function formatTimeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
 }
 
 export function useSequencePerformance() {
@@ -103,21 +148,33 @@ export function useSequencePerformance() {
 export function useResponseTrends() {
   return useQuery({
     queryKey: ["response-trends"],
-    queryFn: () => analyticsApi.responseTrends().then((r) => r.data),
+    queryFn: async () => {
+      const raw = (await analyticsApi.responseTrends().then((r) => r.data)) as any[];
+      // Backend returns [{week, sent, replied, response_rate}] — page expects [{week, rate}]
+      return raw.map((r) => ({ week: r.week, rate: r.response_rate ?? 0 }));
+    },
   });
 }
 
 export function useChannelBreakdown() {
   return useQuery({
     queryKey: ["channel-breakdown"],
-    queryFn: () => analyticsApi.channelBreakdown().then((r) => r.data),
+    queryFn: async () => {
+      const raw = (await analyticsApi.channelBreakdown().then((r) => r.data)) as any[];
+      // Backend returns [{channel, count}] — page expects [{name, value}]
+      return raw.map((r) => ({ name: r.channel ?? "unknown", value: r.count ?? 0 }));
+    },
   });
 }
 
 export function useBounceDaily() {
   return useQuery({
     queryKey: ["bounce-daily"],
-    queryFn: () => analyticsApi.bounceDaily().then((r) => r.data),
+    queryFn: async () => {
+      const raw = (await analyticsApi.bounceDaily().then((r) => r.data)) as any[];
+      // Backend returns [{date, count}] — page expects [{date, bounced, sent}]
+      return raw.map((r) => ({ date: r.date, bounced: r.count ?? 0, sent: 0 }));
+    },
   });
 }
 
