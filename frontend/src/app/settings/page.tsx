@@ -52,6 +52,8 @@ interface SendingIdentity {
 
 // ── Static config ─────────────────────────────────────────
 const API_KEYS: ApiKeyEntry[] = [
+  { name: "groq",     label: "Groq (AI Chat)",   description: "Powers the FortressFlow Assistant chatbot — Llama 3.3 70B", placeholder: "gsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
+  { name: "openai",   label: "OpenAI (AI Chat Fallback)", description: "Fallback AI model for chatbot — GPT-4o Mini", placeholder: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
   { name: "hubspot",  label: "HubSpot",  description: "CRM integration for lead sync", placeholder: "pat-na1-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" },
   { name: "zoominfo", label: "ZoomInfo", description: "Enrichment & contact data", placeholder: "eyJhbGciOiJSUzI1NiJ9..." },
   { name: "apollo",   label: "Apollo.io", description: "Prospecting & lead database", placeholder: "apk_xxxxxxxxxxxxxxxxxxxxxxxx" },
