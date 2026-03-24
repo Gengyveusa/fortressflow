@@ -35,7 +35,7 @@ class Settings(BaseSettings):
 
     # Apollo
     APOLLO_API_KEY: str = ""
-        APOLLO_WEBHOOK_URL: str = ""  # e.g. "https://api.fortressflow.ai/api/v1/webhooks/apollo-phone"
+    APOLLO_WEBHOOK_URL: str = ""
 
     # CORS
     CORS_ORIGINS: str = ""  # Comma-separated allowed origins for production
