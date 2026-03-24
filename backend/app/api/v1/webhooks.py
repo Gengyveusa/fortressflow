@@ -931,3 +931,93 @@ async def _handle_ses_open(
     except Exception as exc:
         logger.warning("SES open handler error: %s", exc)
         raise
+
+
+# — Apollo Phone Reveal Webhook (Phase 10) ————————————————————
+
+
+@router.post("/apollo-phone", status_code=200)
+async def apollo_phone_webhook(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Receive phone numbers from Apollo People Enrichment webhook.
+
+    Apollo sends phone data asynchronously when reveal_phone_number=True.
+    This handler:
+    1. Parses the Apollo webhook payload
+    2. Updates the lead record with phone numbers
+    3. Optionally triggers an SMS via Twilio if auto_sms is enabled
+    """
+    try:
+        payload = await request.json()
+    except Exception:
+        logger.warning("Apollo webhook: invalid JSON body")
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    logger.info("Apollo phone webhook received: %s", json.dumps(payload)[:500])
+
+    # Extract person data from Apollo webhook payload
+    person = payload.get("person", {})
+    person_id = person.get("id")
+    phone_numbers = person.get("phone_numbers", [])
+    sanitized_phones = person.get("sanitized_phones", [])
+    email = person.get("email")
+    first_name = person.get("first_name", "")
+    last_name = person.get("last_name", "")
+    org_name = person.get("organization", {}).get("name", "")
+
+    if not phone_numbers and not sanitized_phones:
+        logger.info("Apollo webhook: no phone numbers for person %s", person_id)
+        return {"status": "ok", "message": "no phone numbers"}
+
+    # Prefer sanitized phones, fall back to raw phone_numbers
+    phones = sanitized_phones if sanitized_phones else phone_numbers
+    mobile_phones = [
+        p for p in phones
+        if p.get("type", "").lower() in ("mobile", "cell", "personal")
+    ]
+    # If no mobile-specific, use all phones
+    target_phones = mobile_phones if mobile_phones else phones
+
+    # Update lead in database if we can match by email
+    lead_updated = False
+    if email:
+        try:
+            result = await db.execute(
+                select(Lead).where(
+                    func.lower(Lead.email) == email.lower()
+                )
+            )
+            lead = result.scalar_one_or_none()
+            if lead:
+                # Store the first mobile number as primary phone
+                primary_phone = target_phones[0].get("sanitized_number") or target_phones[0].get("number", "")
+                lead.phone = primary_phone
+                lead.enrichment_data = {
+                    **(lead.enrichment_data or {}),
+                    "apollo_phones": [p.get("sanitized_number") or p.get("number") for p in phones],
+                    "apollo_phone_updated_at": datetime.now(UTC).isoformat(),
+                }
+                await db.commit()
+                lead_updated = True
+                logger.info(
+                    "Apollo webhook: updated lead %s (%s) with phone %s",
+                    lead.id, email, primary_phone,
+                )
+        except Exception as exc:
+            logger.error("Apollo webhook: DB update error: %s", exc)
+            await db.rollback()
+
+    # Log the webhook event
+    logger.info(
+        "Apollo phone webhook processed: person=%s, email=%s, phones=%d, lead_updated=%s",
+        person_id, email, len(target_phones), lead_updated,
+    )
+
+    return {
+        "status": "ok",
+        "person_id": person_id,
+        "phones_received": len(target_phones),
+        "lead_updated": lead_updated,
+    }
