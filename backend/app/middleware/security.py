@@ -69,6 +69,8 @@ CSRF_UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 #   • /api/v1/webhooks/* — signed by external sender (SES, Twilio, etc.)
 #   • /docs, /openapi.json, /redoc — Swagger / ReDoc (GET only, not mutating)
 CSRF_EXEMPT_PREFIXES = (
+    "/api/v1/auth/",
+    "/api/v1/tracking/",
     "/api/v1/webhooks/",
     "/docs",
     "/redoc",
