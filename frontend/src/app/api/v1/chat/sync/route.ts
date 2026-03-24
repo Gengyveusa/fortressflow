@@ -1,9 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { proxyToBackend } from "@/lib/backend-proxy";
 
-export async function POST() {
-  return NextResponse.json({
-    response: "I've analyzed your outreach data. Your sequences are performing above industry average. Would you like me to suggest optimizations?",
-    sources: ["analytics_engine"],
-    session_id: "demo-session",
-  });
+export async function POST(req: NextRequest) {
+  return proxyToBackend(req, "/api/v1/chat/sync");
 }

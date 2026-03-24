@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { proxyToBackend } from "@/lib/backend-proxy";
 
-export async function GET() {
-  return NextResponse.json([
-    { channel: "email", sent_today: 45, limit: 200, utilization: 0.225, bounce_rate: 0.012, reply_rate: 0.18, last_failure: null },
-    { channel: "linkedin", sent_today: 12, limit: 50, utilization: 0.24, bounce_rate: 0, reply_rate: 0.22, last_failure: null },
-    { channel: "sms", sent_today: 8, limit: 100, utilization: 0.08, bounce_rate: 0.005, reply_rate: 0.14, last_failure: null },
-  ]);
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  return proxyToBackend(req, `/api/v1/sequences/${id}/channel-health`);
 }

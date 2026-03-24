@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { proxyToBackend } from "@/lib/backend-proxy";
 
-export async function POST() {
-  return NextResponse.json({ success: true, message: "Onboarding preferences saved" });
+export async function POST(req: NextRequest) {
+  return proxyToBackend(req, "/api/v1/settings/onboarding");
 }

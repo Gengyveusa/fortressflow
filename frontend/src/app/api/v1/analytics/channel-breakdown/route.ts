@@ -1,9 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { proxyToBackend } from "@/lib/backend-proxy";
 
-export async function GET() {
-  return NextResponse.json([
-    { name: "Email", value: 68 },
-    { name: "LinkedIn", value: 22 },
-    { name: "SMS", value: 10 },
-  ]);
+export async function GET(req: NextRequest) {
+  return proxyToBackend(req, "/api/v1/analytics/channel-breakdown");
 }

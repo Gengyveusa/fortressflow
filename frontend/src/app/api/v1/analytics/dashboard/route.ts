@@ -1,10 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { proxyToBackend } from "@/lib/backend-proxy";
 
-export async function GET() {
-  return NextResponse.json({
-    total_leads: 2847,
-    active_consents: 1923,
-    touches_sent: 14562,
-    response_rate: 0.187,
-  });
+export async function GET(req: NextRequest) {
+  return proxyToBackend(req, "/api/v1/analytics/dashboard");
 }

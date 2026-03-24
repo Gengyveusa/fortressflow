@@ -1,11 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { proxyToBackend } from "@/lib/backend-proxy";
 
-export async function POST() {
-  return NextResponse.json({
-    rendered_subject: "Quick question about AcmeTech",
-    rendered_plain_body: "Hi Sarah,\n\nI noticed AcmeTech is growing fast...",
-    rendered_html_body: null,
-    variables_used: ["first_name", "company"],
-    warnings: [],
-  });
+export async function POST(req: NextRequest) {
+  return proxyToBackend(req, "/api/v1/templates/preview");
 }

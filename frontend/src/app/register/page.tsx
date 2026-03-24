@@ -15,8 +15,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "";
-
 function getPasswordStrength(password: string): {
   score: number;
   label: string;
@@ -76,7 +74,7 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${BACKEND_URL}/api/v1/auth/register`, {
+      const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

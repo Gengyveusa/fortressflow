@@ -1,9 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { proxyToBackend } from "@/lib/backend-proxy";
 
-export async function POST() {
-  return NextResponse.json({
-    imported: 150,
-    duplicates: 12,
-    errors: 3,
-  });
+export async function POST(req: NextRequest) {
+  return proxyToBackend(req, "/api/v1/leads/import/csv");
 }

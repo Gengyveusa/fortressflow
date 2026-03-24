@@ -1,9 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { proxyToBackend } from "@/lib/backend-proxy";
 
-export async function GET() {
-  return NextResponse.json({
-    items: [],
-    total: 0,
-    session_id: "demo-session",
-  });
+export async function GET(req: NextRequest) {
+  return proxyToBackend(req, "/api/v1/chat/history");
 }

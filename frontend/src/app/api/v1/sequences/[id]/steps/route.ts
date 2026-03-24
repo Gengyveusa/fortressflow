@@ -1,19 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { proxyToBackend } from "@/lib/backend-proxy";
 
-export async function POST() {
-  return NextResponse.json({
-    id: "step-new",
-    sequence_id: "seq-1",
-    step_type: "email",
-    position: 1,
-    config: {},
-    delay_hours: 0,
-    condition: null,
-    true_next_position: null,
-    false_next_position: null,
-    ab_variants: null,
-    is_ab_test: false,
-    node_id: null,
-    created_at: "2026-03-22T08:00:00Z",
-  }, { status: 201 });
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  return proxyToBackend(req, `/api/v1/sequences/${id}/steps`);
 }

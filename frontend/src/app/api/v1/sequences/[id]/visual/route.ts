@@ -1,17 +1,18 @@
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { proxyToBackend } from "@/lib/backend-proxy";
 
 export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  return NextResponse.json({
-    sequence_id: id,
-    visual_config: null,
-    steps: [],
-  });
+  return proxyToBackend(req, `/api/v1/sequences/${id}/visual`);
 }
 
-export async function PUT() {
-  return NextResponse.json({ success: true });
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  return proxyToBackend(req, `/api/v1/sequences/${id}/visual`);
 }
