@@ -14,7 +14,7 @@ from app.models.user import User
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Token configuration
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 10080  # 7 days to match NextAuth session
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 ALGORITHM = "HS256"
 
