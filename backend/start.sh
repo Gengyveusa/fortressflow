@@ -133,6 +133,13 @@ if [ "$MIGRATION_OK" -ne 1 ]; then
   echo "The database may be in a partial state — check logs and re-deploy after fixing."
 fi
 
+# ── Seed admin user ──────────────────────────────────────────────────────────
+echo "Seeding admin user..."
+python scripts/seed_admin.py \
+  --email "thad@gengyveusa.com" \
+  --password "${ADMIN_PASSWORD:-FortressFlow2026!}" \
+  --name "Thad" || echo "Admin seed skipped (may already exist)"
+
 echo "Starting uvicorn..."
 exec uvicorn app.main:app \
   --host 0.0.0.0 \

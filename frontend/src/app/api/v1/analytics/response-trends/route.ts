@@ -1,12 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { proxyToBackend } from "@/lib/backend-proxy";
 
-export async function GET() {
-  return NextResponse.json([
-    { week: "W1", rate: 0.12 },
-    { week: "W2", rate: 0.14 },
-    { week: "W3", rate: 0.15 },
-    { week: "W4", rate: 0.18 },
-    { week: "W5", rate: 0.17 },
-    { week: "W6", rate: 0.19 },
-  ]);
+export async function GET(req: NextRequest) {
+  return proxyToBackend(req, "/api/v1/analytics/response-trends");
 }

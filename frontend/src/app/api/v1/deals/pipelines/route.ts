@@ -1,18 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { proxyToBackend } from "@/lib/backend-proxy";
 
-export async function GET() {
-  return NextResponse.json([
-    {
-      pipeline_id: "default",
-      label: "Sales Pipeline",
-      stages: [
-        { stage_id: "discovery", label: "Discovery" },
-        { stage_id: "qualified", label: "Qualified" },
-        { stage_id: "proposal", label: "Proposal" },
-        { stage_id: "negotiation", label: "Negotiation" },
-        { stage_id: "closed_won", label: "Closed Won" },
-        { stage_id: "closed_lost", label: "Closed Lost" },
-      ],
-    },
-  ]);
+export async function GET(req: NextRequest) {
+  return proxyToBackend(req, "/api/v1/deals/pipelines");
 }

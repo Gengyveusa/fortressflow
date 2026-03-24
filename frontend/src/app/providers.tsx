@@ -22,7 +22,7 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: "light",
+  theme: "dark",
   toggleTheme: () => {},
   setTheme: () => {},
 });
@@ -32,17 +32,13 @@ export function useTheme() {
 }
 
 function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("light");
+  const [theme, setThemeState] = useState<Theme>("dark");
 
   // Read from localStorage on mount and apply
   useEffect(() => {
     try {
       const stored = localStorage.getItem("fortressflow-theme") as Theme | null;
-      const preferred =
-        stored ??
-        (window.matchMedia("(prefers-color-scheme: dark)").matches
-          ? "dark"
-          : "light");
+      const preferred = stored ?? "dark";
       setThemeState(preferred);
       applyTheme(preferred);
     } catch {

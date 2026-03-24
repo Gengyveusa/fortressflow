@@ -1,14 +1,18 @@
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { proxyToBackend } from "@/lib/backend-proxy";
 
-export async function PUT() {
-  return NextResponse.json({
-    service_name: "openai",
-    masked_key: "sk-...updated",
-    created_at: "2026-03-01T00:00:00Z",
-    updated_at: "2026-03-22T08:00:00Z",
-  });
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ service: string }> },
+) {
+  const { service } = await params;
+  return proxyToBackend(req, `/api/v1/settings/api-keys/${service}`);
 }
 
-export async function DELETE() {
-  return NextResponse.json({ success: true });
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ service: string }> },
+) {
+  const { service } = await params;
+  return proxyToBackend(req, `/api/v1/settings/api-keys/${service}`);
 }

@@ -1,14 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { proxyToBackend } from "@/lib/backend-proxy";
 
-export async function POST() {
-  return NextResponse.json({
-    access_token: "mock-access-token-demo",
-    refresh_token: "mock-refresh-token-demo",
-    user: {
-      id: "user-001",
-      email: "thad@gengyveusa.com",
-      full_name: "Thad Mitchell",
-      role: "admin",
-    },
-  });
+export async function POST(req: NextRequest) {
+  return proxyToBackend(req, "/api/v1/auth/login");
 }

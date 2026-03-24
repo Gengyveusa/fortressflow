@@ -176,6 +176,9 @@ _DEV_ORIGINS = ["http://localhost:3000", "http://localhost:8000"]
 if settings.ENVIRONMENT == "production":
     _cors_env = getattr(settings, "CORS_ORIGINS", "")
     _CORS_ORIGINS = [o.strip() for o in _cors_env.split(",") if o.strip()] if _cors_env else []
+    # Always allow the known frontend origin in production
+    if "https://app.fortressflow.ai" not in _CORS_ORIGINS:
+        _CORS_ORIGINS.append("https://app.fortressflow.ai")
 else:
     _CORS_ORIGINS = _DEV_ORIGINS
 
