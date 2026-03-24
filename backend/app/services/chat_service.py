@@ -141,7 +141,7 @@ class ChatService:
 
         full_response = ""
         try:
-            async for chunk in self._stream_llm(messages):
+            async for chunk in self._stream_llm(messages, user_id=user_id):
                 full_response += chunk
                 yield chunk
         except Exception as exc:
@@ -818,37 +818,64 @@ class ChatService:
         self,
         messages: list[dict[str, str]],
         provider: str = "groq",
+        user_id: str = "",
     ) -> AsyncGenerator[str, None]:
         """Stream response from LLM provider (Groq primary, OpenAI fallback)."""
         if provider == "groq":
-            api_key = getattr(settings, "GROQ_API_KEY", "")
+            # Try DB-stored key first, then fall back to env var
+            api_key = None
+            if user_id:
+                try:
+                    from uuid import UUID
+
+                    from app.database import AsyncSessionLocal
+                    from app.services.api_key_service import get_api_key
+
+                    async with AsyncSessionLocal() as db:
+                        api_key = await get_api_key(db, "groq", UUID(user_id))
+                except Exception as exc:
+                    logger.warning("DB key lookup for groq failed: %s", sanitize_error(exc))
             if not api_key:
-                raise ValueError("No API key configured for Groq LLM provider")
+                api_key = getattr(settings, "GROQ_API_KEY", "")
 
+            if api_key:
+                try:
+                    from groq import AsyncGroq  # type: ignore
+
+                    client = AsyncGroq(api_key=api_key)
+                    stream = await client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=messages,  # type: ignore
+                        stream=True,
+                        max_tokens=1024,
+                        temperature=0.7,
+                    )
+                    async for chunk in stream:
+                        delta = chunk.choices[0].delta.content
+                        if delta:
+                            yield delta
+                    return
+                except ImportError:
+                    pass
+                except Exception as exc:
+                    logger.error("Groq streaming failed: %s", sanitize_error(exc))
+                    # Fall through to OpenAI fallback
+
+        # OpenAI fallback — try DB-stored key first, then env var
+        openai_key = None
+        if user_id:
             try:
-                from groq import AsyncGroq  # type: ignore
+                from uuid import UUID
 
-                client = AsyncGroq(api_key=api_key)
-                stream = await client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=messages,  # type: ignore
-                    stream=True,
-                    max_tokens=1024,
-                    temperature=0.7,
-                )
-                async for chunk in stream:
-                    delta = chunk.choices[0].delta.content
-                    if delta:
-                        yield delta
-                return
-            except ImportError:
-                pass
+                from app.database import AsyncSessionLocal
+                from app.services.api_key_service import get_api_key
+
+                async with AsyncSessionLocal() as db:
+                    openai_key = await get_api_key(db, "openai", UUID(user_id))
             except Exception as exc:
-                logger.error("Groq streaming failed: %s", sanitize_error(exc))
-                # Fall through to fallback
-
-        # OpenAI fallback
-        openai_key = getattr(settings, "OPENAI_API_KEY", "")
+                logger.warning("DB key lookup for openai failed: %s", sanitize_error(exc))
+        if not openai_key:
+            openai_key = getattr(settings, "OPENAI_API_KEY", "")
         if openai_key:
             try:
                 from openai import AsyncOpenAI  # type: ignore

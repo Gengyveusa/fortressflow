@@ -137,6 +137,8 @@ async def get_api_key(db: AsyncSession, service_name: str, user_id: UUID | None 
         "apollo": settings.APOLLO_API_KEY,
         "twilio": settings.TWILIO_AUTH_TOKEN,
         "aws_ses": settings.AWS_SECRET_ACCESS_KEY,
+        "groq": settings.GROQ_API_KEY,
+        "openai": settings.OPENAI_API_KEY,
     }
     env_val = env_mapping.get(service_name, "")
     return env_val if env_val else None
