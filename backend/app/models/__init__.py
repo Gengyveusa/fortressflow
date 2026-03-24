@@ -1,4 +1,5 @@
 from app.models.agent_action_log import AgentActionLog
+from app.models.agent_training_config import AgentTrainingConfig
 from app.models.api_configuration import ApiConfiguration
 from app.models.channel_metrics import ChannelMetrics
 from app.models.chat import ChatLog
@@ -24,6 +25,7 @@ from app.models.warmup import WarmupConfig, WarmupQueue, WarmupSeedLog
 
 __all__ = [
     "AgentActionLog",
+    "AgentTrainingConfig",
     "ApiConfiguration",
     "ChannelMetrics",
     "ChatLog",

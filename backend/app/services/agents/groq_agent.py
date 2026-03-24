@@ -64,15 +64,31 @@ class GroqAgent:
         stream: bool = False,
         model: str | None = None,
         user_id: UUID | None = None,
+        prompt_engine_context: dict | None = None,
     ) -> str | AsyncGenerator[str, None]:
         """Chat completions — streaming and non-streaming.
 
         Default model: llama-3.3-70b-versatile.
+        If prompt_engine_context is provided and no system message exists,
+        injects a rich system prompt from the PromptEngine.
         """
         _check_rate_limit(str(user_id or "anon"))
         api_key = await _get_api_key(db, user_id)
         client = _get_client(api_key)
         model = model or DEFAULT_MODEL
+
+        # Inject PromptEngine system prompt if no system message exists
+        if prompt_engine_context and user_id:
+            has_system = any(m.get("role") == "system" for m in messages)
+            if not has_system:
+                try:
+                    pe = prompt_engine_context.get("prompt_engine")
+                    if pe:
+                        action = prompt_engine_context.get("action", "chat")
+                        sys_prompt = await pe.build_system_prompt(db, user_id, "groq", action)
+                        messages = [{"role": "system", "content": sys_prompt}] + messages
+                except Exception as exc:
+                    logger.debug("PromptEngine fallback for groq.chat: %s", exc)
 
         if stream:
             return GroqAgent._stream_chat(client, messages, model)
@@ -108,19 +124,33 @@ class GroqAgent:
         tone: str,
         num_steps: int,
         user_id: UUID | None = None,
+        prompt_engine_context: dict | None = None,
     ) -> list[dict]:
         """Generate email subjects + bodies for sequence steps."""
         _check_rate_limit(str(user_id or "anon"))
         api_key = await _get_api_key(db, user_id)
         client = _get_client(api_key)
 
-        system_prompt = (
-            "You are an expert B2B email copywriter specializing in outbound sales sequences. "
-            "Generate email sequence steps with compelling subject lines and body copy. "
-            "Each step should build on the previous one, creating a natural progression. "
-            "Output valid JSON only — an array of objects with keys: "
-            '"step_number", "subject", "body", "purpose".'
-        )
+        # Try PromptEngine first, fallback to hardcoded
+        system_prompt = None
+        if prompt_engine_context and user_id:
+            try:
+                pe = prompt_engine_context.get("prompt_engine")
+                if pe:
+                    system_prompt = await pe.build_system_prompt(
+                        db, user_id, "groq", "generate_sequence_content"
+                    )
+            except Exception as exc:
+                logger.debug("PromptEngine fallback for generate_sequence_content: %s", exc)
+
+        if not system_prompt:
+            system_prompt = (
+                "You are an expert B2B email copywriter specializing in outbound sales sequences. "
+                "Generate email sequence steps with compelling subject lines and body copy. "
+                "Each step should build on the previous one, creating a natural progression. "
+                "Output valid JSON only — an array of objects with keys: "
+                '"step_number", "subject", "body", "purpose".'
+            )
         user_prompt = (
             f"Create a {num_steps}-step {sequence_type} email sequence for the {target_industry} industry. "
             f"Tone: {tone}. Each email should be concise (under 150 words for body). "
@@ -152,18 +182,31 @@ class GroqAgent:
         db: AsyncSession,
         email_text: str,
         user_id: UUID | None = None,
+        prompt_engine_context: dict | None = None,
     ) -> dict:
         """Classify inbound reply as positive/negative/ooo/bounce/unsubscribe."""
         _check_rate_limit(str(user_id or "anon"))
         api_key = await _get_api_key(db, user_id)
         client = _get_client(api_key)
 
-        system_prompt = (
-            "You are an email reply classifier for a B2B sales platform. "
-            "Classify the reply into exactly one category: positive, negative, ooo, bounce, unsubscribe. "
-            'Output valid JSON: {"classification": "<category>", "confidence": <0.0-1.0>, '
-            '"reason": "<brief explanation>", "suggested_action": "<what to do next>"}.'
-        )
+        system_prompt = None
+        if prompt_engine_context and user_id:
+            try:
+                pe = prompt_engine_context.get("prompt_engine")
+                if pe:
+                    system_prompt = await pe.build_system_prompt(
+                        db, user_id, "groq", "classify_reply"
+                    )
+            except Exception:
+                pass
+
+        if not system_prompt:
+            system_prompt = (
+                "You are an email reply classifier for a B2B sales platform. "
+                "Classify the reply into exactly one category: positive, negative, ooo, bounce, unsubscribe. "
+                'Output valid JSON: {"classification": "<category>", "confidence": <0.0-1.0>, '
+                '"reason": "<brief explanation>", "suggested_action": "<what to do next>"}.'
+            )
 
         response = await client.chat.completions.create(
             model=FAST_MODEL,
@@ -185,6 +228,7 @@ class GroqAgent:
         channel: str,
         regulations: list[str] | None = None,
         user_id: UUID | None = None,
+        prompt_engine_context: dict | None = None,
     ) -> dict:
         """Check outreach content against CAN-SPAM/GDPR/TCPA regulations."""
         _check_rate_limit(str(user_id or "anon"))
@@ -194,13 +238,25 @@ class GroqAgent:
         regs = regulations or ["CAN-SPAM", "GDPR", "TCPA"]
         regs_str = ", ".join(regs)
 
-        system_prompt = (
-            f"You are a compliance expert for B2B outreach. Review the {channel} content "
-            f"for compliance with {regs_str}. "
-            "Output valid JSON: "
-            '{"compliant": <true/false>, "issues": [{"regulation": "...", "issue": "...", '
-            '"severity": "high|medium|low", "fix": "..."}], "score": <0-100>}.'
-        )
+        system_prompt = None
+        if prompt_engine_context and user_id:
+            try:
+                pe = prompt_engine_context.get("prompt_engine")
+                if pe:
+                    system_prompt = await pe.build_system_prompt(
+                        db, user_id, "groq", "check_compliance"
+                    )
+            except Exception:
+                pass
+
+        if not system_prompt:
+            system_prompt = (
+                f"You are a compliance expert for B2B outreach. Review the {channel} content "
+                f"for compliance with {regs_str}. "
+                "Output valid JSON: "
+                '{"compliant": <true/false>, "issues": [{"regulation": "...", "issue": "...", '
+                '"severity": "high|medium|low", "fix": "..."}], "score": <0-100>}.'
+            )
 
         response = await client.chat.completions.create(
             model=FAST_MODEL,
@@ -221,6 +277,7 @@ class GroqAgent:
         original_content: str,
         num_variants: int,
         user_id: UUID | None = None,
+        prompt_engine_context: dict | None = None,
     ) -> list[str]:
         """Create A/B test variants of email or message content."""
         _check_rate_limit(str(user_id or "anon"))
@@ -254,6 +311,7 @@ class GroqAgent:
         sender_context: str,
         seed_context: str,
         user_id: UUID | None = None,
+        prompt_engine_context: dict | None = None,
     ) -> dict:
         """Generate a natural-sounding warmup email."""
         _check_rate_limit(str(user_id or "anon"))
@@ -292,6 +350,7 @@ class GroqAgent:
         lead_data: dict,
         signals: list[str],
         user_id: UUID | None = None,
+        prompt_engine_context: dict | None = None,
     ) -> str:
         """Generate human-readable lead score explanation."""
         _check_rate_limit(str(user_id or "anon"))
@@ -326,6 +385,7 @@ class GroqAgent:
         db: AsyncSession,
         metrics_data: dict,
         user_id: UUID | None = None,
+        prompt_engine_context: dict | None = None,
     ) -> str:
         """Summarize analytics/metrics in natural language."""
         _check_rate_limit(str(user_id or "anon"))

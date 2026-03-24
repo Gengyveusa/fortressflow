@@ -39,6 +39,8 @@ INTENTS = {
     "sync_crm": "Sync leads/contacts with HubSpot CRM",
     "search_company": "Search for company information or intelligence",
     "ai_generate": "Generate AI content, copy, or analysis",
+    # Multi-agent planning
+    "plan_outreach": "I want to contact/reach/email/call X people in Y area / plan a campaign / what are my options for outreach",
     # Help
     "get_help": "How do I / what can you do / help",
     "unknown": "Can't classify",
@@ -86,6 +88,7 @@ Rules:
 - For "sync_crm", nothing is required
 - For "search_company", required entities are: company_query
 - For "ai_generate", required entities are: ai_prompt
+- For "plan_outreach", required entities are: target_description (who to reach). Route here for complex multi-step requests involving lead sourcing + outreach, or when user asks "what are my options" for contacting people
 
 User message: {message}"""
 
@@ -245,6 +248,11 @@ class CommandEngine:
 
         if intent == "ai_generate":
             return await self._handle_ai_generate(result.entities, user_id, db)
+
+        if intent == "plan_outreach":
+            return await self._handle_plan_outreach(
+                result.entities, message, user_id, db
+            )
 
         if intent == "get_help":
             return self._handle_help()
@@ -727,6 +735,107 @@ class CommandEngine:
             "content": f"Content generation failed: {result.get('error', 'Unknown error')}. Check your Groq/OpenAI API key in **Settings → Integrations**.",
         }
 
+    async def _handle_plan_outreach(
+        self, entities: dict[str, Any], message: str, user_id: str, db=None
+    ) -> dict[str, Any]:
+        """Handle complex multi-step outreach planning requests."""
+        if db is None:
+            return {"type": "text", "content": "Unable to plan outreach — no database session available."}
+
+        try:
+            from app.services.agents.orchestrator import AgentOrchestrator
+            from app.services.agents.workflow_planner import WorkflowPlanner
+
+            uid = UUID(user_id) if isinstance(user_id, str) else user_id
+            planner = WorkflowPlanner()
+
+            # Get agent statuses
+            agent_statuses = await AgentOrchestrator.get_agent_status(db, uid)
+
+            # Create the plan
+            plan = await planner.plan(db, uid, message, agent_statuses)
+
+            # Format the response
+            parts = []
+            understanding = plan.get("understanding", message)
+            parts.append(f"I understand you want to: **{understanding}**\n")
+
+            # Show outreach options if available
+            outreach_options = plan.get("outreach_options")
+            if outreach_options:
+                target = outreach_options.get("target", "")
+                parts.append(f"**Target:** {target}\n")
+
+                sourcing = outreach_options.get("lead_sourcing", {})
+                existing = sourcing.get("existing_leads", 0)
+                parts.append(f"**Lead Sourcing**")
+                parts.append(f"- Currently {existing} matching leads in your database")
+                parts.append(f"- {sourcing.get('action_needed', '')}\n")
+
+                parts.append("**Outreach Options**\n")
+                for i, opt in enumerate(outreach_options.get("options", []), 1):
+                    name = opt.get("name", "")
+                    desc = opt.get("description", "")
+                    channels = ", ".join(opt.get("channels", []))
+                    reach = opt.get("estimated_reach", "N/A")
+                    cost = opt.get("estimated_cost", "N/A")
+                    reqs = opt.get("requirements", [])
+
+                    parts.append(f"**Option {i}: {name}**")
+                    parts.append(f"- {desc}")
+                    parts.append(f"- Channels: {channels}")
+                    parts.append(f"- Estimated reach: ~{reach}%")
+                    parts.append(f"- Cost: {cost}")
+                    req_lines = []
+                    for req in reqs:
+                        if isinstance(req, (list, tuple)) and len(req) == 2:
+                            check = "+" if req[1] else "x"
+                            req_lines.append(f"  - [{check}] {req[0]}")
+                        else:
+                            req_lines.append(f"  - {req}")
+                    parts.extend(req_lines)
+                    parts.append("")
+
+                parts.append(outreach_options.get("next_steps", ""))
+            else:
+                # Show plan steps
+                steps = plan.get("steps", [])
+                if steps:
+                    parts.append("**Execution Plan:**\n")
+                    for step in steps:
+                        sn = step.get("step", "?")
+                        agent = step.get("agent", "?")
+                        desc = step.get("description", "")
+                        parts.append(f"{sn}. **{agent}** — {desc}")
+                    parts.append("")
+
+                warnings = plan.get("warnings", [])
+                if warnings:
+                    parts.append("**Warnings:**")
+                    for w in warnings:
+                        parts.append(f"- {w}")
+                    parts.append("")
+
+                est = plan.get("estimated_time", "")
+                if est:
+                    parts.append(f"Estimated time: {est}")
+
+                plan_id = plan.get("plan_id", "")
+                if plan_id:
+                    parts.append(f"\nSay **\"go\"** or **\"execute\"** to run this plan. (Plan ID: {plan_id})")
+
+            return {
+                "type": "text",
+                "content": "\n".join(parts),
+            }
+
+        except Exception as exc:
+            logger.exception("Plan outreach failed: %s", exc)
+            return {
+                "type": "text",
+                "content": f"Failed to create outreach plan: {sanitize_error(exc)}",
+            }
+
     def _handle_help(self) -> dict[str, Any]:
         """Return help text with available commands."""
         return {
@@ -741,6 +850,10 @@ class CommandEngine:
                 "- \"Launch a campaign targeting oral surgeons in California\" — full campaign wizard\n"
                 "- \"Pause the Texas campaign\" — pause an active sequence\n"
                 "- \"Resume the Texas campaign\" — restart a paused sequence\n\n"
+                "**Multi-Agent Outreach Planning**\n"
+                "- \"I want to contact 100 dentists in Denver\" — full workflow planner\n"
+                "- \"What are my options for reaching oral surgeons?\" — outreach options\n"
+                "- \"Plan a campaign for 50 periodontists in Texas\" — multi-step plan\n\n"
                 "**Analytics**\n"
                 "- \"How are we doing?\" — full performance overview\n"
                 "- \"How's the Texas campaign?\" — specific campaign metrics\n"

@@ -91,3 +91,62 @@ class AgentLogsResponse(BaseModel):
     page: int
     page_size: int
     items: list[AgentActionLogResponse]
+
+
+# ── Training config schemas ─────────────────────────────────────────────────
+
+
+class AgentTrainingConfigResponse(BaseModel):
+    id: UUID
+    agent_name: str
+    config_type: str
+    config_key: str
+    config_value: dict | list | str
+    is_active: bool
+    priority: int
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AgentTrainingConfigUpdate(BaseModel):
+    config_type: str
+    config_key: str
+    config_value: dict | list | str
+    is_active: bool = True
+    priority: int = 0
+
+
+class AgentTrainingBulkUpdate(BaseModel):
+    configs: list[AgentTrainingConfigUpdate]
+
+
+# ── Workflow planner schemas ────────────────────────────────────────────────
+
+
+class WorkflowPlanRequest(BaseModel):
+    message: str = Field(..., description="Natural language request for planning")
+
+
+class WorkflowPlanResponse(BaseModel):
+    understanding: str
+    plan_type: str
+    steps: list[dict]
+    options: list[dict] | None = None
+    warnings: list[str] | None = None
+    estimated_time: str | None = None
+    confirmation_needed: bool = True
+    plan_id: str
+    outreach_options: dict | None = None
+
+
+class WorkflowPlanExecuteRequest(BaseModel):
+    plan_id: str
+    selected_option: int | None = None
+
+
+class OutreachOptionsResponse(BaseModel):
+    target: str
+    options: list[dict]
+    lead_sourcing: dict
+    next_steps: str

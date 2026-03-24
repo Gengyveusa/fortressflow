@@ -1,4 +1,4 @@
-"""Agent API routes — execute agents, query logs, run workflows."""
+"""Agent API routes — execute agents, query logs, run workflows, training configs, planning."""
 
 import logging
 from datetime import datetime
@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import get_current_user
 from app.database import get_db
 from app.models.agent_action_log import AgentActionLog
+from app.models.agent_training_config import AgentTrainingConfig
 from app.models.user import User
 from app.schemas.agents import (
     AgentActionLogResponse,
@@ -18,11 +19,18 @@ from app.schemas.agents import (
     AgentLogsResponse,
     AgentStatusEntry,
     AgentStatusResponse,
+    AgentTrainingBulkUpdate,
+    AgentTrainingConfigResponse,
+    WorkflowPlanExecuteRequest,
+    WorkflowPlanRequest,
+    WorkflowPlanResponse,
     WorkflowRequest,
     WorkflowResponse,
     WorkflowStepResult,
 )
+from app.services.agents.default_training import seed_default_training
 from app.services.agents.orchestrator import AgentOrchestrator
+from app.services.agents.workflow_planner import WorkflowPlanner
 
 logger = logging.getLogger(__name__)
 
@@ -144,3 +152,169 @@ async def execute_workflow(
         status=result["status"],
         steps=[WorkflowStepResult(**step) for step in result["steps"]],
     )
+
+
+# ── Training Config Endpoints ───────────────────────────────────────────────
+
+
+@router.get("/training", response_model=list[AgentTrainingConfigResponse])
+async def list_training_configs(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all training configs for the current user. Seeds defaults if none exist."""
+    # Check if user has any configs
+    count_result = await db.execute(
+        select(func.count(AgentTrainingConfig.id)).where(
+            AgentTrainingConfig.user_id == current_user.id
+        )
+    )
+    if (count_result.scalar() or 0) == 0:
+        await seed_default_training(db, current_user.id)
+        await db.flush()
+
+    result = await db.execute(
+        select(AgentTrainingConfig)
+        .where(AgentTrainingConfig.user_id == current_user.id)
+        .order_by(AgentTrainingConfig.agent_name, AgentTrainingConfig.config_type)
+    )
+    configs = result.scalars().all()
+    return [AgentTrainingConfigResponse.model_validate(c) for c in configs]
+
+
+@router.get("/training/{agent_name}", response_model=list[AgentTrainingConfigResponse])
+async def get_agent_training(
+    agent_name: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get training configs for a specific agent."""
+    valid_agents = {"groq", "openai", "hubspot", "zoominfo", "twilio"}
+    if agent_name not in valid_agents:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid agent: {agent_name}. Valid: {', '.join(sorted(valid_agents))}",
+        )
+
+    # Seed defaults if user has no configs for this agent
+    count_result = await db.execute(
+        select(func.count(AgentTrainingConfig.id)).where(
+            AgentTrainingConfig.user_id == current_user.id,
+            AgentTrainingConfig.agent_name == agent_name,
+        )
+    )
+    if (count_result.scalar() or 0) == 0:
+        await seed_default_training(db, current_user.id)
+        await db.flush()
+
+    result = await db.execute(
+        select(AgentTrainingConfig)
+        .where(
+            AgentTrainingConfig.user_id == current_user.id,
+            AgentTrainingConfig.agent_name == agent_name,
+        )
+        .order_by(AgentTrainingConfig.config_type, AgentTrainingConfig.config_key)
+    )
+    configs = result.scalars().all()
+    return [AgentTrainingConfigResponse.model_validate(c) for c in configs]
+
+
+@router.put("/training/{agent_name}")
+async def update_agent_training(
+    agent_name: str,
+    body: AgentTrainingBulkUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update training configs for a specific agent."""
+    valid_agents = {"groq", "openai", "hubspot", "zoominfo", "twilio"}
+    if agent_name not in valid_agents:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid agent: {agent_name}",
+        )
+
+    updated = 0
+    for config in body.configs:
+        # Try to find existing
+        result = await db.execute(
+            select(AgentTrainingConfig).where(
+                AgentTrainingConfig.user_id == current_user.id,
+                AgentTrainingConfig.agent_name == agent_name,
+                AgentTrainingConfig.config_type == config.config_type,
+                AgentTrainingConfig.config_key == config.config_key,
+            )
+        )
+        existing = result.scalar_one_or_none()
+
+        if existing:
+            existing.config_value = config.config_value
+            existing.is_active = config.is_active
+            existing.priority = config.priority
+            existing.updated_at = func.now()
+        else:
+            entry = AgentTrainingConfig(
+                user_id=current_user.id,
+                agent_name=agent_name,
+                config_type=config.config_type,
+                config_key=config.config_key,
+                config_value=config.config_value,
+                is_active=config.is_active,
+                priority=config.priority,
+            )
+            db.add(entry)
+        updated += 1
+
+    await db.flush()
+    return {"status": "ok", "updated": updated}
+
+
+# ── Workflow Planning Endpoints ─────────────────────────────────────────────
+
+
+@router.post("/plan", response_model=WorkflowPlanResponse)
+async def create_plan(
+    body: WorkflowPlanRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Submit a natural language request for planning."""
+    planner = WorkflowPlanner()
+
+    # Get current agent statuses
+    agent_statuses = await AgentOrchestrator.get_agent_status(db, current_user.id)
+
+    plan = await planner.plan(db, current_user.id, body.message, agent_statuses)
+
+    return WorkflowPlanResponse(
+        understanding=plan.get("understanding", body.message),
+        plan_type=plan.get("plan_type", "unknown"),
+        steps=plan.get("steps", []),
+        options=plan.get("options"),
+        warnings=plan.get("warnings"),
+        estimated_time=plan.get("estimated_time"),
+        confirmation_needed=plan.get("confirmation_needed", True),
+        plan_id=plan.get("plan_id", ""),
+        outreach_options=plan.get("outreach_options"),
+    )
+
+
+@router.post("/plan/execute")
+async def execute_plan(
+    body: WorkflowPlanExecuteRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Execute a confirmed plan."""
+    planner = WorkflowPlanner()
+    result = await planner.execute_plan(
+        db, current_user.id, body.plan_id, body.selected_option
+    )
+
+    if result.get("status") == "error":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.get("error", "Plan execution failed"),
+        )
+
+    return result

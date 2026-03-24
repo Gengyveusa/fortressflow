@@ -776,13 +776,29 @@ function LinkedInTab() {
   );
 }
 
-// ── Agent Status Tab ──────────────────────────────────────
+// ── Agent Status + Training Tab ───────────────────────────
 
 interface AgentStatusEntry {
   agent_name: string;
   configured: boolean;
   has_db_key: boolean;
   has_env_key: boolean;
+}
+
+interface TrainingConfig {
+  id: string;
+  agent_name: string;
+  config_type: string;
+  config_key: string;
+  config_value: string | string[] | Record<string, unknown>[] | Record<string, unknown>;
+  is_active: boolean;
+  priority: number;
+  updated_at: string;
+}
+
+interface FewShotExample {
+  input: string;
+  output: string;
 }
 
 const AGENT_META: Record<string, { label: string; description: string; icon: React.ReactNode; capabilities: string[] }> = {
@@ -818,7 +834,240 @@ const AGENT_META: Record<string, { label: string; description: string; icon: Rea
   },
 };
 
+// ── Agent Training Editor Sub-Component ──────────────────
+function AgentTrainingEditor({ agentName, toast: toastFn }: { agentName: string; toast: (opts: { title: string; variant?: string }) => void }) {
+  const [configs, setConfigs] = useState<TrainingConfig[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Editable state
+  const [systemPrompt, setSystemPrompt] = useState("");
+  const [fewShot, setFewShot] = useState<FewShotExample[]>([]);
+  const [guardrails, setGuardrails] = useState<string[]>([]);
+  const [newGuardrail, setNewGuardrail] = useState("");
+  const [newExampleInput, setNewExampleInput] = useState("");
+  const [newExampleOutput, setNewExampleOutput] = useState("");
+
+  useEffect(() => {
+    if (!expanded) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/v1/agents/training/${agentName}`);
+        if (res.ok) {
+          const data: TrainingConfig[] = await res.json();
+          setConfigs(data);
+
+          // Extract system prompt (default key)
+          const sp = data.find((c) => c.config_type === "system_prompt" && c.config_key === "default");
+          if (sp && typeof sp.config_value === "string") setSystemPrompt(sp.config_value);
+
+          // Extract few-shot examples (default key)
+          const fs = data.find((c) => c.config_type === "few_shot" && c.config_key === "default");
+          if (fs && Array.isArray(fs.config_value)) {
+            setFewShot(fs.config_value as FewShotExample[]);
+          } else {
+            // Try action-specific few-shot
+            const fsAny = data.find((c) => c.config_type === "few_shot");
+            if (fsAny && Array.isArray(fsAny.config_value)) {
+              setFewShot(fsAny.config_value as FewShotExample[]);
+            }
+          }
+
+          // Extract guardrails
+          const gr = data.find((c) => c.config_type === "guardrails" && c.config_key === "default");
+          if (gr && Array.isArray(gr.config_value)) setGuardrails(gr.config_value as string[]);
+        }
+      } catch {
+        // silent
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [agentName, expanded]);
+
+  const saveTraining = async () => {
+    setSaving(true);
+    try {
+      const updates: { config_type: string; config_key: string; config_value: string | string[] | FewShotExample[]; is_active: boolean; priority: number }[] = [];
+
+      if (systemPrompt.trim()) {
+        updates.push({
+          config_type: "system_prompt",
+          config_key: "default",
+          config_value: systemPrompt,
+          is_active: true,
+          priority: 0,
+        });
+      }
+
+      if (fewShot.length > 0) {
+        // Find what key the few-shot was stored under
+        const existingFs = configs.find((c) => c.config_type === "few_shot");
+        updates.push({
+          config_type: "few_shot",
+          config_key: existingFs?.config_key || "default",
+          config_value: fewShot,
+          is_active: true,
+          priority: 0,
+        });
+      }
+
+      if (guardrails.length > 0) {
+        updates.push({
+          config_type: "guardrails",
+          config_key: "default",
+          config_value: guardrails,
+          is_active: true,
+          priority: 0,
+        });
+      }
+
+      const res = await fetch(`/api/v1/agents/training/${agentName}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ configs: updates }),
+      });
+
+      if (res.ok) {
+        toastFn({ title: `${agentName} training saved`, variant: "success" });
+      } else {
+        toastFn({ title: "Failed to save training", variant: "destructive" });
+      }
+    } catch {
+      toastFn({ title: "Failed to save training", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const addGuardrail = () => {
+    if (!newGuardrail.trim()) return;
+    setGuardrails((prev) => [...prev, newGuardrail.trim()]);
+    setNewGuardrail("");
+  };
+
+  const removeGuardrail = (idx: number) => {
+    setGuardrails((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const addExample = () => {
+    if (!newExampleInput.trim() || !newExampleOutput.trim()) return;
+    setFewShot((prev) => [...prev, { input: newExampleInput.trim(), output: newExampleOutput.trim() }]);
+    setNewExampleInput("");
+    setNewExampleOutput("");
+  };
+
+  const removeExample = (idx: number) => {
+    setFewShot((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  return (
+    <div className="mt-3 border-t border-gray-200 dark:border-gray-700 pt-3">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+      >
+        {expanded ? "Hide Training" : "Edit Training"}
+      </button>
+
+      {expanded && (
+        <div className="mt-3 space-y-4">
+          {loading ? (
+            <p className="text-xs text-gray-400 py-2">Loading training config...</p>
+          ) : (
+            <>
+              {/* System Prompt */}
+              <div className="space-y-1">
+                <Label className="text-xs dark:text-gray-300">System Prompt</Label>
+                <textarea
+                  value={systemPrompt}
+                  onChange={(e) => setSystemPrompt(e.target.value)}
+                  rows={4}
+                  className="w-full text-xs font-mono rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 dark:text-gray-100 p-2 resize-y"
+                  placeholder="Enter the system prompt for this agent..."
+                />
+              </div>
+
+              {/* Few-Shot Examples */}
+              <div className="space-y-2">
+                <Label className="text-xs dark:text-gray-300">Few-Shot Examples ({fewShot.length})</Label>
+                {fewShot.map((ex, idx) => (
+                  <div key={idx} className="relative p-2 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                    <button
+                      type="button"
+                      onClick={() => removeExample(idx)}
+                      className="absolute top-1 right-1 text-gray-400 hover:text-red-500"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                    <p className="text-xs dark:text-gray-300"><span className="font-semibold">Input:</span> {typeof ex.input === "string" ? ex.input.slice(0, 120) : "..."}{typeof ex.input === "string" && ex.input.length > 120 ? "..." : ""}</p>
+                    <p className="text-xs dark:text-gray-400 mt-1"><span className="font-semibold">Output:</span> {typeof ex.output === "string" ? ex.output.slice(0, 120) : "..."}{typeof ex.output === "string" && ex.output.length > 120 ? "..." : ""}</p>
+                  </div>
+                ))}
+                <div className="space-y-1">
+                  <Input
+                    placeholder="Example input..."
+                    value={newExampleInput}
+                    onChange={(e) => setNewExampleInput(e.target.value)}
+                    className="text-xs dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+                  />
+                  <Input
+                    placeholder="Expected output..."
+                    value={newExampleOutput}
+                    onChange={(e) => setNewExampleOutput(e.target.value)}
+                    className="text-xs dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+                  />
+                  <Button size="sm" variant="outline" onClick={addExample}
+                    disabled={!newExampleInput.trim() || !newExampleOutput.trim()}
+                    className="dark:border-gray-700 dark:text-gray-300">
+                    <Plus className="h-3 w-3 mr-1" /> Add Example
+                  </Button>
+                </div>
+              </div>
+
+              {/* Guardrails */}
+              <div className="space-y-2">
+                <Label className="text-xs dark:text-gray-300">Guardrails ({guardrails.length})</Label>
+                {guardrails.map((g, idx) => (
+                  <div key={idx} className="flex items-center gap-2 text-xs">
+                    <span className="flex-1 text-gray-700 dark:text-gray-300">- {g}</span>
+                    <button type="button" onClick={() => removeGuardrail(idx)} className="text-gray-400 hover:text-red-500">
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="New guardrail rule..."
+                    value={newGuardrail}
+                    onChange={(e) => setNewGuardrail(e.target.value)}
+                    className="text-xs dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+                    onKeyDown={(e) => { if (e.key === "Enter") addGuardrail(); }}
+                  />
+                  <Button size="sm" variant="outline" onClick={addGuardrail}
+                    disabled={!newGuardrail.trim()}
+                    className="dark:border-gray-700 dark:text-gray-300">
+                    <Plus className="h-3 w-3 mr-1" /> Add
+                  </Button>
+                </div>
+              </div>
+
+              {/* Save button */}
+              <Button size="sm" onClick={saveTraining} disabled={saving}>
+                <Save className="h-4 w-4 mr-1" /> {saving ? "Saving..." : "Save Training"}
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AgentStatusTab() {
+  const { toast } = useToast();
   const [agents, setAgents] = useState<AgentStatusEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -842,7 +1091,7 @@ function AgentStatusTab() {
     <div className="space-y-4">
       <p className="text-sm text-gray-500 dark:text-gray-400">
         FortressFlow agents are autonomous workers that operate within each platform.
-        Configure API keys in the API Keys tab to activate each agent.
+        Configure API keys in the API Keys tab to activate each agent. Expand any agent to edit its training.
       </p>
 
       {loading ? (
@@ -905,6 +1154,9 @@ function AgentStatusTab() {
                 {agent?.has_env_key && !agent?.has_db_key && (
                   <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">Using system environment key</p>
                 )}
+
+                {/* Training Editor */}
+                <AgentTrainingEditor agentName={name} toast={toast} />
               </CardContent>
             </Card>
           );

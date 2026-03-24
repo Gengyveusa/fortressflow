@@ -63,11 +63,25 @@ class OpenAIAgent:
         stream: bool = False,
         json_mode: bool = False,
         user_id: UUID | None = None,
+        prompt_engine_context: dict | None = None,
     ) -> str | AsyncGenerator[str, None]:
         """GPT-4o-mini chat completions — streaming and non-streaming."""
         _check_rate_limit(str(user_id or "anon"))
         api_key = await _get_api_key(db, user_id)
         client = _get_client(api_key)
+
+        # Inject PromptEngine system prompt if no system message exists
+        if prompt_engine_context and user_id:
+            has_system = any(m.get("role") == "system" for m in messages)
+            if not has_system:
+                try:
+                    pe = prompt_engine_context.get("prompt_engine")
+                    if pe:
+                        action = prompt_engine_context.get("action", "chat")
+                        sys_prompt = await pe.build_system_prompt(db, user_id, "openai", action)
+                        messages = [{"role": "system", "content": sys_prompt}] + messages
+                except Exception as exc:
+                    logger.debug("PromptEngine fallback for openai.chat: %s", exc)
 
         kwargs: dict = {
             "model": DEFAULT_CHAT_MODEL,
@@ -100,6 +114,7 @@ class OpenAIAgent:
         db: AsyncSession,
         texts: list[str],
         user_id: UUID | None = None,
+        prompt_engine_context: dict | None = None,
     ) -> list[list[float]]:
         """Generate embeddings using text-embedding-3-small."""
         _check_rate_limit(str(user_id or "anon"))
@@ -119,6 +134,7 @@ class OpenAIAgent:
         db: AsyncSession,
         content: str,
         user_id: UUID | None = None,
+        prompt_engine_context: dict | None = None,
     ) -> dict:
         """Run content through OpenAI's moderation endpoint."""
         _check_rate_limit(str(user_id or "anon"))
@@ -145,6 +161,7 @@ class OpenAIAgent:
         text: str,
         schema_description: str,
         user_id: UUID | None = None,
+        prompt_engine_context: dict | None = None,
     ) -> dict:
         """Extract structured JSON from unstructured text using json_mode."""
         _check_rate_limit(str(user_id or "anon"))
@@ -178,6 +195,7 @@ class OpenAIAgent:
         template_content: str,
         metrics: dict,
         user_id: UUID | None = None,
+        prompt_engine_context: dict | None = None,
     ) -> dict:
         """Analyze email template effectiveness based on performance metrics."""
         _check_rate_limit(str(user_id or "anon"))
@@ -218,6 +236,7 @@ class OpenAIAgent:
         channel: str,
         metrics: dict,
         user_id: UUID | None = None,
+        prompt_engine_context: dict | None = None,
     ) -> list[dict]:
         """Suggest content improvements based on channel and performance data."""
         _check_rate_limit(str(user_id or "anon"))

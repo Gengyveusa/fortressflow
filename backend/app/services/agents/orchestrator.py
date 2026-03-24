@@ -155,6 +155,20 @@ class AgentOrchestrator:
 
             # Inject db and user_id into params
             call_params = {**params, "db": db, "user_id": user_id}
+
+            # Inject prompt engine context for LLM agents
+            if agent_name in ("groq", "openai") and "prompt_engine_context" not in call_params:
+                try:
+                    from app.services.agents.prompt_engine import PromptEngine
+                    pe = PromptEngine()
+                    call_params["prompt_engine_context"] = {
+                        "agent_name": agent_name,
+                        "action": action,
+                        "prompt_engine": pe,
+                    }
+                except Exception:
+                    pass  # Non-critical — agents fall back to hardcoded prompts
+
             result = await method(**call_params)
 
             latency_ms = int((time.time() - start) * 1000)
