@@ -16,6 +16,12 @@ import {
   Trash2,
   RefreshCw,
   Save,
+  Bot,
+  Cpu,
+  Zap,
+  Phone,
+  Building2,
+  Search,
 } from "lucide-react";
 import {
   Card,
@@ -770,6 +776,144 @@ function LinkedInTab() {
   );
 }
 
+// ── Agent Status Tab ──────────────────────────────────────
+
+interface AgentStatusEntry {
+  agent_name: string;
+  configured: boolean;
+  has_db_key: boolean;
+  has_env_key: boolean;
+}
+
+const AGENT_META: Record<string, { label: string; description: string; icon: React.ReactNode; capabilities: string[] }> = {
+  groq: {
+    label: "Groq (LLM)",
+    description: "Primary AI engine — Llama 3.3 70B for chat, content generation, reply classification, compliance checks",
+    icon: <Cpu className="h-5 w-5 text-purple-500" />,
+    capabilities: ["Chat completions", "Sequence content generation", "Reply classification", "Compliance checking", "A/B variants", "Warmup emails", "Lead scoring narratives", "Analytics summaries"],
+  },
+  openai: {
+    label: "OpenAI (LLM Fallback)",
+    description: "Fallback AI + embeddings + content moderation — GPT-4o Mini",
+    icon: <Zap className="h-5 w-5 text-green-500" />,
+    capabilities: ["Chat completions (fallback)", "Text embeddings", "Content moderation", "Structured extraction", "Template analysis", "Improvement suggestions"],
+  },
+  hubspot: {
+    label: "HubSpot CRM",
+    description: "Full CRM operations — contacts, deals, companies, lists, activities, analytics",
+    icon: <Building2 className="h-5 w-5 text-orange-500" />,
+    capabilities: ["Contact CRUD + bulk", "Deal pipeline", "Company management", "List management", "Activity logging", "Task creation", "Properties", "Analytics", "Bidirectional sync"],
+  },
+  zoominfo: {
+    label: "ZoomInfo Intelligence",
+    description: "Lead & company enrichment, intent signals, org charts, news, verification",
+    icon: <Search className="h-5 w-5 text-blue-500" />,
+    capabilities: ["Person enrichment", "Company enrichment", "People search", "Company search", "Intent signals", "Scoops & news", "Tech stack", "Email/phone verification", "Bulk enrichment"],
+  },
+  twilio: {
+    label: "Twilio Communications",
+    description: "SMS, voice, OTP verification, phone lookup, number management",
+    icon: <Phone className="h-5 w-5 text-red-500" />,
+    capabilities: ["SMS send + bulk", "Voice calls", "OTP verification", "Phone lookup", "Number management", "Messaging services", "Delivery analytics"],
+  },
+};
+
+function AgentStatusTab() {
+  const [agents, setAgents] = useState<AgentStatusEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/v1/agents/status");
+        if (res.ok) {
+          const data = await res.json();
+          setAgents(data.agents || data || []);
+        }
+      } catch {
+        // silent
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        FortressFlow agents are autonomous workers that operate within each platform.
+        Configure API keys in the API Keys tab to activate each agent.
+      </p>
+
+      {loading ? (
+        <p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">Loading agent status...</p>
+      ) : (
+        Object.entries(AGENT_META).map(([name, meta]) => {
+          const agent = agents.find((a) => a.agent_name === name);
+          const isConfigured = agent?.configured ?? false;
+
+          return (
+            <Card key={name} className="dark:bg-gray-900 dark:border-gray-800">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                      {meta.icon}
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold dark:text-gray-100">
+                        {meta.label}
+                      </CardTitle>
+                      <CardDescription className="text-xs dark:text-gray-400">
+                        {meta.description}
+                      </CardDescription>
+                    </div>
+                  </div>
+                  <Badge
+                    className={
+                      isConfigured
+                        ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                        : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                    }
+                  >
+                    {isConfigured ? (
+                      <><CheckCircle2 className="h-3 w-3 mr-1" /> Active</>
+                    ) : (
+                      <><XCircle className="h-3 w-3 mr-1" /> Not configured</>
+                    )}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-1.5">
+                  {meta.capabilities.map((cap) => (
+                    <span
+                      key={cap}
+                      className={`text-xs px-2 py-0.5 rounded-full border ${
+                        isConfigured
+                          ? "bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300"
+                          : "bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500"
+                      }`}
+                    >
+                      {cap}
+                    </span>
+                  ))}
+                </div>
+                {agent?.has_db_key && (
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-2">Using user-configured API key</p>
+                )}
+                {agent?.has_env_key && !agent?.has_db_key && (
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">Using system environment key</p>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────
 export default function SettingsPage() {
   return (
@@ -805,6 +949,9 @@ export default function SettingsPage() {
           <TabsTrigger value="linkedin" className="dark:text-gray-400 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-gray-100">
             <Linkedin className="h-4 w-4 mr-1.5" /> LinkedIn
           </TabsTrigger>
+          <TabsTrigger value="agents" className="dark:text-gray-400 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-gray-100">
+            <Bot className="h-4 w-4 mr-1.5" /> AI Agents
+          </TabsTrigger>
         </TabsList>
 
         <div className="mt-6">
@@ -822,6 +969,9 @@ export default function SettingsPage() {
           </TabsContent>
           <TabsContent value="linkedin">
             <LinkedInTab />
+          </TabsContent>
+          <TabsContent value="agents">
+            <AgentStatusTab />
           </TabsContent>
         </div>
       </Tabs>

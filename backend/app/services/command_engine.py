@@ -9,8 +9,10 @@ to the appropriate handler (campaign wizard, business intelligence, etc.).
 import json
 import logging
 from typing import Any
+from uuid import UUID
 
 from app.config import settings
+from app.services.agents.orchestrator import AgentOrchestrator
 from app.utils.sanitize import sanitize_error
 
 logger = logging.getLogger(__name__)
@@ -32,6 +34,11 @@ INTENTS = {
     # Configuration
     "configure_integration": "Set up / connect API keys",
     "check_integrations": "What's connected / integration status",
+    # Agent operations
+    "send_sms": "Send an SMS or text message to a phone number",
+    "sync_crm": "Sync leads/contacts with HubSpot CRM",
+    "search_company": "Search for company information or intelligence",
+    "ai_generate": "Generate AI content, copy, or analysis",
     # Help
     "get_help": "How do I / what can you do / help",
     "unknown": "Can't classify",
@@ -59,6 +66,10 @@ Extract these entities when present:
 - sequence_length: number of steps in a sequence (e.g., 5, 7)
 - company_size: target company size (e.g., "solo practice", "DSO", "5+ locations")
 - integration_name: name of integration (e.g., "hubspot", "zoominfo", "apollo")
+- phone_number: phone number for SMS (e.g., "+15551234567")
+- sms_body: text message body to send
+- company_query: company name or search term
+- ai_prompt: content generation prompt or question
 
 Respond ONLY with valid JSON — no markdown, no explanation:
 {{"intent": "<intent_name>", "confidence": <0.0-1.0>, "entities": {{...extracted entities...}}, "missing_required": [...]}}
@@ -71,6 +82,10 @@ Rules:
 - For "find_leads", required entities are: specialty_or_criteria
 - For "check_status", nothing is required
 - For "pause_campaign" / "resume_campaign", campaign_name is required
+- For "send_sms", required entities are: phone_number, sms_body
+- For "sync_crm", nothing is required
+- For "search_company", required entities are: company_query
+- For "ai_generate", required entities are: ai_prompt
 
 User message: {message}"""
 
@@ -148,6 +163,7 @@ class CommandEngine:
         user_id: str,
         session_id: str,
         session_state: dict[str, Any] | None = None,
+        db=None,
     ) -> dict[str, Any]:
         """
         Route a classified intent to the appropriate handler.
@@ -204,7 +220,7 @@ class CommandEngine:
             }
 
         if intent == "enrich_leads":
-            return await self._handle_enrich_leads(result.entities)
+            return await self._handle_enrich_leads(result.entities, user_id, db)
 
         if intent == "pause_campaign":
             return await self._handle_pause_campaign(result.entities, user_id)
@@ -216,7 +232,19 @@ class CommandEngine:
             return self._handle_configure_integration(result.entities)
 
         if intent == "check_integrations":
-            return await self._handle_check_integrations()
+            return await self._handle_check_integrations(user_id, db)
+
+        if intent == "send_sms":
+            return await self._handle_send_sms(result.entities, user_id, db)
+
+        if intent == "sync_crm":
+            return await self._handle_sync_crm(result.entities, user_id, db)
+
+        if intent == "search_company":
+            return await self._handle_search_company(result.entities, user_id, db)
+
+        if intent == "ai_generate":
+            return await self._handle_ai_generate(result.entities, user_id, db)
 
         if intent == "get_help":
             return self._handle_help()
@@ -297,18 +325,53 @@ class CommandEngine:
             ),
         }
 
-    async def _handle_enrich_leads(self, entities: dict[str, Any]) -> dict[str, Any]:
-        """Trigger lead enrichment."""
+    async def _handle_enrich_leads(
+        self, entities: dict[str, Any], user_id: str, db=None
+    ) -> dict[str, Any]:
+        """Trigger lead enrichment — counts un-enriched leads and dispatches to ZoomInfo."""
         from sqlalchemy import func, select
 
         from app.database import AsyncSessionLocal
         from app.models.lead import Lead
 
-        async with AsyncSessionLocal() as db:
-            result = await db.execute(
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
                 select(func.count(Lead.id)).where(Lead.last_enriched_at.is_(None))
             )
             unenriched = result.scalar_one() or 0
+
+        if unenriched == 0:
+            return {
+                "type": "text",
+                "content": "All leads are already enriched! No action needed.",
+            }
+
+        # If we have a db session, dispatch enrichment to ZoomInfo agent
+        if db is not None:
+            try:
+                uid = UUID(user_id) if isinstance(user_id, str) else user_id
+                agent_result = await AgentOrchestrator.dispatch(
+                    db=db,
+                    agent_name="zoominfo",
+                    action="search_contacts",
+                    params={"limit": min(unenriched, 100)},
+                    user_id=uid,
+                )
+                if agent_result.get("status") == "success":
+                    return {
+                        "type": "text",
+                        "content": (
+                            f"**{unenriched}** leads need enrichment.\n\n"
+                            "ZoomInfo enrichment has been initiated. Results will be applied "
+                            "to your leads as they come in.\n\n"
+                            f"Enrichment latency: {agent_result.get('latency_ms', 'N/A')}ms"
+                        ),
+                    }
+                else:
+                    error = agent_result.get("error", "Unknown error")
+                    logger.warning("ZoomInfo enrichment dispatch failed: %s", error)
+            except Exception as exc:
+                logger.warning("Failed to dispatch to ZoomInfo: %s", sanitize_error(exc))
 
         return {
             "type": "text",
@@ -464,8 +527,10 @@ class CommandEngine:
             ),
         }
 
-    async def _handle_check_integrations(self) -> dict[str, Any]:
-        """Show current integration status."""
+    async def _handle_check_integrations(
+        self, user_id: str = "", db=None
+    ) -> dict[str, Any]:
+        """Show current integration status including AI agent status."""
         integrations = []
 
         def _status(enabled: bool, has_key: bool) -> str:
@@ -494,9 +559,172 @@ class CommandEngine:
             f"- **LinkedIn**: {'Configured' if settings.LINKEDIN_OAUTH_CLIENT_ID else 'Not configured'}"
         )
 
+        # Add AI agent status if db session is available
+        agent_section = ""
+        if db is not None and user_id:
+            try:
+                uid = UUID(user_id) if isinstance(user_id, str) else user_id
+                agent_statuses = await AgentOrchestrator.get_agent_status(db, uid)
+                agent_lines = []
+                for agent in agent_statuses:
+                    name = agent["agent_name"].capitalize()
+                    status = "Configured" if agent["configured"] else "Not configured"
+                    source = ""
+                    if agent["configured"]:
+                        source = " (DB key)" if agent["has_db_key"] else " (env key)"
+                    agent_lines.append(f"- **{name} Agent**: {status}{source}")
+                agent_section = "\n\n**AI Agent Status**\n\n" + "\n".join(agent_lines)
+            except Exception as exc:
+                logger.warning("Failed to fetch agent status: %s", sanitize_error(exc))
+
         return {
             "type": "text",
-            "content": "**Integration Status**\n\n" + "\n".join(integrations),
+            "content": "**Integration Status**\n\n" + "\n".join(integrations) + agent_section,
+        }
+
+    async def _handle_send_sms(
+        self, entities: dict[str, Any], user_id: str, db=None
+    ) -> dict[str, Any]:
+        """Dispatch SMS sending to Twilio agent."""
+        phone_number = entities.get("phone_number", "")
+        sms_body = entities.get("sms_body", "")
+
+        if not phone_number or not sms_body:
+            return {
+                "type": "text",
+                "content": (
+                    "To send an SMS, I need:\n"
+                    "- **Phone number** (e.g., +15551234567)\n"
+                    "- **Message body**\n\n"
+                    "Example: \"Send SMS to +15551234567: Hello from FortressFlow!\""
+                ),
+            }
+
+        if db is None:
+            return {"type": "text", "content": "Unable to send SMS — no database session available."}
+
+        uid = UUID(user_id) if isinstance(user_id, str) else user_id
+        result = await AgentOrchestrator.dispatch(
+            db=db,
+            agent_name="twilio",
+            action="send_sms",
+            params={"to": phone_number, "body": sms_body},
+            user_id=uid,
+        )
+
+        if result.get("status") == "success":
+            return {
+                "type": "text",
+                "content": f"SMS sent to **{phone_number}** successfully! (latency: {result.get('latency_ms', 'N/A')}ms)",
+            }
+        return {
+            "type": "text",
+            "content": f"Failed to send SMS: {result.get('error', 'Unknown error')}. Check your Twilio configuration in **Settings → Integrations**.",
+        }
+
+    async def _handle_sync_crm(
+        self, entities: dict[str, Any], user_id: str, db=None
+    ) -> dict[str, Any]:
+        """Dispatch CRM sync to HubSpot agent."""
+        if db is None:
+            return {"type": "text", "content": "Unable to sync CRM — no database session available."}
+
+        uid = UUID(user_id) if isinstance(user_id, str) else user_id
+        result = await AgentOrchestrator.dispatch(
+            db=db,
+            agent_name="hubspot",
+            action="full_sync",
+            params={"user_id": str(user_id)},
+            user_id=uid,
+        )
+
+        if result.get("status") == "success":
+            return {
+                "type": "text",
+                "content": (
+                    "HubSpot CRM sync initiated successfully!\n\n"
+                    f"Latency: {result.get('latency_ms', 'N/A')}ms\n\n"
+                    "Contacts, deals, and companies will be synced. "
+                    "Check the **Leads** page for updated data."
+                ),
+            }
+        return {
+            "type": "text",
+            "content": f"CRM sync failed: {result.get('error', 'Unknown error')}. Check your HubSpot API key in **Settings → Integrations**.",
+        }
+
+    async def _handle_search_company(
+        self, entities: dict[str, Any], user_id: str, db=None
+    ) -> dict[str, Any]:
+        """Dispatch company search to ZoomInfo agent."""
+        company_query = entities.get("company_query", "")
+
+        if not company_query:
+            return {
+                "type": "text",
+                "content": "What company would you like to search for? Provide a company name or search term.",
+            }
+
+        if db is None:
+            return {"type": "text", "content": "Unable to search — no database session available."}
+
+        uid = UUID(user_id) if isinstance(user_id, str) else user_id
+        result = await AgentOrchestrator.dispatch(
+            db=db,
+            agent_name="zoominfo",
+            action="search_companies",
+            params={"query": company_query},
+            user_id=uid,
+        )
+
+        if result.get("status") == "success":
+            data = result.get("result", {})
+            return {
+                "type": "text",
+                "content": (
+                    f"Company search results for **{company_query}**:\n\n"
+                    f"{json.dumps(data, indent=2, default=str)[:2000]}\n\n"
+                    f"Latency: {result.get('latency_ms', 'N/A')}ms"
+                ),
+            }
+        return {
+            "type": "text",
+            "content": f"Company search failed: {result.get('error', 'Unknown error')}. Check your ZoomInfo API key in **Settings → Integrations**.",
+        }
+
+    async def _handle_ai_generate(
+        self, entities: dict[str, Any], user_id: str, db=None
+    ) -> dict[str, Any]:
+        """Dispatch AI content generation to Groq agent."""
+        ai_prompt = entities.get("ai_prompt", "")
+
+        if not ai_prompt:
+            return {
+                "type": "text",
+                "content": "What would you like me to generate? Provide a prompt or topic.",
+            }
+
+        if db is None:
+            return {"type": "text", "content": "Unable to generate content — no database session available."}
+
+        uid = UUID(user_id) if isinstance(user_id, str) else user_id
+        result = await AgentOrchestrator.dispatch(
+            db=db,
+            agent_name="groq",
+            action="chat",
+            params={"messages": [{"role": "user", "content": ai_prompt}]},
+            user_id=uid,
+        )
+
+        if result.get("status") == "success":
+            content = result.get("result", "")
+            return {
+                "type": "text",
+                "content": f"**AI Generated Content:**\n\n{content}",
+            }
+        return {
+            "type": "text",
+            "content": f"Content generation failed: {result.get('error', 'Unknown error')}. Check your Groq/OpenAI API key in **Settings → Integrations**.",
         }
 
     def _handle_help(self) -> dict[str, Any]:
@@ -520,6 +748,11 @@ class CommandEngine:
                 "**Settings**\n"
                 "- \"Set up HubSpot\" — integration setup guides\n"
                 "- \"What's connected?\" — check integration status\n\n"
+                "**AI Agents**\n"
+                "- \"Send SMS to +1555... saying Hello\" — send a text message via Twilio\n"
+                "- \"Sync my CRM\" — sync contacts/deals with HubSpot\n"
+                "- \"Search for Acme Corp\" — company intelligence via ZoomInfo\n"
+                "- \"Generate a cold email for dentists\" — AI content generation\n\n"
                 "Just type in plain English — I'll figure out what you need!"
             ),
         }

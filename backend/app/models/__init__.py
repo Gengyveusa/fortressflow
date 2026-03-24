@@ -1,3 +1,4 @@
+from app.models.agent_action_log import AgentActionLog
 from app.models.api_configuration import ApiConfiguration
 from app.models.channel_metrics import ChannelMetrics
 from app.models.chat import ChatLog
@@ -22,6 +23,7 @@ from app.models.user import User, UserRole
 from app.models.warmup import WarmupConfig, WarmupQueue, WarmupSeedLog
 
 __all__ = [
+    "AgentActionLog",
     "ApiConfiguration",
     "ChannelMetrics",
     "ChatLog",
