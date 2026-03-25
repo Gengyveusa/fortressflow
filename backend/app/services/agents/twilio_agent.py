@@ -576,3 +576,617 @@ class TwilioAgent:
             "start_date": start_date,
             "end_date": end_date,
         }
+
+    # ── Advanced Messaging ────────────────────────────────────────────────────
+
+    async def send_mms(
+        self,
+        to: str,
+        body: str,
+        media_urls: list[str],
+        from_number: str | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Send an MMS with images/media attachments."""
+        client = await self._get_twilio(user_id)
+        from_num = from_number or settings.TWILIO_PHONE_NUMBER
+
+        if not from_num:
+            return {"success": False, "error": "No from number configured"}
+
+        try:
+            message = await asyncio.to_thread(
+                client.messages.create,
+                body=body,
+                from_=from_num,
+                to=to,
+                media_url=media_urls,
+            )
+            return {
+                "success": True,
+                "sid": message.sid,
+                "status": message.status,
+                "to": to,
+                "media_count": len(media_urls),
+            }
+        except Exception as exc:
+            logger.error("Twilio send_mms error: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+
+    async def send_whatsapp(
+        self,
+        to: str,
+        body: str | None = None,
+        template_sid: str | None = None,
+        template_variables: dict | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Send a WhatsApp Business message."""
+        client = await self._get_twilio(user_id)
+
+        whatsapp_from = getattr(settings, "TWILIO_WHATSAPP_NUMBER", None)
+        if not whatsapp_from:
+            return {"success": False, "error": "TWILIO_WHATSAPP_NUMBER not configured"}
+
+        # Ensure WhatsApp format
+        wa_to = to if to.startswith("whatsapp:") else f"whatsapp:{to}"
+        wa_from = whatsapp_from if whatsapp_from.startswith("whatsapp:") else f"whatsapp:{whatsapp_from}"
+
+        kwargs: dict = {"from_": wa_from, "to": wa_to}
+        if template_sid:
+            kwargs["content_sid"] = template_sid
+            if template_variables:
+                kwargs["content_variables"] = json.dumps(template_variables)
+        elif body:
+            kwargs["body"] = body
+        else:
+            return {"success": False, "error": "Either body or template_sid is required"}
+
+        try:
+            message = await asyncio.to_thread(client.messages.create, **kwargs)
+            return {
+                "success": True,
+                "sid": message.sid,
+                "status": message.status,
+                "to": wa_to,
+                "channel": "whatsapp",
+            }
+        except Exception as exc:
+            logger.error("Twilio send_whatsapp error: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+
+    async def schedule_message(
+        self,
+        to: str,
+        body: str,
+        send_at: str,
+        from_number: str | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Schedule an SMS for future delivery.
+
+        send_at: ISO 8601 datetime string (must be 15+ min in future, max 7 days)
+        """
+        client = await self._get_twilio(user_id)
+        from_num = from_number or settings.TWILIO_PHONE_NUMBER
+
+        messaging_service_sid = getattr(settings, "TWILIO_MESSAGING_SERVICE_SID", None)
+        if not messaging_service_sid:
+            return {"success": False, "error": "TWILIO_MESSAGING_SERVICE_SID required for scheduling"}
+
+        try:
+            message = await asyncio.to_thread(
+                client.messages.create,
+                body=body,
+                messaging_service_sid=messaging_service_sid,
+                to=to,
+                send_at=send_at,
+                schedule_type="fixed",
+            )
+            return {
+                "success": True,
+                "sid": message.sid,
+                "status": message.status,
+                "to": to,
+                "scheduled_for": send_at,
+            }
+        except Exception as exc:
+            logger.error("Twilio schedule_message error: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+
+    async def create_content_template(
+        self,
+        name: str,
+        body: str,
+        variables: dict | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Create a content template for messaging."""
+        client = await self._get_twilio(user_id)
+
+        try:
+            content = await asyncio.to_thread(
+                client.content.v1.contents.create,
+                friendly_name=name,
+                types={"twilio/text": {"body": body}},
+                variables=variables or {},
+            )
+            return {
+                "sid": content.sid,
+                "friendly_name": content.friendly_name,
+                "date_created": str(content.date_created) if content.date_created else None,
+            }
+        except Exception as exc:
+            logger.error("Twilio create_content_template error: %s", exc)
+            return {"error": str(exc)}
+
+
+    async def list_content_templates(
+        self, user_id: UUID | None = None,
+    ) -> list[dict]:
+        """List approved content templates."""
+        client = await self._get_twilio(user_id)
+
+        try:
+            templates = await asyncio.to_thread(client.content.v1.contents.list)
+            return [
+                {
+                    "sid": t.sid,
+                    "friendly_name": t.friendly_name,
+                    "types": t.types,
+                    "date_created": str(t.date_created) if t.date_created else None,
+                }
+                for t in templates
+            ]
+        except Exception as exc:
+            logger.error("Twilio list_content_templates error: %s", exc)
+            return []
+
+
+    # ── Opt-out Management ────────────────────────────────────────────────────
+
+    async def check_opt_out_status(
+        self,
+        phone_number: str,
+        messaging_service_sid: str | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Check if a phone number has opted out."""
+        client = await self._get_twilio(user_id)
+        ms_sid = messaging_service_sid or getattr(settings, "TWILIO_MESSAGING_SERVICE_SID", None)
+
+        if not ms_sid:
+            return {"error": "Messaging service SID required"}
+
+        try:
+            result = await asyncio.to_thread(
+                client.messaging.v1.services(ms_sid).phone_numbers(phone_number).fetch,
+            )
+            return {
+                "phone_number": phone_number,
+                "opted_out": False,
+                "messaging_service_sid": ms_sid,
+            }
+        except Exception as exc:
+            # 404 typically means opted out or not found
+            logger.error("Twilio check_opt_out_status error: %s", exc)
+            return {"phone_number": phone_number, "opted_out": True, "error": str(exc)}
+
+
+    async def process_opt_out(
+        self,
+        phone_number: str,
+        messaging_service_sid: str | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Process a STOP (opt-out) request for a phone number."""
+        client = await self._get_twilio(user_id)
+        ms_sid = messaging_service_sid or getattr(settings, "TWILIO_MESSAGING_SERVICE_SID", None)
+
+        if not ms_sid:
+            return {"success": False, "error": "Messaging service SID required"}
+
+        try:
+            # Add to opt-out list
+            result = await asyncio.to_thread(
+                client.messaging.v1.services(ms_sid).phone_numbers.create,
+                phone_number=phone_number,
+            )
+            return {
+                "success": True,
+                "phone_number": phone_number,
+                "status": "opted_out",
+            }
+        except Exception as exc:
+            logger.error("Twilio process_opt_out error: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+
+    async def process_opt_in(
+        self,
+        phone_number: str,
+        messaging_service_sid: str | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Process a START (opt-in) request for a phone number."""
+        client = await self._get_twilio(user_id)
+        ms_sid = messaging_service_sid or getattr(settings, "TWILIO_MESSAGING_SERVICE_SID", None)
+
+        if not ms_sid:
+            return {"success": False, "error": "Messaging service SID required"}
+
+        try:
+            await asyncio.to_thread(
+                client.messaging.v1.services(ms_sid).phone_numbers(phone_number).delete,
+            )
+            return {
+                "success": True,
+                "phone_number": phone_number,
+                "status": "opted_in",
+            }
+        except Exception as exc:
+            logger.error("Twilio process_opt_in error: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+
+    # ── Voice (expanded) ──────────────────────────────────────────────────────
+
+    async def create_conference(
+        self,
+        friendly_name: str,
+        participants: list[str],
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Create a conference call and dial participants."""
+        client = await self._get_twilio(user_id)
+        from_number = settings.TWILIO_PHONE_NUMBER
+
+        if not from_number:
+            return {"success": False, "error": "No from number configured"}
+
+        results = []
+        for participant_number in participants:
+            try:
+                call = await asyncio.to_thread(
+                    client.calls.create,
+                    to=participant_number,
+                    from_=from_number,
+                    twiml=f'<Response><Dial><Conference>{friendly_name}</Conference></Dial></Response>',
+                )
+                results.append({
+                    "participant": participant_number,
+                    "call_sid": call.sid,
+                    "status": call.status,
+                })
+            except Exception as exc:
+                results.append({
+                    "participant": participant_number,
+                    "error": str(exc),
+                })
+
+        return {
+            "success": True,
+            "conference_name": friendly_name,
+            "participants": results,
+        }
+
+
+    async def record_call(
+        self, call_sid: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Start recording an active call."""
+        client = await self._get_twilio(user_id)
+
+        try:
+            recording = await asyncio.to_thread(
+                client.calls(call_sid).recordings.create,
+            )
+            return {
+                "success": True,
+                "recording_sid": recording.sid,
+                "call_sid": call_sid,
+                "status": recording.status,
+            }
+        except Exception as exc:
+            logger.error("Twilio record_call error: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+
+    async def get_recording(
+        self, recording_sid: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Get recording details and URL."""
+        client = await self._get_twilio(user_id)
+
+        try:
+            recording = await asyncio.to_thread(
+                client.recordings(recording_sid).fetch,
+            )
+            return {
+                "sid": recording.sid,
+                "call_sid": recording.call_sid,
+                "duration": recording.duration,
+                "status": recording.status,
+                "date_created": str(recording.date_created) if recording.date_created else None,
+                "uri": recording.uri,
+            }
+        except Exception as exc:
+            logger.error("Twilio get_recording error: %s", exc)
+            return {"error": str(exc)}
+
+
+    async def get_transcription(
+        self, recording_sid: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Get transcription for a recording."""
+        client = await self._get_twilio(user_id)
+
+        try:
+            transcriptions = await asyncio.to_thread(
+                client.recordings(recording_sid).transcriptions.list,
+            )
+            if not transcriptions:
+                return {"recording_sid": recording_sid, "transcription": None}
+
+            t = transcriptions[0]
+            return {
+                "recording_sid": recording_sid,
+                "transcription_sid": t.sid,
+                "status": t.status,
+                "duration": t.duration,
+                "date_created": str(t.date_created) if t.date_created else None,
+            }
+        except Exception as exc:
+            logger.error("Twilio get_transcription error: %s", exc)
+            return {"error": str(exc)}
+
+
+    # ── Lookup (expanded) ─────────────────────────────────────────────────────
+
+    async def get_line_type(
+        self, phone_number: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Get line type intelligence (mobile/landline/VoIP)."""
+        client = await self._get_twilio(user_id)
+
+        try:
+            result = await asyncio.to_thread(
+                client.lookups.v2.phone_numbers(phone_number).fetch,
+                fields="line_type_intelligence",
+            )
+            line_info = result.line_type_intelligence or {}
+            return {
+                "phone_number": result.phone_number,
+                "carrier_name": line_info.get("carrier_name"),
+                "type": line_info.get("type"),
+                "mobile_country_code": line_info.get("mobile_country_code"),
+                "mobile_network_code": line_info.get("mobile_network_code"),
+            }
+        except Exception as exc:
+            logger.error("Twilio get_line_type error: %s", exc)
+            return {"phone_number": phone_number, "error": str(exc)}
+
+
+    async def get_sim_swap(
+        self, phone_number: str, user_id: UUID | None = None,
+    ) -> dict:
+        """SIM swap detection for fraud prevention."""
+        client = await self._get_twilio(user_id)
+
+        try:
+            result = await asyncio.to_thread(
+                client.lookups.v2.phone_numbers(phone_number).fetch,
+                fields="sim_swap",
+            )
+            sim_swap = result.sim_swap or {}
+            return {
+                "phone_number": result.phone_number,
+                "swapped_recently": sim_swap.get("swapped_recently"),
+                "swapped_period": sim_swap.get("swapped_period"),
+                "last_sim_swap": sim_swap.get("last_sim_swap", {}).get("last_sim_swap_date"),
+            }
+        except Exception as exc:
+            logger.error("Twilio get_sim_swap error: %s", exc)
+            return {"phone_number": phone_number, "error": str(exc)}
+
+
+    async def get_caller_name(
+        self, phone_number: str, user_id: UUID | None = None,
+    ) -> dict:
+        """CNAM lookup — get caller name for a phone number."""
+        client = await self._get_twilio(user_id)
+
+        try:
+            result = await asyncio.to_thread(
+                client.lookups.v2.phone_numbers(phone_number).fetch,
+                fields="caller_name",
+            )
+            caller_name = result.caller_name or {}
+            return {
+                "phone_number": result.phone_number,
+                "caller_name": caller_name.get("caller_name"),
+                "caller_type": caller_name.get("caller_type"),
+            }
+        except Exception as exc:
+            logger.error("Twilio get_caller_name error: %s", exc)
+            return {"phone_number": phone_number, "error": str(exc)}
+
+
+    # ── Conversations ─────────────────────────────────────────────────────────
+
+    async def create_conversation(
+        self, friendly_name: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Create a multi-party conversation."""
+        client = await self._get_twilio(user_id)
+
+        try:
+            conversation = await asyncio.to_thread(
+                client.conversations.v1.conversations.create,
+                friendly_name=friendly_name,
+            )
+            return {
+                "sid": conversation.sid,
+                "friendly_name": conversation.friendly_name,
+                "state": conversation.state,
+                "date_created": str(conversation.date_created) if conversation.date_created else None,
+            }
+        except Exception as exc:
+            logger.error("Twilio create_conversation error: %s", exc)
+            return {"error": str(exc)}
+
+
+    async def add_participant(
+        self,
+        conversation_sid: str,
+        identity_or_address: str,
+        proxy_address: str | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Add a participant to a conversation."""
+        client = await self._get_twilio(user_id)
+
+        kwargs: dict = {}
+        # Determine if it's a chat identity or SMS address
+        if identity_or_address.startswith("+"):
+            kwargs["messaging_binding_address"] = identity_or_address
+            if proxy_address:
+                kwargs["messaging_binding_proxy_address"] = proxy_address
+            elif settings.TWILIO_PHONE_NUMBER:
+                kwargs["messaging_binding_proxy_address"] = settings.TWILIO_PHONE_NUMBER
+        else:
+            kwargs["identity"] = identity_or_address
+
+        try:
+            participant = await asyncio.to_thread(
+                client.conversations.v1.conversations(conversation_sid).participants.create,
+                **kwargs,
+            )
+            return {
+                "sid": participant.sid,
+                "conversation_sid": conversation_sid,
+                "identity": participant.identity,
+            }
+        except Exception as exc:
+            logger.error("Twilio add_participant error: %s", exc)
+            return {"error": str(exc)}
+
+
+    async def send_conversation_message(
+        self,
+        conversation_sid: str,
+        body: str,
+        author: str | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Send a message in a conversation."""
+        client = await self._get_twilio(user_id)
+
+        kwargs: dict = {"body": body}
+        if author:
+            kwargs["author"] = author
+
+        try:
+            message = await asyncio.to_thread(
+                client.conversations.v1.conversations(conversation_sid).messages.create,
+                **kwargs,
+            )
+            return {
+                "sid": message.sid,
+                "conversation_sid": conversation_sid,
+                "body": message.body,
+                "author": message.author,
+                "date_created": str(message.date_created) if message.date_created else None,
+            }
+        except Exception as exc:
+            logger.error("Twilio send_conversation_message error: %s", exc)
+            return {"error": str(exc)}
+
+
+    # ── A2P Compliance ────────────────────────────────────────────────────────
+
+    async def get_brand_registration_status(
+        self, brand_sid: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Check A2P brand registration status."""
+        client = await self._get_twilio(user_id)
+
+        try:
+            brand = await asyncio.to_thread(
+                client.messaging.v1.brand_registrations(brand_sid).fetch,
+            )
+            return {
+                "sid": brand.sid,
+                "status": brand.status,
+                "brand_type": brand.brand_type,
+                "a2p_profile_bundle_sid": brand.a2p_profile_bundle_sid,
+                "date_created": str(brand.date_created) if brand.date_created else None,
+                "date_updated": str(brand.date_updated) if brand.date_updated else None,
+            }
+        except Exception as exc:
+            logger.error("Twilio get_brand_registration_status error: %s", exc)
+            return {"brand_sid": brand_sid, "error": str(exc)}
+
+
+    async def get_campaign_status(
+        self, campaign_sid: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Check A2P messaging campaign status."""
+        client = await self._get_twilio(user_id)
+
+        try:
+            # Access via messaging service
+            campaign = await asyncio.to_thread(
+                client.messaging.v1.services.list,
+                limit=1,
+            )
+            # Try direct US App-to-Person lookup
+            us_app = await asyncio.to_thread(
+                client.messaging.v1.brand_registrations.list,
+                limit=10,
+            )
+            return {
+                "campaign_sid": campaign_sid,
+                "status": "check_console",
+                "note": "Campaign status details are available in the Twilio Console",
+            }
+        except Exception as exc:
+            logger.error("Twilio get_campaign_status error: %s", exc)
+            return {"campaign_sid": campaign_sid, "error": str(exc)}
+
+
+    async def get_toll_free_verification_status(
+        self, phone_number: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Check toll-free number verification status."""
+        client = await self._get_twilio(user_id)
+
+        try:
+            # List toll-free verifications
+            verifications = await asyncio.to_thread(
+                client.messaging.v1.tollfree_verifications.list,
+                tollfree_phone_number_sid=phone_number,
+                limit=1,
+            )
+            if not verifications:
+                return {
+                    "phone_number": phone_number,
+                    "status": "not_found",
+                    "verified": False,
+                }
+
+            v = verifications[0]
+            return {
+                "phone_number": phone_number,
+                "sid": v.sid,
+                "status": v.status,
+                "date_created": str(v.date_created) if v.date_created else None,
+                "date_updated": str(v.date_updated) if v.date_updated else None,
+            }
+        except Exception as exc:
+            logger.error("Twilio get_toll_free_verification_status error: %s", exc)
+            return {"phone_number": phone_number, "error": str(exc)}
+

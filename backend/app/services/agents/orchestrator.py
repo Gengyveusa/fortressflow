@@ -20,6 +20,8 @@ _AGENT_REGISTRY: dict[str, tuple[str, str]] = {
     "hubspot": ("app.services.agents.hubspot_agent", "HubSpotAgent"),
     "zoominfo": ("app.services.agents.zoominfo_agent", "ZoomInfoAgent"),
     "twilio": ("app.services.agents.twilio_agent", "TwilioAgent"),
+    "apollo": ("app.services.agents.apollo_agent", "ApolloAgent"),
+    "taplio": ("app.services.agents.taplio_agent", "TaplioAgent"),
 }
 
 # Allowed actions per agent (whitelist)
@@ -43,6 +45,7 @@ _ALLOWED_ACTIONS: dict[str, set[str]] = {
         "suggest_improvements",
     },
     "hubspot": {
+        # ── Core CRM (existing) ──
         "create_contact", "update_contact", "get_contact", "search_contacts",
         "bulk_create_contacts", "merge_contacts", "delete_contact",
         "create_deal", "update_deal", "move_deal_stage", "get_pipeline", "get_deals",
@@ -52,16 +55,54 @@ _ALLOWED_ACTIONS: dict[str, set[str]] = {
         "create_property", "get_properties",
         "get_contact_activity", "get_pipeline_report",
         "full_sync", "pull_updates",
+        # ── Pipelines ──
+        "create_pipeline", "update_pipeline", "delete_pipeline",
+        "get_pipeline_stages", "create_pipeline_stage", "update_pipeline_stage",
+        # ── Associations v4 ──
+        "create_association", "get_associations", "delete_association", "batch_create_associations",
+        # ── CRM Search & Import/Export ──
+        "crm_search", "import_contacts", "get_import_status", "export_contacts",
+        # ── Marketing Emails & Campaigns ──
+        "send_transactional_email", "get_marketing_emails", "get_email_statistics",
+        "create_campaign_marketing", "get_campaign_report",
+        # ── Forms ──
+        "list_forms", "get_form_submissions", "create_form",
+        # ── Engagements (expanded) ──
+        "log_postal_mail", "create_task_with_queue",
+        # ── Automation ──
+        "get_workflows", "trigger_workflow", "create_sequence_enrollment",
+        # ── Conversations ──
+        "list_inboxes", "get_threads", "send_message",
+        # ── Commerce ──
+        "create_invoice", "create_payment", "create_subscription",
+        # ── Settings ──
+        "list_hubspot_users", "list_teams", "list_currencies",
+        # ── Webhooks ──
+        "create_webhook_subscription", "list_webhook_subscriptions", "delete_webhook_subscription",
     },
     "zoominfo": {
+        # ── Existing ──
         "enrich_person", "search_people", "bulk_enrich_people",
         "enrich_company", "search_companies", "get_company_hierarchy",
         "get_intent_signals", "get_surge_scores",
         "get_scoops", "get_news", "get_tech_stack",
         "verify_email", "verify_phone",
         "bulk_enrich", "get_bulk_status", "get_bulk_results",
+        # ── WebSights ──
+        "get_website_visitors", "get_visitor_companies",
+        # ── Compliance ──
+        "check_opt_out", "add_opt_out", "remove_opt_out", "check_gdpr_status",
+        # ── Advanced Search ──
+        "advanced_search_contacts", "search_by_technology",
+        # ── Lookup ──
+        "lookup_by_email", "lookup_by_domain", "lookup_by_phone",
+        # ── Bulk Jobs ──
+        "submit_bulk_job", "get_bulk_job_progress", "cancel_bulk_job",
+        # ── Intelligence ──
+        "get_funding_info", "get_org_chart",
     },
     "twilio": {
+        # ── Existing ──
         "send_sms", "bulk_send_sms", "get_message", "list_messages",
         "make_call", "get_call", "list_calls",
         "send_verification", "check_verification",
@@ -69,6 +110,48 @@ _ALLOWED_ACTIONS: dict[str, set[str]] = {
         "list_phone_numbers", "buy_phone_number", "configure_number", "release_number",
         "create_messaging_service", "add_sender_to_service",
         "get_usage", "get_delivery_stats",
+        # ── MMS & WhatsApp ──
+        "send_mms", "send_whatsapp", "schedule_message",
+        "create_content_template", "list_content_templates",
+        # ── Opt-out Management ──
+        "check_opt_out_status", "process_opt_out", "process_opt_in",
+        # ── Voice (expanded) ──
+        "create_conference", "record_call", "get_recording", "get_transcription",
+        # ── Lookup (expanded) ──
+        "get_line_type", "get_sim_swap", "get_caller_name",
+        # ── Conversations ──
+        "create_conversation", "add_participant", "send_conversation_message",
+        # ── A2P Compliance ──
+        "get_brand_registration_status", "get_campaign_status", "get_toll_free_verification_status",
+    },
+    "apollo": {
+        # ── Search ──
+        "search_people", "search_organizations", "get_organization_job_postings",
+        # ── Enrichment ──
+        "enrich_person", "bulk_enrich_people", "enrich_organization",
+        # ── Contacts ──
+        "create_contact", "update_contact", "bulk_create_contacts",
+        "search_contacts", "delete_contact",
+        # ── Accounts ──
+        "create_account", "update_account", "bulk_create_accounts",
+        # ── Deals ──
+        "create_deal", "list_deals", "get_deal", "update_deal",
+        # ── Sequences ──
+        "search_sequences", "add_contacts_to_sequence", "update_contact_sequence_status",
+        # ── Tasks ──
+        "create_task", "bulk_create_tasks", "search_tasks",
+        # ── Calls ──
+        "create_call_record", "search_calls", "update_call_record",
+        # ── Misc ──
+        "get_usage_stats", "list_users", "list_email_accounts",
+    },
+    "taplio": {
+        # ── Content ──
+        "generate_linkedin_post", "schedule_post", "generate_carousel", "generate_hook",
+        # ── Engagement ──
+        "compose_dm", "bulk_compose_dms", "trigger_zapier_action",
+        # ── Lead Database ──
+        "search_leads", "get_post_analytics", "create_connection_request",
     },
 }
 
@@ -263,6 +346,8 @@ class AgentOrchestrator:
             "hubspot": "hubspot",
             "zoominfo": "zoominfo",
             "twilio": "twilio",
+            "apollo": "apollo",
+            "taplio": "taplio",
         }
 
         statuses = []

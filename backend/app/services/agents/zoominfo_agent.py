@@ -545,3 +545,523 @@ class ZoomInfoAgent:
         """Close the underlying HTTP client."""
         if self._client and not self._client.is_closed:
             await self._client.aclose()
+
+    # ── WebSights ─────────────────────────────────────────────────────────────
+
+    async def get_website_visitors(
+        self,
+        domain: str,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        page: int = 1,
+        page_size: int = 25,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Get website visitors tracked by ZoomInfo WebSights."""
+        body: dict = {
+            "domain": domain,
+            "page": page,
+            "pageSize": min(page_size, 100),
+        }
+        if date_from:
+            body["dateFrom"] = date_from
+        if date_to:
+            body["dateTo"] = date_to
+
+        try:
+            resp = await self._authed_request(
+                "POST", "/websights/v1/visitors", user_id=user_id, json=body,
+            )
+            data = resp.json()
+            visitors = data.get("result", {}).get("data", [])
+            return {
+                "visitors": [
+                    {
+                        "company_name": v.get("companyName"),
+                        "company_id": v.get("companyId"),
+                        "domain": v.get("domain"),
+                        "visit_count": v.get("visitCount"),
+                        "page_views": v.get("pageViews"),
+                        "first_visit": v.get("firstVisit"),
+                        "last_visit": v.get("lastVisit"),
+                        "city": v.get("city"),
+                        "state": v.get("state"),
+                        "country": v.get("country"),
+                    }
+                    for v in visitors
+                ],
+                "total": data.get("result", {}).get("totalResults", 0),
+                "page": page,
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("ZoomInfo get_website_visitors error: %s", exc)
+            return {"error": str(exc)}
+
+
+    async def get_visitor_companies(
+        self,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        user_id: UUID | None = None,
+    ) -> list[dict]:
+        """Get companies visiting your website via WebSights."""
+        body: dict = {}
+        if date_from:
+            body["dateFrom"] = date_from
+        if date_to:
+            body["dateTo"] = date_to
+
+        try:
+            resp = await self._authed_request(
+                "POST", "/websights/v1/companies", user_id=user_id, json=body,
+            )
+            data = resp.json()
+            companies = data.get("result", {}).get("data", [])
+            return [
+                {
+                    "company_id": c.get("companyId"),
+                    "company_name": c.get("companyName"),
+                    "domain": c.get("domain"),
+                    "industry": c.get("industry"),
+                    "employee_count": c.get("employeeCount"),
+                    "visit_count": c.get("visitCount"),
+                    "first_visit": c.get("firstVisit"),
+                    "last_visit": c.get("lastVisit"),
+                }
+                for c in companies
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("ZoomInfo get_visitor_companies error: %s", exc)
+            return []
+
+
+    # ── Compliance ────────────────────────────────────────────────────────────
+
+    async def check_opt_out(
+        self, email: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Check if an email is opted out."""
+        try:
+            resp = await self._authed_request(
+                "POST", "/compliance/v1/optout/check",
+                user_id=user_id,
+                json={"emailAddress": email},
+            )
+            data = resp.json()
+            return {
+                "email": email,
+                "opted_out": data.get("isOptedOut", False),
+                "opt_out_date": data.get("optOutDate"),
+                "reason": data.get("reason"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("ZoomInfo check_opt_out error: %s", exc)
+            return {"email": email, "error": str(exc)}
+
+
+    async def add_opt_out(
+        self, email: str, reason: str | None = None, user_id: UUID | None = None,
+    ) -> dict:
+        """Add an email to the opt-out list."""
+        body: dict = {"emailAddress": email}
+        if reason:
+            body["reason"] = reason
+
+        try:
+            resp = await self._authed_request(
+                "POST", "/compliance/v1/optout/add",
+                user_id=user_id,
+                json=body,
+            )
+            data = resp.json()
+            return {
+                "email": email,
+                "success": True,
+                "status": data.get("status", "opted_out"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("ZoomInfo add_opt_out error: %s", exc)
+            return {"email": email, "success": False, "error": str(exc)}
+
+
+    async def remove_opt_out(
+        self, email: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Remove an email from the opt-out list."""
+        try:
+            resp = await self._authed_request(
+                "POST", "/compliance/v1/optout/remove",
+                user_id=user_id,
+                json={"emailAddress": email},
+            )
+            data = resp.json()
+            return {
+                "email": email,
+                "success": True,
+                "status": data.get("status", "removed"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("ZoomInfo remove_opt_out error: %s", exc)
+            return {"email": email, "success": False, "error": str(exc)}
+
+
+    async def check_gdpr_status(
+        self, email: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Check GDPR compliance status for an email."""
+        try:
+            resp = await self._authed_request(
+                "POST", "/compliance/v1/gdpr/check",
+                user_id=user_id,
+                json={"emailAddress": email},
+            )
+            data = resp.json()
+            return {
+                "email": email,
+                "gdpr_status": data.get("gdprStatus"),
+                "consent_given": data.get("consentGiven", False),
+                "data_region": data.get("dataRegion"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("ZoomInfo check_gdpr_status error: %s", exc)
+            return {"email": email, "error": str(exc)}
+
+
+    # ── Enhanced Search ───────────────────────────────────────────────────────
+
+    async def advanced_search_contacts(
+        self, query: str | None = None, filters: dict | None = None, user_id: UUID | None = None,
+    ) -> list[dict]:
+        """Advanced people search with granular filters.
+
+        filters can include: education, years_experience, certifications,
+        management_level, department, revenue_range, etc.
+        """
+        search_body: dict = {
+            "outputFields": [
+                "firstName", "lastName", "jobTitle", "companyName",
+                "phone", "email", "linkedInUrl", "companyDomain",
+                "city", "state", "country", "managementLevel",
+                "education", "yearsOfExperience",
+            ],
+        }
+        if query:
+            search_body["keyword"] = query
+        if filters:
+            search_body.update(filters)
+
+        try:
+            resp = await self._authed_request(
+                "POST", "/search/contact", user_id=user_id, json=search_body,
+            )
+            results = resp.json().get("result", {}).get("data", [])
+            return [
+                {
+                    "id": p.get("id"),
+                    "first_name": p.get("firstName"),
+                    "last_name": p.get("lastName"),
+                    "email": p.get("email"),
+                    "phone": p.get("phone"),
+                    "job_title": p.get("jobTitle"),
+                    "company_name": p.get("companyName"),
+                    "linkedin_url": p.get("linkedInUrl"),
+                    "management_level": p.get("managementLevel"),
+                    "years_experience": p.get("yearsOfExperience"),
+                    "education": p.get("education"),
+                }
+                for p in results
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("ZoomInfo advanced_search_contacts error: %s", exc)
+            return []
+
+
+    async def search_by_technology(
+        self,
+        technologies: list[str],
+        location: str | None = None,
+        employee_range: str | None = None,
+        user_id: UUID | None = None,
+    ) -> list[dict]:
+        """Find companies using specific technologies."""
+        search_body: dict = {
+            "technographics": [{"name": t} for t in technologies],
+            "outputFields": [
+                "companyName", "website", "revenue", "employeeCount",
+                "industry", "city", "state", "country",
+            ],
+        }
+        if location:
+            search_body["locationCriteria"] = [{"country": location}]
+        if employee_range:
+            search_body["employeeCount"] = employee_range
+
+        try:
+            resp = await self._authed_request(
+                "POST", "/search/company", user_id=user_id, json=search_body,
+            )
+            results = resp.json().get("result", {}).get("data", [])
+            return [
+                {
+                    "id": c.get("id"),
+                    "name": c.get("companyName"),
+                    "website": c.get("website"),
+                    "revenue": c.get("revenue"),
+                    "employee_count": c.get("employeeCount"),
+                    "industry": c.get("industry"),
+                }
+                for c in results
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("ZoomInfo search_by_technology error: %s", exc)
+            return []
+
+
+    # ── Lookup ────────────────────────────────────────────────────────────────
+
+    async def lookup_by_email(
+        self, email: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Lookup a person by email address."""
+        try:
+            resp = await self._authed_request(
+                "POST", "/lookup/v1/email",
+                user_id=user_id,
+                json={"emailAddress": email},
+            )
+            data = resp.json()
+            person = data.get("result", {}).get("data", [{}])[0] if data.get("result", {}).get("data") else {}
+            return {
+                "email": email,
+                "first_name": person.get("firstName"),
+                "last_name": person.get("lastName"),
+                "job_title": person.get("jobTitle"),
+                "company_name": person.get("companyName"),
+                "phone": person.get("phone"),
+                "linkedin_url": person.get("linkedInUrl"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("ZoomInfo lookup_by_email error: %s", exc)
+            return {"email": email, "error": str(exc)}
+
+
+    async def lookup_by_domain(
+        self, domain: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Lookup a company by domain."""
+        try:
+            resp = await self._authed_request(
+                "POST", "/lookup/v1/domain",
+                user_id=user_id,
+                json={"companyDomain": domain},
+            )
+            data = resp.json()
+            company = data.get("result", {}).get("data", [{}])[0] if data.get("result", {}).get("data") else {}
+            return {
+                "domain": domain,
+                "name": company.get("companyName"),
+                "website": company.get("website"),
+                "industry": company.get("industry"),
+                "employee_count": company.get("employeeCount"),
+                "revenue": company.get("revenue"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("ZoomInfo lookup_by_domain error: %s", exc)
+            return {"domain": domain, "error": str(exc)}
+
+
+    async def lookup_by_phone(
+        self, phone: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Lookup a person by phone number."""
+        try:
+            resp = await self._authed_request(
+                "POST", "/lookup/v1/phone",
+                user_id=user_id,
+                json={"phoneNumber": phone},
+            )
+            data = resp.json()
+            person = data.get("result", {}).get("data", [{}])[0] if data.get("result", {}).get("data") else {}
+            return {
+                "phone": phone,
+                "first_name": person.get("firstName"),
+                "last_name": person.get("lastName"),
+                "email": person.get("email"),
+                "job_title": person.get("jobTitle"),
+                "company_name": person.get("companyName"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("ZoomInfo lookup_by_phone error: %s", exc)
+            return {"phone": phone, "error": str(exc)}
+
+
+    # ── Scaling / Bulk Jobs ───────────────────────────────────────────────────
+
+    async def submit_bulk_job(
+        self,
+        job_type: str,
+        records: list[dict],
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Submit an enhanced bulk enrichment job with more options.
+
+        job_type: "enrich_contact", "enrich_company", "search"
+        """
+        try:
+            resp = await self._authed_request(
+                "POST", "/bulk/enrich",
+                user_id=user_id,
+                json={
+                    "inputData": records,
+                    "matchType": job_type,
+                    "outputFields": [
+                        "firstName", "lastName", "email", "phone",
+                        "jobTitle", "companyName", "companyDomain",
+                    ],
+                },
+            )
+            data = resp.json()
+            return {
+                "job_id": data.get("jobId"),
+                "status": data.get("status"),
+                "total_records": len(records),
+                "job_type": job_type,
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("ZoomInfo submit_bulk_job error: %s", exc)
+            return {"error": str(exc)}
+
+
+    async def get_bulk_job_progress(
+        self, job_id: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Get detailed progress tracking for a bulk job."""
+        try:
+            resp = await self._authed_request(
+                "GET", f"/bulk/{job_id}/status", user_id=user_id,
+            )
+            data = resp.json()
+            return {
+                "job_id": job_id,
+                "status": data.get("status"),
+                "progress_percent": data.get("progress"),
+                "total_records": data.get("totalRecords"),
+                "completed_records": data.get("completedRecords"),
+                "failed_records": data.get("failedRecords", 0),
+                "estimated_completion": data.get("estimatedCompletion"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("ZoomInfo get_bulk_job_progress error: %s", exc)
+            return {"error": str(exc)}
+
+
+    async def cancel_bulk_job(
+        self, job_id: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Cancel a running bulk job."""
+        try:
+            resp = await self._authed_request(
+                "POST", f"/bulk/{job_id}/cancel", user_id=user_id,
+            )
+            data = resp.json()
+            return {
+                "job_id": job_id,
+                "status": data.get("status", "cancelled"),
+                "cancelled": True,
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("ZoomInfo cancel_bulk_job error: %s", exc)
+            return {"error": str(exc)}
+
+
+    # ── Company Intelligence ──────────────────────────────────────────────────
+
+    async def get_funding_info(
+        self, company_id: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Get funding rounds, investors, and amounts for a company."""
+        try:
+            resp = await self._authed_request(
+                "POST", "/enrich/company",
+                user_id=user_id,
+                json={
+                    "companyId": company_id,
+                    "outputFields": [
+                        "companyName", "funding", "totalFundingAmount",
+                        "lastFundingDate", "lastFundingAmount", "lastFundingType",
+                        "investors",
+                    ],
+                },
+            )
+            data = resp.json()
+            results = data.get("result", {}).get("data", [])
+            if not results:
+                return {"company_id": company_id, "funding": None}
+            co = results[0]
+            return {
+                "company_id": company_id,
+                "company_name": co.get("companyName"),
+                "total_funding": co.get("totalFundingAmount"),
+                "last_funding_date": co.get("lastFundingDate"),
+                "last_funding_amount": co.get("lastFundingAmount"),
+                "last_funding_type": co.get("lastFundingType"),
+                "investors": co.get("investors", []),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("ZoomInfo get_funding_info error: %s", exc)
+            return {"error": str(exc)}
+
+
+    async def get_org_chart(
+        self,
+        company_id: str,
+        department: str | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Get detailed org chart for a company, optionally filtered by department."""
+        search_body: dict = {
+            "companyId": company_id,
+            "outputFields": [
+                "firstName", "lastName", "jobTitle", "managementLevel",
+                "department", "email", "phone", "linkedInUrl",
+            ],
+        }
+        if department:
+            search_body["department"] = department
+
+        try:
+            resp = await self._authed_request(
+                "POST", "/search/contact", user_id=user_id, json=search_body,
+            )
+            results = resp.json().get("result", {}).get("data", [])
+            people = [
+                {
+                    "first_name": p.get("firstName"),
+                    "last_name": p.get("lastName"),
+                    "job_title": p.get("jobTitle"),
+                    "management_level": p.get("managementLevel"),
+                    "department": p.get("department"),
+                    "email": p.get("email"),
+                    "phone": p.get("phone"),
+                    "linkedin_url": p.get("linkedInUrl"),
+                }
+                for p in results
+            ]
+
+            # Group by management level for org chart structure
+            levels: dict[str, list] = {}
+            for person in people:
+                level = person.get("management_level", "unknown")
+                levels.setdefault(level, []).append(person)
+
+            return {
+                "company_id": company_id,
+                "department": department,
+                "total_people": len(people),
+                "by_level": levels,
+                "people": people,
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("ZoomInfo get_org_chart error: %s", exc)
+            return {"error": str(exc)}
+

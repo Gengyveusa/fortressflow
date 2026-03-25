@@ -63,7 +63,9 @@ const API_KEYS: ApiKeyEntry[] = [
   { name: "hubspot",  label: "HubSpot",  description: "CRM integration for lead sync", placeholder: "pat-na1-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" },
   { name: "zoominfo", label: "ZoomInfo", description: "Enrichment & contact data", placeholder: "eyJhbGciOiJSUzI1NiJ9..." },
   { name: "apollo",   label: "Apollo.io", description: "Prospecting & lead database", placeholder: "apk_xxxxxxxxxxxxxxxxxxxxxxxx" },
-  { name: "twilio",   label: "Twilio",   description: "SMS sending via Twilio", placeholder: "SKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
+  { name: "apollo", label: "Apollo.io", description: "Sales intelligence — 210M+ contacts, sequences, deals", placeholder: "apk_xxxxxxxxxxxxxxxxxxxxxxxx" },
+    { name: "twilio",   label: "Twilio",   description: "SMS sending via Twilio", placeholder: "SKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
+    { name: "taplio_webhook", label: "Taplio (Zapier)", description: "LinkedIn growth via Zapier webhook", placeholder: "https://hooks.zapier.com/hooks/catch/..." },
   { name: "aws_ses",  label: "AWS SES",  description: "Email delivery via Amazon SES", placeholder: "AKIAIOSFODNN7EXAMPLE" },
 ];
 
@@ -818,7 +820,7 @@ const AGENT_META: Record<string, { label: string; description: string; icon: Rea
     label: "HubSpot CRM",
     description: "Full CRM operations — contacts, deals, companies, lists, activities, analytics",
     icon: <Building2 className="h-5 w-5 text-orange-500" />,
-    capabilities: ["Contact CRUD + bulk", "Deal pipeline", "Company management", "List management", "Activity logging", "Task creation", "Properties", "Analytics", "Bidirectional sync"],
+    capabilities: ["Contact CRUD + bulk", "Deal pipeline", "Company management", "Marketing emails", "Campaigns", "Forms", "Workflows", "Sequences", "Conversations", "Commerce", "Associations", "Imports/Exports", "Webhooks"],
   },
   zoominfo: {
     label: "ZoomInfo Intelligence",
@@ -828,9 +830,21 @@ const AGENT_META: Record<string, { label: string; description: string; icon: Rea
   },
   twilio: {
     label: "Twilio Communications",
-    description: "SMS, voice, OTP verification, phone lookup, number management",
+    description: "SMS, MMS, WhatsApp, voice, OTP, phone lookup, A2P compliance",
     icon: <Phone className="h-5 w-5 text-red-500" />,
-    capabilities: ["SMS send + bulk", "Voice calls", "OTP verification", "Phone lookup", "Number management", "Messaging services", "Delivery analytics"],
+    capabilities: ["SMS send + bulk", "MMS", "WhatsApp", "Voice calls", "OTP verification", "Phone lookup", "Message scheduling", "Recordings & transcriptions", "A2P compliance", "Number management"],
+  },
+  apollo: {
+    label: "Apollo.io Intelligence",
+    description: "Sales intelligence — 210M+ contacts, enrichment, sequences, deals, tasks",
+    icon: <Telescope className="h-5 w-5 text-indigo-500" />,
+    capabilities: ["People search", "Company search", "Person enrichment", "Bulk enrichment", "Contact CRM", "Deal management", "Email sequences", "Task management", "Call logging", "Job postings"],
+  },
+  taplio: {
+    label: "Taplio (LinkedIn)",
+    description: "LinkedIn growth — AI posts, DMs, scheduling, lead database via Zapier",
+    icon: <Linkedin className="h-5 w-5 text-sky-500" />,
+    capabilities: ["AI post generation", "Post scheduling", "Carousel creation", "Hook generation", "Personalized DMs", "Bulk DMs", "Lead search", "Connection requests", "Post analytics"],
   },
 };
 

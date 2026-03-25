@@ -41,6 +41,12 @@ INTENTS = {
     "ai_generate": "Generate AI content, copy, or analysis",
     # Multi-agent planning
     "plan_outreach": "I want to contact/reach/email/call X people in Y area / plan a campaign / what are my options for outreach",
+    # Apollo / Taplio / WhatsApp
+    "apollo_search": "Search for contacts or companies in Apollo's 210M+ database by title, location, industry, seniority",
+    "apollo_sequence": "Add contacts to an Apollo email sequence, manage sequence enrollments, or search for sequences",
+    "linkedin_post": "Create, schedule, or manage LinkedIn posts via Taplio — text, carousel, or hook generation",
+    "linkedin_dm": "Send personalized LinkedIn direct messages to prospects via Taplio",
+    "send_whatsapp": "Send a WhatsApp Business message to a contact via Twilio",
     # Help
     "get_help": "How do I / what can you do / help",
     "unknown": "Can't classify",
@@ -72,6 +78,12 @@ Extract these entities when present:
 - sms_body: text message body to send
 - company_query: company name or search term
 - ai_prompt: content generation prompt or question
+- apollo_query: search query for Apollo contacts/companies
+- sequence_name: name of an Apollo sequence
+- linkedin_topic: topic for LinkedIn post
+- linkedin_format: format (text, carousel, article)
+- whatsapp_number: WhatsApp phone number
+- whatsapp_body: WhatsApp message body
 
 Respond ONLY with valid JSON — no markdown, no explanation:
 {{"intent": "<intent_name>", "confidence": <0.0-1.0>, "entities": {{...extracted entities...}}, "missing_required": [...]}}
@@ -88,6 +100,11 @@ Rules:
 - For "sync_crm", nothing is required
 - For "search_company", required entities are: company_query
 - For "ai_generate", required entities are: ai_prompt
+- For "apollo_search", required entities are: apollo_query (title, location, or company)
+- For "apollo_sequence", required entities are: sequence_name or contact reference
+- For "linkedin_post", required entities are: linkedin_topic
+- For "linkedin_dm", required entities are: recipient name or profile reference
+- For "send_whatsapp", required entities are: whatsapp_number, whatsapp_body
 - For "plan_outreach", required entities are: target_description (who to reach). Route here for complex multi-step requests involving lead sourcing + outreach, or when user asks "what are my options" for contacting people
 
 User message: {message}"""
@@ -253,6 +270,22 @@ class CommandEngine:
             return await self._handle_plan_outreach(
                 result.entities, message, user_id, db
             )
+
+
+        if intent == "apollo_search":
+            return await self._handle_apollo_search(result.entities, user_id, db)
+
+        if intent == "apollo_sequence":
+            return await self._handle_apollo_sequence(result.entities, user_id, db)
+
+        if intent == "linkedin_post":
+            return await self._handle_linkedin_post(result.entities, user_id, db)
+
+        if intent == "linkedin_dm":
+            return await self._handle_linkedin_dm(result.entities, user_id, db)
+
+        if intent == "send_whatsapp":
+            return await self._handle_send_whatsapp(result.entities, user_id, db)
 
         if intent == "get_help":
             return self._handle_help()
@@ -835,6 +868,162 @@ class CommandEngine:
                 "type": "text",
                 "content": f"Failed to create outreach plan: {sanitize_error(exc)}",
             }
+
+
+    async def _handle_apollo_search(
+        self, entities: dict[str, Any], user_id: str, db=None
+    ) -> dict[str, Any]:
+        """Search Apollo for contacts or companies."""
+        if db is None:
+            return {"type": "text", "content": "Unable to search — no database session available."}
+
+        query = entities.get("apollo_query", "") or entities.get("specialty", "") or entities.get("company_query", "")
+        location = entities.get("location", "")
+        count = int(entities.get("count", 25))
+
+        if not query and not location:
+            return {
+                "type": "text",
+                "content": (
+                    "What would you like to search for in Apollo? I can search for:\n"
+                    "- **People**: dentists, office managers, DSO executives\n"
+                    "- **Companies**: dental practices, DSOs, dental labs\n\n"
+                    "Example: \"Find periodontists in Denver\" or \"Search for DSOs in Texas\""
+                ),
+            }
+
+        uid = UUID(user_id) if isinstance(user_id, str) else user_id
+        # Determine if searching people or organizations
+        is_org_search = any(kw in query.lower() for kw in ["company", "companies", "organization", "practice", "dso", "lab"])
+
+        if is_org_search:
+            result = await AgentOrchestrator.dispatch(
+                db=db, agent_name="apollo", action="search_organizations",
+                params={"query": query, "locations": [location] if location else None, "per_page": min(count, 100)},
+                user_id=uid,
+            )
+        else:
+            result = await AgentOrchestrator.dispatch(
+                db=db, agent_name="apollo", action="search_people",
+                params={"query": query, "location": location, "per_page": min(count, 100)},
+                user_id=uid,
+            )
+
+        if result.get("status") == "success":
+            data = result.get("result", {})
+            return {
+                "type": "text",
+                "content": (
+                    f"**Apollo Search Results** for \"{query}\"{f' in {location}' if location else ''}:\n\n"
+                    f"{json.dumps(data, indent=2, default=str)[:3000]}\n\n"
+                    f"Latency: {result.get('latency_ms', 'N/A')}ms"
+                ),
+            }
+        return {"type": "text", "content": f"Apollo search failed: {result.get('error', 'Unknown error')}. Check your Apollo API key in Settings."}
+
+    async def _handle_apollo_sequence(
+        self, entities: dict[str, Any], user_id: str, db=None
+    ) -> dict[str, Any]:
+        """Manage Apollo email sequences."""
+        if db is None:
+            return {"type": "text", "content": "Unable to manage sequences — no database session available."}
+
+        uid = UUID(user_id) if isinstance(user_id, str) else user_id
+        result = await AgentOrchestrator.dispatch(
+            db=db, agent_name="apollo", action="search_sequences",
+            params={"query": entities.get("sequence_name", "")},
+            user_id=uid,
+        )
+
+        if result.get("status") == "success":
+            data = result.get("result", {})
+            return {"type": "text", "content": f"**Apollo Sequences:**\n\n{json.dumps(data, indent=2, default=str)[:3000]}"}
+        return {"type": "text", "content": f"Failed to fetch sequences: {result.get('error', 'Unknown error')}"}
+
+    async def _handle_linkedin_post(
+        self, entities: dict[str, Any], user_id: str, db=None
+    ) -> dict[str, Any]:
+        """Generate LinkedIn content via Taplio agent."""
+        if db is None:
+            return {"type": "text", "content": "Unable to generate content — no database session available."}
+
+        topic = entities.get("linkedin_topic", "") or entities.get("ai_prompt", "")
+        if not topic:
+            return {"type": "text", "content": "What topic would you like the LinkedIn post to be about?"}
+
+        uid = UUID(user_id) if isinstance(user_id, str) else user_id
+        result = await AgentOrchestrator.dispatch(
+            db=db, agent_name="taplio", action="generate_linkedin_post",
+            params={"topic": topic, "tone": entities.get("tone", "professional"), "format": entities.get("linkedin_format", "text")},
+            user_id=uid,
+        )
+
+        if result.get("status") == "success":
+            content = result.get("result", "")
+            return {"type": "text", "content": f"**Generated LinkedIn Post:**\n\n{content}\n\nWant me to schedule this or make changes?"}
+        return {"type": "text", "content": f"Post generation failed: {result.get('error', 'Unknown error')}"}
+
+    async def _handle_linkedin_dm(
+        self, entities: dict[str, Any], user_id: str, db=None
+    ) -> dict[str, Any]:
+        """Compose personalized LinkedIn DM via Taplio agent."""
+        if db is None:
+            return {"type": "text", "content": "Unable to compose DM — no database session available."}
+
+        recipient = entities.get("recipient_name", "") or entities.get("name", "")
+        if not recipient:
+            return {"type": "text", "content": "Who would you like to send a LinkedIn message to? Provide their name or profile details."}
+
+        uid = UUID(user_id) if isinstance(user_id, str) else user_id
+        result = await AgentOrchestrator.dispatch(
+            db=db, agent_name="taplio", action="compose_dm",
+            params={
+                "recipient_name": recipient,
+                "recipient_title": entities.get("title", ""),
+                "recipient_company": entities.get("company", ""),
+                "context": entities.get("context", "dental outreach"),
+                "tone": entities.get("tone", "professional"),
+            },
+            user_id=uid,
+        )
+
+        if result.get("status") == "success":
+            dm = result.get("result", "")
+            return {"type": "text", "content": f"**Draft LinkedIn DM for {recipient}:**\n\n{dm}\n\nWant me to send this or make changes?"}
+        return {"type": "text", "content": f"DM generation failed: {result.get('error', 'Unknown error')}"}
+
+    async def _handle_send_whatsapp(
+        self, entities: dict[str, Any], user_id: str, db=None
+    ) -> dict[str, Any]:
+        """Send WhatsApp message via Twilio agent."""
+        phone = entities.get("whatsapp_number", "") or entities.get("phone_number", "")
+        body = entities.get("whatsapp_body", "") or entities.get("sms_body", "")
+
+        if not phone or not body:
+            return {
+                "type": "text",
+                "content": (
+                    "To send a WhatsApp message, I need:\n"
+                    "- **Phone number** (with country code, e.g., +15551234567)\n"
+                    "- **Message body**\n\n"
+                    "Example: \"Send WhatsApp to +15551234567: Hello from FortressFlow!\""
+                ),
+            }
+
+        if db is None:
+            return {"type": "text", "content": "Unable to send — no database session available."}
+
+        uid = UUID(user_id) if isinstance(user_id, str) else user_id
+        result = await AgentOrchestrator.dispatch(
+            db=db, agent_name="twilio", action="send_whatsapp",
+            params={"to": f"whatsapp:{phone}" if not phone.startswith("whatsapp:") else phone, "body": body},
+            user_id=uid,
+        )
+
+        if result.get("status") == "success":
+            return {"type": "text", "content": f"WhatsApp message sent to **{phone}** successfully!"}
+        return {"type": "text", "content": f"Failed to send WhatsApp: {result.get('error', 'Unknown error')}. Check your Twilio configuration."}
+
 
     def _handle_help(self) -> dict[str, Any]:
         """Return help text with available commands."""

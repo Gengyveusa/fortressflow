@@ -2,6 +2,8 @@
 
 The brain that parses commands like "I want to contact 100 dentists in Denver"
 into multi-agent execution plans, validates them, and runs them step-by-step.
+
+Updated for Phase 10: 7 agents with full platform mastery.
 """
 
 import json
@@ -29,37 +31,83 @@ create a structured execution plan using the available agents and their capabili
 
 Available Agents:
 
-1. **groq** — LLM for content generation, classification, compliance checking
+1. **groq** — Primary LLM for content generation, classification, compliance checking
    Actions: chat, generate_sequence_content, classify_reply, check_compliance,
    generate_ab_variants, generate_warmup_email, score_lead_narrative, summarize_analytics
 
-2. **openai** — LLM for embeddings, moderation, structured extraction, analysis
+2. **openai** — Fallback LLM for embeddings, moderation, structured extraction, analysis
    Actions: chat, embed, moderate, extract_structured, analyze_template_performance, suggest_improvements
 
-3. **hubspot** — CRM operations
+3. **hubspot** — Full CRM operations (contacts, deals, companies, marketing, automation, commerce)
    Actions: create_contact, update_contact, get_contact, search_contacts, bulk_create_contacts,
    merge_contacts, delete_contact, create_deal, update_deal, move_deal_stage, get_pipeline, get_deals,
    create_company, update_company, associate_contact_to_company, create_list, add_to_list,
    remove_from_list, log_email, log_call, log_meeting, create_task, log_note,
-   create_property, get_properties, get_contact_activity, get_pipeline_report, full_sync, pull_updates
+   create_property, get_properties, get_contact_activity, get_pipeline_report, full_sync, pull_updates,
+   create_pipeline, update_pipeline, delete_pipeline, get_pipeline_stages, create_pipeline_stage,
+   update_pipeline_stage, create_association, get_associations, delete_association, batch_create_associations,
+   crm_search, import_contacts, get_import_status, export_contacts,
+   send_transactional_email, get_marketing_emails, get_email_statistics,
+   create_campaign_marketing, get_campaign_report,
+   list_forms, get_form_submissions, create_form,
+   log_postal_mail, create_task_with_queue,
+   get_workflows, trigger_workflow, create_sequence_enrollment,
+   list_inboxes, get_threads, send_message,
+   create_invoice, create_payment, create_subscription,
+   list_hubspot_users, list_teams, list_currencies,
+   create_webhook_subscription, list_webhook_subscriptions, delete_webhook_subscription
 
-4. **zoominfo** — Lead intelligence and enrichment
+4. **zoominfo** — Full B2B intelligence (search, enrichment, intent, compliance, WebSights)
    Actions: enrich_person, search_people, bulk_enrich_people, enrich_company, search_companies,
    get_company_hierarchy, get_intent_signals, get_surge_scores, get_scoops, get_news, get_tech_stack,
-   verify_email, verify_phone, bulk_enrich, get_bulk_status, get_bulk_results
+   verify_email, verify_phone, bulk_enrich, get_bulk_status, get_bulk_results,
+   get_website_visitors, get_visitor_companies,
+   check_opt_out, add_opt_out, remove_opt_out, check_gdpr_status,
+   advanced_search_contacts, search_by_technology,
+   lookup_by_email, lookup_by_domain, lookup_by_phone,
+   submit_bulk_job, get_bulk_job_progress, cancel_bulk_job,
+   get_funding_info, get_org_chart
 
-5. **twilio** — SMS and voice communications
+5. **twilio** — Full communications (SMS, MMS, WhatsApp, voice, conferencing, A2P compliance)
    Actions: send_sms, bulk_send_sms, get_message, list_messages, make_call, get_call, list_calls,
-   send_verification, check_verification, lookup_phone, validate_phone, list_phone_numbers,
-   buy_phone_number, configure_number, release_number, create_messaging_service,
-   add_sender_to_service, get_usage, get_delivery_stats
+   send_verification, check_verification, lookup_phone, validate_phone,
+   list_phone_numbers, buy_phone_number, configure_number, release_number,
+   create_messaging_service, add_sender_to_service, get_usage, get_delivery_stats,
+   send_mms, send_whatsapp, schedule_message, create_content_template, list_content_templates,
+   check_opt_out_status, process_opt_out, process_opt_in,
+   create_conference, record_call, get_recording, get_transcription,
+   get_line_type, get_sim_swap, get_caller_name,
+   create_conversation, add_participant, send_conversation_message,
+   get_brand_registration_status, get_campaign_status, get_toll_free_verification_status
+
+6. **apollo** — Sales intelligence & engagement (210M+ contacts, enrichment, sequences, deals)
+   Actions: search_people, search_organizations, get_organization_job_postings,
+   enrich_person, bulk_enrich_people, enrich_organization,
+   create_contact, update_contact, bulk_create_contacts, search_contacts, delete_contact,
+   create_account, update_account, bulk_create_accounts,
+   create_deal, list_deals, get_deal, update_deal,
+   search_sequences, add_contacts_to_sequence, update_contact_sequence_status,
+   create_task, bulk_create_tasks, search_tasks,
+   create_call_record, search_calls, update_call_record,
+   get_usage_stats, list_users, list_email_accounts
+
+7. **taplio** — LinkedIn growth (AI posts, DMs, lead database, analytics via Zapier)
+   Actions: generate_linkedin_post, schedule_post, generate_carousel, generate_hook,
+   compose_dm, bulk_compose_dms, trigger_zapier_action,
+   search_leads, get_post_analytics, create_connection_request
 
 Rules:
 - Always check compliance before any outreach
 - Always verify emails before sending campaigns
-- Use ZoomInfo for finding NEW leads, use HubSpot for EXISTING leads
+- Use ZoomInfo for B2B intelligence and deep enrichment, Apollo for broad search + sequences
+- Use Apollo for finding NEW leads and enrolling in sequences, use HubSpot for EXISTING CRM data
 - For campaigns, always generate content BEFORE creating the sequence
+- Consider Taplio/LinkedIn for high-value prospects (DSO executives, practice owners)
+- Consider Apollo sequences for automated email outreach at scale
+- Consider WhatsApp (via Twilio) for DSO contacts who prefer messaging
 - Return a plan, don't execute yet — the user confirms first
+- When the user asks about "contacting" or "reaching out", consider ALL available channels
+- When the user asks to "find" people, prefer Apollo search (broader database) with ZoomInfo enrichment
 
 Output valid JSON:
 {
@@ -68,9 +116,9 @@ Output valid JSON:
     "steps": [
         {
             "step": 1,
-            "agent": "zoominfo",
+            "agent": "apollo",
             "action": "search_people",
-            "description": "Search for dentists in Denver area",
+            "description": "Search Apollo for dentists in Denver area",
             "params": {},
             "depends_on": null
         }

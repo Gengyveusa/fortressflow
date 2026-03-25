@@ -661,7 +661,2021 @@ class HubSpotAgent:
         since_dt = datetime.fromisoformat(since) if isinstance(since, str) else since
         return await service.pull_contacts_from_hubspot(since=since_dt)
 
+    # ── Pipelines ─────────────────────────────────────────────────────────────
+
+    async def create_pipeline(
+        self,
+        object_type: str,
+        label: str,
+        stages: list[dict],
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Create a pipeline for an object type (deals, tickets, etc.).
+
+        stages: [{"label": "New", "displayOrder": 0}, ...]
+        """
+        try:
+            resp = await self._request_with_backoff(
+                "POST", f"/crm/v3/pipelines/{object_type}",
+                user_id=user_id,
+                json={"label": label, "stages": stages},
+            )
+            data = resp.json()
+            return {
+                "id": data.get("id"),
+                "label": data.get("label"),
+                "stages": [
+                    {"id": s.get("id"), "label": s.get("label"), "displayOrder": s.get("displayOrder")}
+                    for s in data.get("stages", [])
+                ],
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot create_pipeline error: %s", exc)
+            return {"error": str(exc)}
+
+    async def update_pipeline(
+        self,
+        object_type: str,
+        pipeline_id: str,
+        label: str,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Update a pipeline's label."""
+        try:
+            resp = await self._request_with_backoff(
+                "PATCH", f"/crm/v3/pipelines/{object_type}/{pipeline_id}",
+                user_id=user_id,
+                json={"label": label},
+            )
+            data = resp.json()
+            return {"id": data.get("id"), "label": data.get("label")}
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot update_pipeline error: %s", exc)
+            return {"error": str(exc)}
+
+    async def delete_pipeline(
+        self, object_type: str, pipeline_id: str, user_id: UUID | None = None,
+    ) -> bool:
+        """Delete a pipeline."""
+        try:
+            await self._request_with_backoff(
+                "DELETE", f"/crm/v3/pipelines/{object_type}/{pipeline_id}",
+                user_id=user_id,
+            )
+            return True
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot delete_pipeline error: %s", exc)
+            return False
+
+    async def get_pipeline_stages(
+        self, object_type: str, pipeline_id: str, user_id: UUID | None = None,
+    ) -> list[dict]:
+        """Get all stages for a pipeline."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", f"/crm/v3/pipelines/{object_type}/{pipeline_id}/stages",
+                user_id=user_id,
+            )
+            body = resp.json()
+            return [
+                {"id": s.get("id"), "label": s.get("label"), "displayOrder": s.get("displayOrder")}
+                for s in body.get("results", [])
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot get_pipeline_stages error: %s", exc)
+            return []
+
+    async def create_pipeline_stage(
+        self,
+        object_type: str,
+        pipeline_id: str,
+        label: str,
+        display_order: int,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Create a stage in a pipeline."""
+        try:
+            resp = await self._request_with_backoff(
+                "POST", f"/crm/v3/pipelines/{object_type}/{pipeline_id}/stages",
+                user_id=user_id,
+                json={"label": label, "displayOrder": display_order},
+            )
+            data = resp.json()
+            return {
+                "id": data.get("id"),
+                "label": data.get("label"),
+                "displayOrder": data.get("displayOrder"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot create_pipeline_stage error: %s", exc)
+            return {"error": str(exc)}
+
+    async def update_pipeline_stage(
+        self,
+        object_type: str,
+        pipeline_id: str,
+        stage_id: str,
+        label: str,
+        display_order: int | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Update a pipeline stage."""
+        payload: dict = {"label": label}
+        if display_order is not None:
+            payload["displayOrder"] = display_order
+        try:
+            resp = await self._request_with_backoff(
+                "PATCH",
+                f"/crm/v3/pipelines/{object_type}/{pipeline_id}/stages/{stage_id}",
+                user_id=user_id,
+                json=payload,
+            )
+            data = resp.json()
+            return {
+                "id": data.get("id"),
+                "label": data.get("label"),
+                "displayOrder": data.get("displayOrder"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot update_pipeline_stage error: %s", exc)
+            return {"error": str(exc)}
+
+    # ── Associations v4 ───────────────────────────────────────────────────────
+
+    async def create_association(
+        self,
+        from_type: str,
+        from_id: str,
+        to_type: str,
+        to_id: str,
+        association_type: str,
+        user_id: UUID | None = None,
+    ) -> bool:
+        """Create an association between two CRM objects (v4 API)."""
+        try:
+            await self._request_with_backoff(
+                "PUT",
+                f"/crm/v4/objects/{from_type}/{from_id}/associations/{to_type}/{to_id}",
+                user_id=user_id,
+                json=[{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": association_type}],
+            )
+            return True
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot create_association error: %s", exc)
+            return False
+
+    async def get_associations(
+        self,
+        from_type: str,
+        from_id: str,
+        to_type: str,
+        user_id: UUID | None = None,
+    ) -> list[dict]:
+        """Get associations from one object to another type."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET",
+                f"/crm/v4/objects/{from_type}/{from_id}/associations/{to_type}",
+                user_id=user_id,
+            )
+            body = resp.json()
+            return [
+                {
+                    "to_id": a.get("toObjectId"),
+                    "association_types": [
+                        {"category": t.get("category"), "type_id": t.get("typeId"), "label": t.get("label")}
+                        for t in a.get("associationTypes", [])
+                    ],
+                }
+                for a in body.get("results", [])
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot get_associations error: %s", exc)
+            return []
+
+    async def delete_association(
+        self,
+        from_type: str,
+        from_id: str,
+        to_type: str,
+        to_id: str,
+        user_id: UUID | None = None,
+    ) -> bool:
+        """Delete an association between two CRM objects."""
+        try:
+            await self._request_with_backoff(
+                "DELETE",
+                f"/crm/v4/objects/{from_type}/{from_id}/associations/{to_type}/{to_id}",
+                user_id=user_id,
+            )
+            return True
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot delete_association error: %s", exc)
+            return False
+
+    async def batch_create_associations(
+        self,
+        from_type: str,
+        to_type: str,
+        inputs: list[dict],
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Batch create associations between objects."""
+        try:
+            resp = await self._request_with_backoff(
+                "POST",
+                f"/crm/v4/associations/{from_type}/{to_type}/batch/create",
+                user_id=user_id,
+                json={"inputs": inputs},
+            )
+            data = resp.json()
+            return {
+                "status": data.get("status", "COMPLETE"),
+                "results": data.get("results", []),
+                "errors": data.get("errors", []),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot batch_create_associations error: %s", exc)
+            return {"error": str(exc)}
+
+    # ── CRM Search ────────────────────────────────────────────────────────────
+
+    async def crm_search(
+        self,
+        object_type: str,
+        filters: list | None = None,
+        sorts: list | None = None,
+        properties: list[str] | None = None,
+        limit: int = 100,
+        after: str | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Generic CRM search across any object type."""
+        payload: dict = {"limit": min(limit, 100)}
+        if filters:
+            payload["filterGroups"] = [{"filters": filters}]
+        if sorts:
+            payload["sorts"] = sorts
+        if properties:
+            payload["properties"] = properties
+        if after:
+            payload["after"] = after
+
+        try:
+            resp = await self._request_with_backoff(
+                "POST", f"/crm/v3/objects/{object_type}/search",
+                user_id=user_id,
+                json=payload,
+            )
+            body = resp.json()
+            return {
+                "results": [
+                    {"id": r.get("id"), "properties": r.get("properties", {})}
+                    for r in body.get("results", [])
+                ],
+                "total": body.get("total", 0),
+                "paging": body.get("paging"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot crm_search error: %s", exc)
+            return {"error": str(exc)}
+
+    # ── Imports / Exports ─────────────────────────────────────────────────────
+
+    async def import_contacts(
+        self, file_url: str, mapping: dict, user_id: UUID | None = None,
+    ) -> dict:
+        """Start a contact import job."""
+        import_request = {
+            "name": f"import_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}",
+            "importOperations": {"0-1": "CREATE"},
+            "dateFormat": "YEAR_MONTH_DAY",
+            "files": [
+                {
+                    "fileName": "contacts.csv",
+                    "fileImportPage": {
+                        "hasHeader": True,
+                        "columnMappings": [
+                            {
+                                "columnObjectTypeId": "0-1",
+                                "columnName": col,
+                                "propertyName": prop,
+                            }
+                            for col, prop in mapping.items()
+                        ],
+                    },
+                }
+            ],
+        }
+
+        try:
+            resp = await self._request_with_backoff(
+                "POST", "/crm/v3/imports",
+                user_id=user_id,
+                json=import_request,
+            )
+            data = resp.json()
+            return {
+                "id": data.get("id"),
+                "state": data.get("state"),
+                "created_at": data.get("createdAt"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot import_contacts error: %s", exc)
+            return {"error": str(exc)}
+
+    async def get_import_status(
+        self, import_id: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Check the status of an import job."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", f"/crm/v3/imports/{import_id}",
+                user_id=user_id,
+            )
+            data = resp.json()
+            return {
+                "id": data.get("id"),
+                "state": data.get("state"),
+                "opt_out_import": data.get("optOutImport"),
+                "metadata": data.get("metadata"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot get_import_status error: %s", exc)
+            return {"error": str(exc)}
+
+    async def export_contacts(
+        self,
+        filters: list | None = None,
+        properties: list[str] | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Export contacts by searching and building a result set."""
+        props = properties or ["email", "firstname", "lastname", "phone", "company"]
+        search_result = await self.crm_search(
+            object_type="contacts",
+            filters=filters,
+            properties=props,
+            limit=100,
+            user_id=user_id,
+        )
+        if "error" in search_result:
+            return search_result
+
+        return {
+            "contacts": search_result.get("results", []),
+            "total": search_result.get("total", 0),
+            "properties_exported": props,
+            "exported_at": datetime.now(UTC).isoformat(),
+        }
+
+    # ── Marketing ─────────────────────────────────────────────────────────────
+
+    async def send_transactional_email(
+        self,
+        email_id: str,
+        to_email: str,
+        contact_properties: dict | None = None,
+        custom_properties: dict | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Send a transactional email."""
+        payload: dict = {
+            "emailId": int(email_id),
+            "message": {"to": to_email},
+        }
+        if contact_properties:
+            payload["contactProperties"] = contact_properties
+        if custom_properties:
+            payload["customProperties"] = custom_properties
+
+        try:
+            resp = await self._request_with_backoff(
+                "POST", "/marketing/v3/transactional/single-email/send",
+                user_id=user_id,
+                json=payload,
+            )
+            data = resp.json()
+            return {
+                "status": data.get("status"),
+                "send_result": data.get("sendResult"),
+                "requested_at": data.get("requestedAt"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot send_transactional_email error: %s", exc)
+            return {"error": str(exc)}
+
+    async def get_marketing_emails(
+        self, limit: int = 50, offset: int = 0, user_id: UUID | None = None,
+    ) -> list[dict]:
+        """Get marketing emails."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", "/marketing/v3/emails",
+                user_id=user_id,
+                params={"limit": min(limit, 100), "offset": offset},
+            )
+            body = resp.json()
+            return [
+                {
+                    "id": e.get("id"),
+                    "name": e.get("name"),
+                    "subject": e.get("subject"),
+                    "state": e.get("state"),
+                    "type": e.get("type"),
+                }
+                for e in body.get("results", [])
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot get_marketing_emails error: %s", exc)
+            return []
+
+    async def get_email_statistics(
+        self, email_id: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Get statistics for a marketing email."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", f"/marketing/v3/emails/{email_id}/statistics",
+                user_id=user_id,
+            )
+            return resp.json()
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot get_email_statistics error: %s", exc)
+            return {"error": str(exc)}
+
+    async def create_campaign(
+        self,
+        name: str,
+        budget: float | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Create a marketing campaign."""
+        payload: dict = {"name": name}
+        if budget is not None:
+            payload["budget"] = budget
+        if start_date:
+            payload["startDate"] = start_date
+        if end_date:
+            payload["endDate"] = end_date
+
+        try:
+            resp = await self._request_with_backoff(
+                "POST", "/marketing/v3/campaigns",
+                user_id=user_id,
+                json=payload,
+            )
+            data = resp.json()
+            return {
+                "id": data.get("id"),
+                "name": data.get("name"),
+                "budget": data.get("budget"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot create_campaign error: %s", exc)
+            return {"error": str(exc)}
+
+    async def get_campaign_report(
+        self, campaign_id: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Get a campaign's performance report."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", f"/marketing/v3/campaigns/{campaign_id}/reports",
+                user_id=user_id,
+            )
+            return resp.json()
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot get_campaign_report error: %s", exc)
+            return {"error": str(exc)}
+
+    # ── Forms ─────────────────────────────────────────────────────────────────
+
+    async def list_forms(self, user_id: UUID | None = None) -> list[dict]:
+        """List all marketing forms."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", "/marketing/v3/forms", user_id=user_id,
+            )
+            body = resp.json()
+            return [
+                {
+                    "id": f.get("id"),
+                    "name": f.get("name"),
+                    "formType": f.get("formType"),
+                    "createdAt": f.get("createdAt"),
+                }
+                for f in body.get("results", [])
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot list_forms error: %s", exc)
+            return []
+
+    async def get_form_submissions(
+        self, form_id: str, user_id: UUID | None = None,
+    ) -> list[dict]:
+        """Get form submissions."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", f"/marketing/v3/forms/{form_id}/submissions",
+                user_id=user_id,
+            )
+            body = resp.json()
+            return [
+                {
+                    "submittedAt": s.get("submittedAt"),
+                    "values": s.get("values", []),
+                }
+                for s in body.get("results", [])
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot get_form_submissions error: %s", exc)
+            return []
+
+    async def create_form(
+        self,
+        name: str,
+        form_type: str = "hubspot",
+        fields: list[dict] | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Create a marketing form."""
+        payload: dict = {"name": name, "formType": form_type}
+        if fields:
+            payload["fieldGroups"] = [{"fields": fields}]
+
+        try:
+            resp = await self._request_with_backoff(
+                "POST", "/marketing/v3/forms",
+                user_id=user_id,
+                json=payload,
+            )
+            data = resp.json()
+            return {
+                "id": data.get("id"),
+                "name": data.get("name"),
+                "formType": data.get("formType"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot create_form error: %s", exc)
+            return {"error": str(exc)}
+
+    # ── Engagements (expand) ──────────────────────────────────────────────────
+
+    async def log_postal_mail(
+        self,
+        contact_id: str,
+        body: str,
+        associations: list | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Log a postal mail engagement against a contact."""
+        return await self._create_engagement(
+            "postal_mail",
+            {"hs_postal_mail_body": body},
+            contact_id, 453, user_id,  # 453 = postal_mail-to-contact
+        )
+
+    async def create_task_with_queue(
+        self,
+        contact_id: str,
+        subject: str,
+        body: str | None = None,
+        due_date: str | None = None,
+        priority: str = "MEDIUM",
+        queue_id: str | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Create a task with optional queue assignment and priority."""
+        properties: dict = {
+            "hs_task_subject": subject,
+            "hs_task_status": "NOT_STARTED",
+            "hs_task_priority": priority,
+        }
+        if body:
+            properties["hs_task_body"] = body
+        if due_date:
+            properties["hs_timestamp"] = due_date
+        if queue_id:
+            properties["hs_queue_membership_ids"] = queue_id
+
+        return await self._create_engagement(
+            "tasks", properties, contact_id, 204, user_id,
+        )
+
+    # ── Automation ────────────────────────────────────────────────────────────
+
+    async def get_workflows(
+        self, limit: int = 50, user_id: UUID | None = None,
+    ) -> list[dict]:
+        """Get automation workflows."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", "/automation/v4/flows",
+                user_id=user_id,
+                params={"limit": min(limit, 100)},
+            )
+            body = resp.json()
+            return [
+                {
+                    "id": w.get("id"),
+                    "name": w.get("name"),
+                    "type": w.get("type"),
+                    "enabled": w.get("enabled"),
+                }
+                for w in body.get("results", body.get("flows", []))
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot get_workflows error: %s", exc)
+            return []
+
+    async def trigger_workflow(
+        self,
+        workflow_id: str,
+        contact_email: str,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Trigger (enroll a contact in) a workflow."""
+        try:
+            resp = await self._request_with_backoff(
+                "POST",
+                f"/automation/v2/workflows/{workflow_id}/enrollments/contacts/{contact_email}",
+                user_id=user_id,
+            )
+            return {"success": True, "workflow_id": workflow_id, "contact": contact_email}
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot trigger_workflow error: %s", exc)
+            return {"error": str(exc)}
+
+    async def create_sequence_enrollment(
+        self,
+        sequence_id: str,
+        contact_id: str,
+        sender_email: str,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Enroll a contact in a sequence."""
+        try:
+            resp = await self._request_with_backoff(
+                "POST", "/automation/v1/sequences/enroll",
+                user_id=user_id,
+                json={
+                    "sequenceId": sequence_id,
+                    "contactId": contact_id,
+                    "senderEmail": sender_email,
+                },
+            )
+            data = resp.json()
+            return {
+                "enrollment_id": data.get("id"),
+                "sequence_id": sequence_id,
+                "contact_id": contact_id,
+                "status": data.get("status"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot create_sequence_enrollment error: %s", exc)
+            return {"error": str(exc)}
+
+    # ── Conversations ─────────────────────────────────────────────────────────
+
+    async def list_inboxes(self, user_id: UUID | None = None) -> list[dict]:
+        """List conversation inboxes."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", "/conversations/v3/conversations/inboxes",
+                user_id=user_id,
+            )
+            body = resp.json()
+            return [
+                {
+                    "id": i.get("id"),
+                    "name": i.get("name"),
+                    "type": i.get("type"),
+                }
+                for i in body.get("results", [])
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot list_inboxes error: %s", exc)
+            return []
+
+    async def get_threads(
+        self, inbox_id: str, user_id: UUID | None = None,
+    ) -> list[dict]:
+        """Get conversation threads for an inbox."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", "/conversations/v3/conversations/threads",
+                user_id=user_id,
+                params={"inboxId": inbox_id},
+            )
+            body = resp.json()
+            return [
+                {
+                    "id": t.get("id"),
+                    "status": t.get("status"),
+                    "created_at": t.get("createdAt"),
+                    "latest_message_timestamp": t.get("latestMessageTimestamp"),
+                }
+                for t in body.get("results", [])
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot get_threads error: %s", exc)
+            return []
+
+    async def send_message(
+        self,
+        thread_id: str,
+        text: str,
+        channel_type: str = "EMAIL",
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Send a message in a conversation thread."""
+        try:
+            resp = await self._request_with_backoff(
+                "POST",
+                f"/conversations/v3/conversations/threads/{thread_id}/messages",
+                user_id=user_id,
+                json={"type": "MESSAGE", "text": text, "channelAccountId": channel_type},
+            )
+            data = resp.json()
+            return {
+                "id": data.get("id"),
+                "thread_id": thread_id,
+                "text": text,
+                "created_at": data.get("createdAt"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot send_message error: %s", exc)
+            return {"error": str(exc)}
+
+    # ── Commerce ──────────────────────────────────────────────────────────────
+
+    async def create_invoice(
+        self,
+        contact_id: str,
+        line_items: list[dict],
+        due_date: str | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Create an invoice linked to a contact."""
+        properties: dict = {}
+        if due_date:
+            properties["hs_due_date"] = due_date
+
+        payload: dict = {"properties": properties}
+        associations = [
+            {
+                "to": {"id": contact_id},
+                "types": [{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 87}],
+            }
+        ]
+        payload["associations"] = associations
+
+        try:
+            resp = await self._request_with_backoff(
+                "POST", "/crm/v3/objects/invoices",
+                user_id=user_id,
+                json=payload,
+            )
+            data = resp.json()
+            return {"id": data.get("id"), "properties": data.get("properties", {})}
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot create_invoice error: %s", exc)
+            return {"error": str(exc)}
+
+    async def create_payment(
+        self, amount: float, contact_id: str | None = None, user_id: UUID | None = None,
+    ) -> dict:
+        """Create a payment record."""
+        properties: dict = {"hs_payment_amount": str(amount)}
+        payload: dict = {"properties": properties}
+
+        if contact_id:
+            payload["associations"] = [
+                {
+                    "to": {"id": contact_id},
+                    "types": [{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 89}],
+                }
+            ]
+
+        try:
+            resp = await self._request_with_backoff(
+                "POST", "/crm/v3/objects/payments",
+                user_id=user_id,
+                json=payload,
+            )
+            data = resp.json()
+            return {"id": data.get("id"), "properties": data.get("properties", {})}
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot create_payment error: %s", exc)
+            return {"error": str(exc)}
+
+    async def create_subscription(
+        self,
+        name: str,
+        contact_id: str | None = None,
+        line_items: list[dict] | None = None,
+        billing_frequency: str = "monthly",
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Create a subscription record."""
+        properties: dict = {
+            "hs_subscription_name": name,
+            "hs_billing_frequency": billing_frequency,
+        }
+        payload: dict = {"properties": properties}
+
+        if contact_id:
+            payload["associations"] = [
+                {
+                    "to": {"id": contact_id},
+                    "types": [{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 91}],
+                }
+            ]
+
+        try:
+            resp = await self._request_with_backoff(
+                "POST", "/crm/v3/objects/subscriptions",
+                user_id=user_id,
+                json=payload,
+            )
+            data = resp.json()
+            return {"id": data.get("id"), "properties": data.get("properties", {})}
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot create_subscription error: %s", exc)
+            return {"error": str(exc)}
+
+    # ── Settings ──────────────────────────────────────────────────────────────
+
+    async def list_users(self, user_id: UUID | None = None) -> list[dict]:
+        """List users in the HubSpot account."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", "/settings/v3/users", user_id=user_id,
+            )
+            body = resp.json()
+            return [
+                {
+                    "id": u.get("id"),
+                    "email": u.get("email"),
+                    "role_id": u.get("roleId"),
+                    "primary_team_id": u.get("primaryTeamId"),
+                }
+                for u in body.get("results", [])
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot list_users error: %s", exc)
+            return []
+
+    async def list_teams(self, user_id: UUID | None = None) -> list[dict]:
+        """List teams in the HubSpot account."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", "/settings/v3/users/teams", user_id=user_id,
+            )
+            body = resp.json()
+            return [
+                {
+                    "id": t.get("id"),
+                    "name": t.get("name"),
+                }
+                for t in body.get("results", [])
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot list_teams error: %s", exc)
+            return []
+
+    async def list_currencies(self, user_id: UUID | None = None) -> list[dict]:
+        """List currencies configured in the account."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", "/settings/v3/account-info/currencies", user_id=user_id,
+            )
+            body = resp.json()
+            return [
+                {
+                    "code": c.get("code"),
+                    "name": c.get("name"),
+                    "exchange_rate": c.get("exchangeRate"),
+                }
+                for c in body.get("results", [])
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot list_currencies error: %s", exc)
+            return []
+
+    # ── Webhooks ──────────────────────────────────────────────────────────────
+
+    async def create_webhook_subscription(
+        self,
+        event_type: str,
+        webhook_url: str,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Create a webhook subscription for CRM events."""
+        app_id = getattr(settings, "HUBSPOT_APP_ID", None)
+        if not app_id:
+            return {"error": "HUBSPOT_APP_ID not configured"}
+
+        try:
+            resp = await self._request_with_backoff(
+                "POST", f"/webhooks/v3/{app_id}/subscriptions",
+                user_id=user_id,
+                json={
+                    "eventType": event_type,
+                    "propertyName": None,
+                    "active": True,
+                },
+            )
+            data = resp.json()
+            return {
+                "id": data.get("id"),
+                "event_type": data.get("eventType"),
+                "active": data.get("active"),
+                "created_at": data.get("createdAt"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot create_webhook_subscription error: %s", exc)
+            return {"error": str(exc)}
+
+    async def list_webhook_subscriptions(
+        self, user_id: UUID | None = None,
+    ) -> list[dict]:
+        """List webhook subscriptions."""
+        app_id = getattr(settings, "HUBSPOT_APP_ID", None)
+        if not app_id:
+            return []
+
+        try:
+            resp = await self._request_with_backoff(
+                "GET", f"/webhooks/v3/{app_id}/subscriptions",
+                user_id=user_id,
+            )
+            body = resp.json()
+            return [
+                {
+                    "id": s.get("id"),
+                    "event_type": s.get("eventType"),
+                    "active": s.get("active"),
+                }
+                for s in body.get("results", [])
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot list_webhook_subscriptions error: %s", exc)
+            return []
+
+    async def delete_webhook_subscription(
+        self, subscription_id: str, user_id: UUID | None = None,
+    ) -> bool:
+        """Delete a webhook subscription."""
+        app_id = getattr(settings, "HUBSPOT_APP_ID", None)
+        if not app_id:
+            return False
+
+        try:
+            await self._request_with_backoff(
+                "DELETE", f"/webhooks/v3/{app_id}/subscriptions/{subscription_id}",
+                user_id=user_id,
+            )
+            return True
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot delete_webhook_subscription error: %s", exc)
+            return False
+
     async def close(self) -> None:
         """Close the underlying HTTP client."""
         if self._client and not self._client.is_closed:
             await self._client.aclose()
+
+    # ── Pipelines ─────────────────────────────────────────────────────────────
+
+    async def create_pipeline(
+        self,
+        object_type: str,
+        label: str,
+        stages: list[dict],
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Create a pipeline for an object type (deals, tickets, etc.).
+
+        stages: [{"label": "New", "displayOrder": 0}, ...]
+        """
+        try:
+            resp = await self._request_with_backoff(
+                "POST", f"/crm/v3/pipelines/{object_type}",
+                user_id=user_id,
+                json={"label": label, "stages": stages},
+            )
+            data = resp.json()
+            return {
+                "id": data.get("id"),
+                "label": data.get("label"),
+                "stages": [
+                    {"id": s.get("id"), "label": s.get("label"), "displayOrder": s.get("displayOrder")}
+                    for s in data.get("stages", [])
+                ],
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot create_pipeline error: %s", exc)
+            return {"error": str(exc)}
+
+
+    async def update_pipeline(
+        self,
+        object_type: str,
+        pipeline_id: str,
+        label: str,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Update a pipeline's label."""
+        try:
+            resp = await self._request_with_backoff(
+                "PATCH", f"/crm/v3/pipelines/{object_type}/{pipeline_id}",
+                user_id=user_id,
+                json={"label": label},
+            )
+            data = resp.json()
+            return {"id": data.get("id"), "label": data.get("label")}
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot update_pipeline error: %s", exc)
+            return {"error": str(exc)}
+
+
+    async def delete_pipeline(
+        self, object_type: str, pipeline_id: str, user_id: UUID | None = None,
+    ) -> bool:
+        """Delete a pipeline."""
+        try:
+            await self._request_with_backoff(
+                "DELETE", f"/crm/v3/pipelines/{object_type}/{pipeline_id}",
+                user_id=user_id,
+            )
+            return True
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot delete_pipeline error: %s", exc)
+            return False
+
+
+    async def get_pipeline_stages(
+        self, object_type: str, pipeline_id: str, user_id: UUID | None = None,
+    ) -> list[dict]:
+        """Get all stages for a pipeline."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", f"/crm/v3/pipelines/{object_type}/{pipeline_id}/stages",
+                user_id=user_id,
+            )
+            body = resp.json()
+            return [
+                {"id": s.get("id"), "label": s.get("label"), "displayOrder": s.get("displayOrder")}
+                for s in body.get("results", [])
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot get_pipeline_stages error: %s", exc)
+            return []
+
+
+    async def create_pipeline_stage(
+        self,
+        object_type: str,
+        pipeline_id: str,
+        label: str,
+        display_order: int,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Create a stage in a pipeline."""
+        try:
+            resp = await self._request_with_backoff(
+                "POST", f"/crm/v3/pipelines/{object_type}/{pipeline_id}/stages",
+                user_id=user_id,
+                json={"label": label, "displayOrder": display_order},
+            )
+            data = resp.json()
+            return {
+                "id": data.get("id"),
+                "label": data.get("label"),
+                "displayOrder": data.get("displayOrder"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot create_pipeline_stage error: %s", exc)
+            return {"error": str(exc)}
+
+
+    async def update_pipeline_stage(
+        self,
+        object_type: str,
+        pipeline_id: str,
+        stage_id: str,
+        label: str,
+        display_order: int | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Update a pipeline stage."""
+        payload: dict = {"label": label}
+        if display_order is not None:
+            payload["displayOrder"] = display_order
+        try:
+            resp = await self._request_with_backoff(
+                "PATCH",
+                f"/crm/v3/pipelines/{object_type}/{pipeline_id}/stages/{stage_id}",
+                user_id=user_id,
+                json=payload,
+            )
+            data = resp.json()
+            return {
+                "id": data.get("id"),
+                "label": data.get("label"),
+                "displayOrder": data.get("displayOrder"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot update_pipeline_stage error: %s", exc)
+            return {"error": str(exc)}
+
+
+    # ── Associations v4 ───────────────────────────────────────────────────────
+
+    async def create_association(
+        self,
+        from_type: str,
+        from_id: str,
+        to_type: str,
+        to_id: str,
+        association_type: str,
+        user_id: UUID | None = None,
+    ) -> bool:
+        """Create an association between two CRM objects (v4 API)."""
+        try:
+            await self._request_with_backoff(
+                "PUT",
+                f"/crm/v4/objects/{from_type}/{from_id}/associations/{to_type}/{to_id}",
+                user_id=user_id,
+                json=[{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": association_type}],
+            )
+            return True
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot create_association error: %s", exc)
+            return False
+
+
+    async def get_associations(
+        self,
+        from_type: str,
+        from_id: str,
+        to_type: str,
+        user_id: UUID | None = None,
+    ) -> list[dict]:
+        """Get associations from one object to another type."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET",
+                f"/crm/v4/objects/{from_type}/{from_id}/associations/{to_type}",
+                user_id=user_id,
+            )
+            body = resp.json()
+            return [
+                {
+                    "to_id": a.get("toObjectId"),
+                    "association_types": [
+                        {"category": t.get("category"), "type_id": t.get("typeId"), "label": t.get("label")}
+                        for t in a.get("associationTypes", [])
+                    ],
+                }
+                for a in body.get("results", [])
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot get_associations error: %s", exc)
+            return []
+
+
+    async def delete_association(
+        self,
+        from_type: str,
+        from_id: str,
+        to_type: str,
+        to_id: str,
+        user_id: UUID | None = None,
+    ) -> bool:
+        """Delete an association between two CRM objects."""
+        try:
+            await self._request_with_backoff(
+                "DELETE",
+                f"/crm/v4/objects/{from_type}/{from_id}/associations/{to_type}/{to_id}",
+                user_id=user_id,
+            )
+            return True
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot delete_association error: %s", exc)
+            return False
+
+
+    async def batch_create_associations(
+        self,
+        from_type: str,
+        to_type: str,
+        inputs: list[dict],
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Batch create associations between objects.
+
+        inputs: [{"from": {"id": "..."}, "to": {"id": "..."}, "types": [{"associationCategory": "...", "associationTypeId": ...}]}]
+        """
+        try:
+            resp = await self._request_with_backoff(
+                "POST",
+                f"/crm/v4/associations/{from_type}/{to_type}/batch/create",
+                user_id=user_id,
+                json={"inputs": inputs},
+            )
+            data = resp.json()
+            return {
+                "status": data.get("status", "COMPLETE"),
+                "results": data.get("results", []),
+                "errors": data.get("errors", []),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot batch_create_associations error: %s", exc)
+            return {"error": str(exc)}
+
+
+    # ── CRM Search ────────────────────────────────────────────────────────────
+
+    async def crm_search(
+        self,
+        object_type: str,
+        filters: list | None = None,
+        sorts: list | None = None,
+        properties: list[str] | None = None,
+        limit: int = 100,
+        after: str | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Generic CRM search across any object type."""
+        payload: dict = {"limit": min(limit, 100)}
+        if filters:
+            payload["filterGroups"] = [{"filters": filters}]
+        if sorts:
+            payload["sorts"] = sorts
+        if properties:
+            payload["properties"] = properties
+        if after:
+            payload["after"] = after
+
+        try:
+            resp = await self._request_with_backoff(
+                "POST", f"/crm/v3/objects/{object_type}/search",
+                user_id=user_id,
+                json=payload,
+            )
+            body = resp.json()
+            return {
+                "results": [
+                    {"id": r.get("id"), "properties": r.get("properties", {})}
+                    for r in body.get("results", [])
+                ],
+                "total": body.get("total", 0),
+                "paging": body.get("paging"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot crm_search error: %s", exc)
+            return {"error": str(exc)}
+
+
+    # ── Imports / Exports ─────────────────────────────────────────────────────
+
+    async def import_contacts(
+        self, file_url: str, mapping: dict, user_id: UUID | None = None,
+    ) -> dict:
+        """Start a contact import job.
+
+        mapping: column-to-property mapping, e.g. {"Email": "email", "First Name": "firstname"}
+        """
+        import_request = {
+            "name": f"import_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}",
+            "importOperations": {"0-1": "CREATE"},
+            "dateFormat": "YEAR_MONTH_DAY",
+            "files": [
+                {
+                    "fileName": "contacts.csv",
+                    "fileImportPage": {
+                        "hasHeader": True,
+                        "columnMappings": [
+                            {
+                                "columnObjectTypeId": "0-1",
+                                "columnName": col,
+                                "propertyName": prop,
+                            }
+                            for col, prop in mapping.items()
+                        ],
+                    },
+                }
+            ],
+        }
+
+        try:
+            resp = await self._request_with_backoff(
+                "POST", "/crm/v3/imports",
+                user_id=user_id,
+                json=import_request,
+            )
+            data = resp.json()
+            return {
+                "id": data.get("id"),
+                "state": data.get("state"),
+                "created_at": data.get("createdAt"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot import_contacts error: %s", exc)
+            return {"error": str(exc)}
+
+
+    async def get_import_status(
+        self, import_id: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Check the status of an import job."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", f"/crm/v3/imports/{import_id}",
+                user_id=user_id,
+            )
+            data = resp.json()
+            return {
+                "id": data.get("id"),
+                "state": data.get("state"),
+                "opt_out_import": data.get("optOutImport"),
+                "metadata": data.get("metadata"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot get_import_status error: %s", exc)
+            return {"error": str(exc)}
+
+
+    async def export_contacts(
+        self,
+        filters: list | None = None,
+        properties: list[str] | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Export contacts by searching and building a result set."""
+        props = properties or ["email", "firstname", "lastname", "phone", "company"]
+        search_result = await self.crm_search(
+            object_type="contacts",
+            filters=filters,
+            properties=props,
+            limit=100,
+            user_id=user_id,
+        )
+        if "error" in search_result:
+            return search_result
+
+        return {
+            "contacts": search_result.get("results", []),
+            "total": search_result.get("total", 0),
+            "properties_exported": props,
+            "exported_at": datetime.now(UTC).isoformat(),
+        }
+
+
+    # ── Marketing ─────────────────────────────────────────────────────────────
+
+    async def send_transactional_email(
+        self,
+        email_id: str,
+        to_email: str,
+        contact_properties: dict | None = None,
+        custom_properties: dict | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Send a transactional email."""
+        payload: dict = {
+            "emailId": int(email_id),
+            "message": {"to": to_email},
+        }
+        if contact_properties:
+            payload["contactProperties"] = contact_properties
+        if custom_properties:
+            payload["customProperties"] = custom_properties
+
+        try:
+            resp = await self._request_with_backoff(
+                "POST", "/marketing/v3/transactional/single-email/send",
+                user_id=user_id,
+                json=payload,
+            )
+            data = resp.json()
+            return {
+                "status": data.get("status"),
+                "send_result": data.get("sendResult"),
+                "requested_at": data.get("requestedAt"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot send_transactional_email error: %s", exc)
+            return {"error": str(exc)}
+
+
+    async def get_marketing_emails(
+        self, limit: int = 50, offset: int = 0, user_id: UUID | None = None,
+    ) -> list[dict]:
+        """Get marketing emails."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", "/marketing/v3/emails",
+                user_id=user_id,
+                params={"limit": min(limit, 100), "offset": offset},
+            )
+            body = resp.json()
+            return [
+                {
+                    "id": e.get("id"),
+                    "name": e.get("name"),
+                    "subject": e.get("subject"),
+                    "state": e.get("state"),
+                    "type": e.get("type"),
+                }
+                for e in body.get("results", [])
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot get_marketing_emails error: %s", exc)
+            return []
+
+
+    async def get_email_statistics(
+        self, email_id: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Get statistics for a marketing email."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", f"/marketing/v3/emails/{email_id}/statistics",
+                user_id=user_id,
+            )
+            return resp.json()
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot get_email_statistics error: %s", exc)
+            return {"error": str(exc)}
+
+
+    async def create_campaign(
+        self,
+        name: str,
+        budget: float | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Create a marketing campaign."""
+        payload: dict = {"name": name}
+        if budget is not None:
+            payload["budget"] = budget
+        if start_date:
+            payload["startDate"] = start_date
+        if end_date:
+            payload["endDate"] = end_date
+
+        try:
+            resp = await self._request_with_backoff(
+                "POST", "/marketing/v3/campaigns",
+                user_id=user_id,
+                json=payload,
+            )
+            data = resp.json()
+            return {
+                "id": data.get("id"),
+                "name": data.get("name"),
+                "budget": data.get("budget"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot create_campaign error: %s", exc)
+            return {"error": str(exc)}
+
+
+    async def get_campaign_report(
+        self, campaign_id: str, user_id: UUID | None = None,
+    ) -> dict:
+        """Get a campaign's performance report."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", f"/marketing/v3/campaigns/{campaign_id}/reports",
+                user_id=user_id,
+            )
+            return resp.json()
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot get_campaign_report error: %s", exc)
+            return {"error": str(exc)}
+
+
+    # ── Forms ─────────────────────────────────────────────────────────────────
+
+    async def list_forms(self, user_id: UUID | None = None) -> list[dict]:
+        """List all marketing forms."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", "/marketing/v3/forms", user_id=user_id,
+            )
+            body = resp.json()
+            return [
+                {
+                    "id": f.get("id"),
+                    "name": f.get("name"),
+                    "formType": f.get("formType"),
+                    "createdAt": f.get("createdAt"),
+                }
+                for f in body.get("results", [])
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot list_forms error: %s", exc)
+            return []
+
+
+    async def get_form_submissions(
+        self, form_id: str, user_id: UUID | None = None,
+    ) -> list[dict]:
+        """Get form submissions."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", f"/marketing/v3/forms/{form_id}/submissions",
+                user_id=user_id,
+            )
+            body = resp.json()
+            return [
+                {
+                    "submittedAt": s.get("submittedAt"),
+                    "values": s.get("values", []),
+                }
+                for s in body.get("results", [])
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot get_form_submissions error: %s", exc)
+            return []
+
+
+    async def create_form(
+        self,
+        name: str,
+        form_type: str = "hubspot",
+        fields: list[dict] | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Create a marketing form."""
+        payload: dict = {"name": name, "formType": form_type}
+        if fields:
+            payload["fieldGroups"] = [{"fields": fields}]
+
+        try:
+            resp = await self._request_with_backoff(
+                "POST", "/marketing/v3/forms",
+                user_id=user_id,
+                json=payload,
+            )
+            data = resp.json()
+            return {
+                "id": data.get("id"),
+                "name": data.get("name"),
+                "formType": data.get("formType"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot create_form error: %s", exc)
+            return {"error": str(exc)}
+
+
+    # ── Engagements (expand) ──────────────────────────────────────────────────
+
+    async def log_postal_mail(
+        self,
+        contact_id: str,
+        body: str,
+        associations: list | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Log a postal mail engagement against a contact."""
+        return await self._create_engagement(
+            "postal_mail",
+            {"hs_postal_mail_body": body},
+            contact_id, 453, user_id,  # 453 = postal_mail-to-contact
+        )
+
+
+    async def create_task_with_queue(
+        self,
+        contact_id: str,
+        subject: str,
+        body: str | None = None,
+        due_date: str | None = None,
+        priority: str = "MEDIUM",
+        queue_id: str | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Create a task with optional queue assignment and priority."""
+        properties: dict = {
+            "hs_task_subject": subject,
+            "hs_task_status": "NOT_STARTED",
+            "hs_task_priority": priority,
+        }
+        if body:
+            properties["hs_task_body"] = body
+        if due_date:
+            properties["hs_timestamp"] = due_date
+        if queue_id:
+            properties["hs_queue_membership_ids"] = queue_id
+
+        return await self._create_engagement(
+            "tasks", properties, contact_id, 204, user_id,
+        )
+
+
+    # ── Automation ────────────────────────────────────────────────────────────
+
+    async def get_workflows(
+        self, limit: int = 50, user_id: UUID | None = None,
+    ) -> list[dict]:
+        """Get automation workflows."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", "/automation/v4/flows",
+                user_id=user_id,
+                params={"limit": min(limit, 100)},
+            )
+            body = resp.json()
+            return [
+                {
+                    "id": w.get("id"),
+                    "name": w.get("name"),
+                    "type": w.get("type"),
+                    "enabled": w.get("enabled"),
+                }
+                for w in body.get("results", body.get("flows", []))
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot get_workflows error: %s", exc)
+            return []
+
+
+    async def trigger_workflow(
+        self,
+        workflow_id: str,
+        contact_email: str,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Trigger (enroll a contact in) a workflow."""
+        try:
+            resp = await self._request_with_backoff(
+                "POST",
+                f"/automation/v2/workflows/{workflow_id}/enrollments/contacts/{contact_email}",
+                user_id=user_id,
+            )
+            return {"success": True, "workflow_id": workflow_id, "contact": contact_email}
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot trigger_workflow error: %s", exc)
+            return {"error": str(exc)}
+
+
+    async def create_sequence_enrollment(
+        self,
+        sequence_id: str,
+        contact_id: str,
+        sender_email: str,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Enroll a contact in a sequence."""
+        try:
+            resp = await self._request_with_backoff(
+                "POST", "/automation/v1/sequences/enroll",
+                user_id=user_id,
+                json={
+                    "sequenceId": sequence_id,
+                    "contactId": contact_id,
+                    "senderEmail": sender_email,
+                },
+            )
+            data = resp.json()
+            return {
+                "enrollment_id": data.get("id"),
+                "sequence_id": sequence_id,
+                "contact_id": contact_id,
+                "status": data.get("status"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot create_sequence_enrollment error: %s", exc)
+            return {"error": str(exc)}
+
+
+    # ── Conversations ─────────────────────────────────────────────────────────
+
+    async def list_inboxes(self, user_id: UUID | None = None) -> list[dict]:
+        """List conversation inboxes."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", "/conversations/v3/conversations/inboxes",
+                user_id=user_id,
+            )
+            body = resp.json()
+            return [
+                {
+                    "id": i.get("id"),
+                    "name": i.get("name"),
+                    "type": i.get("type"),
+                }
+                for i in body.get("results", [])
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot list_inboxes error: %s", exc)
+            return []
+
+
+    async def get_threads(
+        self, inbox_id: str, user_id: UUID | None = None,
+    ) -> list[dict]:
+        """Get conversation threads for an inbox."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", "/conversations/v3/conversations/threads",
+                user_id=user_id,
+                params={"inboxId": inbox_id},
+            )
+            body = resp.json()
+            return [
+                {
+                    "id": t.get("id"),
+                    "status": t.get("status"),
+                    "created_at": t.get("createdAt"),
+                    "latest_message_timestamp": t.get("latestMessageTimestamp"),
+                }
+                for t in body.get("results", [])
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot get_threads error: %s", exc)
+            return []
+
+
+    async def send_message(
+        self,
+        thread_id: str,
+        text: str,
+        channel_type: str = "EMAIL",
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Send a message in a conversation thread."""
+        try:
+            resp = await self._request_with_backoff(
+                "POST",
+                f"/conversations/v3/conversations/threads/{thread_id}/messages",
+                user_id=user_id,
+                json={"type": "MESSAGE", "text": text, "channelAccountId": channel_type},
+            )
+            data = resp.json()
+            return {
+                "id": data.get("id"),
+                "thread_id": thread_id,
+                "text": text,
+                "created_at": data.get("createdAt"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot send_message error: %s", exc)
+            return {"error": str(exc)}
+
+
+    # ── Commerce ──────────────────────────────────────────────────────────────
+
+    async def create_invoice(
+        self,
+        contact_id: str,
+        line_items: list[dict],
+        due_date: str | None = None,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Create an invoice linked to a contact."""
+        properties: dict = {}
+        if due_date:
+            properties["hs_due_date"] = due_date
+
+        payload: dict = {"properties": properties}
+        associations = [
+            {
+                "to": {"id": contact_id},
+                "types": [{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 87}],
+            }
+        ]
+        payload["associations"] = associations
+
+        try:
+            resp = await self._request_with_backoff(
+                "POST", "/crm/v3/objects/invoices",
+                user_id=user_id,
+                json=payload,
+            )
+            data = resp.json()
+            return {"id": data.get("id"), "properties": data.get("properties", {})}
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot create_invoice error: %s", exc)
+            return {"error": str(exc)}
+
+
+    async def create_payment(
+        self, amount: float, contact_id: str | None = None, user_id: UUID | None = None,
+    ) -> dict:
+        """Create a payment record."""
+        properties: dict = {"hs_payment_amount": str(amount)}
+        payload: dict = {"properties": properties}
+
+        if contact_id:
+            payload["associations"] = [
+                {
+                    "to": {"id": contact_id},
+                    "types": [{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 89}],
+                }
+            ]
+
+        try:
+            resp = await self._request_with_backoff(
+                "POST", "/crm/v3/objects/payments",
+                user_id=user_id,
+                json=payload,
+            )
+            data = resp.json()
+            return {"id": data.get("id"), "properties": data.get("properties", {})}
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot create_payment error: %s", exc)
+            return {"error": str(exc)}
+
+
+    async def create_subscription(
+        self,
+        name: str,
+        contact_id: str | None = None,
+        line_items: list[dict] | None = None,
+        billing_frequency: str = "monthly",
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Create a subscription record."""
+        properties: dict = {
+            "hs_subscription_name": name,
+            "hs_billing_frequency": billing_frequency,
+        }
+        payload: dict = {"properties": properties}
+
+        if contact_id:
+            payload["associations"] = [
+                {
+                    "to": {"id": contact_id},
+                    "types": [{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 91}],
+                }
+            ]
+
+        try:
+            resp = await self._request_with_backoff(
+                "POST", "/crm/v3/objects/subscriptions",
+                user_id=user_id,
+                json=payload,
+            )
+            data = resp.json()
+            return {"id": data.get("id"), "properties": data.get("properties", {})}
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot create_subscription error: %s", exc)
+            return {"error": str(exc)}
+
+
+    # ── Settings ──────────────────────────────────────────────────────────────
+
+    async def list_users(self, user_id: UUID | None = None) -> list[dict]:
+        """List users in the HubSpot account."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", "/settings/v3/users", user_id=user_id,
+            )
+            body = resp.json()
+            return [
+                {
+                    "id": u.get("id"),
+                    "email": u.get("email"),
+                    "role_id": u.get("roleId"),
+                    "primary_team_id": u.get("primaryTeamId"),
+                }
+                for u in body.get("results", [])
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot list_users error: %s", exc)
+            return []
+
+
+    async def list_teams(self, user_id: UUID | None = None) -> list[dict]:
+        """List teams in the HubSpot account."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", "/settings/v3/users/teams", user_id=user_id,
+            )
+            body = resp.json()
+            return [
+                {
+                    "id": t.get("id"),
+                    "name": t.get("name"),
+                }
+                for t in body.get("results", [])
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot list_teams error: %s", exc)
+            return []
+
+
+    async def list_currencies(self, user_id: UUID | None = None) -> list[dict]:
+        """List currencies configured in the account."""
+        try:
+            resp = await self._request_with_backoff(
+                "GET", "/settings/v3/account-info/currencies", user_id=user_id,
+            )
+            body = resp.json()
+            return [
+                {
+                    "code": c.get("code"),
+                    "name": c.get("name"),
+                    "exchange_rate": c.get("exchangeRate"),
+                }
+                for c in body.get("results", [])
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot list_currencies error: %s", exc)
+            return []
+
+
+    # ── Webhooks ──────────────────────────────────────────────────────────────
+
+    async def create_webhook_subscription(
+        self,
+        event_type: str,
+        webhook_url: str,
+        user_id: UUID | None = None,
+    ) -> dict:
+        """Create a webhook subscription for CRM events.
+
+        event_type: e.g. "contact.creation", "deal.propertyChange"
+        """
+        app_id = getattr(settings, "HUBSPOT_APP_ID", None)
+        if not app_id:
+            return {"error": "HUBSPOT_APP_ID not configured"}
+
+        try:
+            resp = await self._request_with_backoff(
+                "POST", f"/webhooks/v3/{app_id}/subscriptions",
+                user_id=user_id,
+                json={
+                    "eventType": event_type,
+                    "propertyName": None,
+                    "active": True,
+                },
+            )
+            data = resp.json()
+            return {
+                "id": data.get("id"),
+                "event_type": data.get("eventType"),
+                "active": data.get("active"),
+                "created_at": data.get("createdAt"),
+            }
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot create_webhook_subscription error: %s", exc)
+            return {"error": str(exc)}
+
+
+    async def list_webhook_subscriptions(
+        self, user_id: UUID | None = None,
+    ) -> list[dict]:
+        """List webhook subscriptions."""
+        app_id = getattr(settings, "HUBSPOT_APP_ID", None)
+        if not app_id:
+            return []
+
+        try:
+            resp = await self._request_with_backoff(
+                "GET", f"/webhooks/v3/{app_id}/subscriptions",
+                user_id=user_id,
+            )
+            body = resp.json()
+            return [
+                {
+                    "id": s.get("id"),
+                    "event_type": s.get("eventType"),
+                    "active": s.get("active"),
+                }
+                for s in body.get("results", [])
+            ]
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot list_webhook_subscriptions error: %s", exc)
+            return []
+
+
+    async def delete_webhook_subscription(
+        self, subscription_id: str, user_id: UUID | None = None,
+    ) -> bool:
+        """Delete a webhook subscription."""
+        app_id = getattr(settings, "HUBSPOT_APP_ID", None)
+        if not app_id:
+            return False
+
+        try:
+            await self._request_with_backoff(
+                "DELETE", f"/webhooks/v3/{app_id}/subscriptions/{subscription_id}",
+                user_id=user_id,
+            )
+            return True
+        except httpx.HTTPStatusError as exc:
+            logger.error("HubSpot delete_webhook_subscription error: %s", exc)
+            return False
+
