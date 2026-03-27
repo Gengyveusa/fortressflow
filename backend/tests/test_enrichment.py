@@ -107,12 +107,14 @@ async def test_zoominfo_enrich_person_success():
     )
 
     mock_client = AsyncMock(spec=httpx.AsyncClient)
-    mock_client.post = AsyncMock(return_value=mock_response)
+    mock_client.request = AsyncMock(return_value=mock_response)
 
     with patch("app.services.zoominfo_service.settings") as mock_settings:
         mock_settings.ZOOMINFO_API_KEY = "test-key"
         mock_settings.ZOOMINFO_CLIENT_ID = ""
         mock_settings.ZOOMINFO_CLIENT_SECRET = ""
+        mock_settings.ZOOMINFO_PRIVATE_KEY = ""
+        mock_settings.ZOOMINFO_API_BASE_URL = "https://api.zoominfo.com"
         mock_settings.ZOOMINFO_RATE_LIMIT = 25
 
         svc = ZoomInfoService(http_client=mock_client)
@@ -135,12 +137,14 @@ async def test_zoominfo_enrich_person_no_results():
     )
 
     mock_client = AsyncMock(spec=httpx.AsyncClient)
-    mock_client.post = AsyncMock(return_value=mock_response)
+    mock_client.request = AsyncMock(return_value=mock_response)
 
     with patch("app.services.zoominfo_service.settings") as mock_settings:
         mock_settings.ZOOMINFO_API_KEY = "test-key"
         mock_settings.ZOOMINFO_CLIENT_ID = ""
         mock_settings.ZOOMINFO_CLIENT_SECRET = ""
+        mock_settings.ZOOMINFO_PRIVATE_KEY = ""
+        mock_settings.ZOOMINFO_API_BASE_URL = "https://api.zoominfo.com"
         mock_settings.ZOOMINFO_RATE_LIMIT = 25
 
         svc = ZoomInfoService(http_client=mock_client)

@@ -7,11 +7,13 @@ All methods are async with DB-first API key resolution and rate limiting.
 """
 
 import logging
+import time
 from datetime import UTC, datetime
 from uuid import UUID
 
 import httpx
 from aiolimiter import AsyncLimiter
+from jose import jwt as jose_jwt
 
 from app.config import settings
 from app.database import AsyncSessionLocal
@@ -20,7 +22,7 @@ from app.services.zoominfo_service import ZoomInfoService
 
 logger = logging.getLogger(__name__)
 
-_ZOOMINFO_BASE = "https://api.zoominfo.com"
+_ZOOMINFO_BASE = settings.ZOOMINFO_API_BASE_URL or "https://api.zoominfo.com"
 _RATE_LIMIT = AsyncLimiter(max_rate=25, time_period=1)
 
 
@@ -30,7 +32,8 @@ class ZoomInfoAgent:
     def __init__(self) -> None:
         self._client: httpx.AsyncClient | None = None
         self._service: ZoomInfoService | None = None
-        self._jwt_token: str | None = None
+        self._access_token: str | None = None
+        self._token_expires_at: float = 0
 
     async def _resolve_api_key(self, user_id: UUID | None) -> str:
         """Resolve ZoomInfo API key: DB first, then env fallback."""
@@ -45,35 +48,63 @@ class ZoomInfoAgent:
             "ZoomInfo API key not configured — set via Settings or ZOOMINFO_API_KEY env var"
         )
 
-    async def _authenticate(self, user_id: UUID | None = None) -> str:
-        """Authenticate and return JWT token."""
-        if self._jwt_token:
-            return self._jwt_token
+    @staticmethod
+    def _build_client_jwt() -> str:
+        """Build a short-lived JWT signed with the RSA private key."""
+        now = int(time.time())
+        payload = {
+            "iss": settings.ZOOMINFO_CLIENT_ID,
+            "aud": "https://api.zoominfo.com",
+            "iat": now,
+            "exp": now + 300,
+        }
+        return jose_jwt.encode(payload, settings.ZOOMINFO_PRIVATE_KEY, algorithm="RS256")
 
-        # Try DB-stored key first
+    async def _authenticate(self, user_id: UUID | None = None) -> str:
+        """Authenticate and return an access token. Uses cached token if still valid."""
+        if self._access_token and time.time() < self._token_expires_at:
+            return self._access_token
+
+        # 1. Try DB-stored key first
         try:
             key = await self._resolve_api_key(user_id)
-            self._jwt_token = key
-            return self._jwt_token
+            self._access_token = key
+            self._token_expires_at = time.time() + 3600
+            return self._access_token
         except ValueError:
             pass
 
-        # Fall back to client_id/secret JWT flow
-        if not settings.ZOOMINFO_CLIENT_ID or not settings.ZOOMINFO_CLIENT_SECRET:
-            raise ValueError("ZoomInfo credentials not configured")
+        # 2. RSA private-key JWT flow
+        if settings.ZOOMINFO_CLIENT_ID and settings.ZOOMINFO_PRIVATE_KEY:
+            client_jwt = self._build_client_jwt()
+            client = await self._get_client(user_id)
+            async with _RATE_LIMIT:
+                resp = await client.post(
+                    "/authenticate",
+                    json={"clientId": settings.ZOOMINFO_CLIENT_ID, "privateKey": client_jwt},
+                )
+                resp.raise_for_status()
+            self._access_token = resp.json().get("jwt", "")
+            self._token_expires_at = time.time() + 3300
+            return self._access_token
 
-        client = await self._get_client(user_id)
-        async with _RATE_LIMIT:
-            resp = await client.post(
-                "/authenticate",
-                json={
-                    "username": settings.ZOOMINFO_CLIENT_ID,
-                    "password": settings.ZOOMINFO_CLIENT_SECRET,
-                },
-            )
-            resp.raise_for_status()
-            self._jwt_token = resp.json().get("jwt", "")
-            return self._jwt_token
+        # 3. Legacy client-id/secret flow
+        if settings.ZOOMINFO_CLIENT_ID and settings.ZOOMINFO_CLIENT_SECRET:
+            client = await self._get_client(user_id)
+            async with _RATE_LIMIT:
+                resp = await client.post(
+                    "/authenticate",
+                    json={
+                        "username": settings.ZOOMINFO_CLIENT_ID,
+                        "password": settings.ZOOMINFO_CLIENT_SECRET,
+                    },
+                )
+                resp.raise_for_status()
+            self._access_token = resp.json().get("jwt", "")
+            self._token_expires_at = time.time() + 3300
+            return self._access_token
+
+        raise ValueError("ZoomInfo credentials not configured")
 
     async def _get_client(self, user_id: UUID | None = None) -> httpx.AsyncClient:
         """Get or create the httpx client."""
@@ -94,6 +125,14 @@ class ZoomInfoAgent:
         headers["Authorization"] = f"Bearer {token}"
         async with _RATE_LIMIT:
             resp = await client.request(method, path, headers=headers, **kwargs)
+        # If token expired (401), refresh and retry once
+        if resp.status_code == 401:
+            self._access_token = None
+            self._token_expires_at = 0
+            token = await self._authenticate(user_id)
+            headers["Authorization"] = f"Bearer {token}"
+            async with _RATE_LIMIT:
+                resp = await client.request(method, path, headers=headers, **kwargs)
         resp.raise_for_status()
         return resp
 

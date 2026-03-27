@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     ZOOMINFO_CLIENT_ID: str = ""
     ZOOMINFO_CLIENT_SECRET: str = ""
     ZOOMINFO_API_KEY: str = ""
+    ZOOMINFO_PRIVATE_KEY: str = ""  # RSA private key for JWT auth (multiline PEM)
+    ZOOMINFO_API_BASE_URL: str = "https://api.zoominfo.com"
 
     # Apollo
     APOLLO_API_KEY: str = ""
