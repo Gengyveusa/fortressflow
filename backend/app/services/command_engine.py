@@ -394,8 +394,8 @@ class CommandEngine:
                 agent_result = await AgentOrchestrator.dispatch(
                     db=db,
                     agent_name="zoominfo",
-                    action="search_contacts",
-                    params={"limit": min(unenriched, 100)},
+                    action="search_people",
+                    params={"filters": {"pageSize": min(unenriched, 100)}},
                     user_id=uid,
                 )
                 if agent_result.get("status") == "success":
@@ -674,8 +674,8 @@ class CommandEngine:
         result = await AgentOrchestrator.dispatch(
             db=db,
             agent_name="hubspot",
-            action="full_sync",
-            params={"user_id": str(user_id)},
+            action="pull_updates",
+            params={"since": "2020-01-01T00:00:00Z"},
             user_id=uid,
         )
 
@@ -714,7 +714,7 @@ class CommandEngine:
             db=db,
             agent_name="zoominfo",
             action="search_companies",
-            params={"query": company_query},
+            params={"filters": {"companyName": company_query}},
             user_id=uid,
         )
 
