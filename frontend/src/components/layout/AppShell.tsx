@@ -8,7 +8,7 @@ import { useChatPanel } from "@/components/chat/ChatPanelContext";
 import { cn } from "@/lib/utils";
 
 // Routes that render their own full-screen layout (no sidebar/header)
-const FULL_SCREEN_ROUTES = ["/onboarding", "/login", "/register", "/forgot-password", "/reset-password"];
+const FULL_SCREEN_ROUTES = ["/onboarding", "/login", "/register", "/forgot-password", "/reset-password", "/sms-consent", "/privacy", "/terms"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { mode } = useChatPanel();
