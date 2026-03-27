@@ -57,7 +57,7 @@ async def execute_agent(
     db: AsyncSession = Depends(get_db),
 ):
     """Execute an agent action. Body: {"action": "chat", "params": {...}}."""
-    valid_agents = {"groq", "openai", "hubspot", "zoominfo", "twilio"}
+    valid_agents = {"groq", "openai", "hubspot", "zoominfo", "twilio", "apollo", "taplio"}
     if agent_name not in valid_agents:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -189,7 +189,7 @@ async def get_agent_training(
     db: AsyncSession = Depends(get_db),
 ):
     """Get training configs for a specific agent."""
-    valid_agents = {"groq", "openai", "hubspot", "zoominfo", "twilio"}
+    valid_agents = {"groq", "openai", "hubspot", "zoominfo", "twilio", "apollo", "taplio"}
     if agent_name not in valid_agents:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -227,7 +227,7 @@ async def update_agent_training(
     db: AsyncSession = Depends(get_db),
 ):
     """Update training configs for a specific agent."""
-    valid_agents = {"groq", "openai", "hubspot", "zoominfo", "twilio"}
+    valid_agents = {"groq", "openai", "hubspot", "zoominfo", "twilio", "apollo", "taplio"}
     if agent_name not in valid_agents:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

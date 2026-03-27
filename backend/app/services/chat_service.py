@@ -230,10 +230,13 @@ class ChatService:
                 # Low confidence — fall through to standard LLM chat
                 return None
 
-            # Route the intent
-            response = await engine.route_intent(
-                result, message, user_id, session_id, session_state
-            )
+            # Route the intent — provide a db session so handlers can dispatch to agents
+            from app.database import AsyncSessionLocal
+
+            async with AsyncSessionLocal() as db:
+                response = await engine.route_intent(
+                    result, message, user_id, session_id, session_state, db=db
+                )
 
             # If the router returned a "ready_to_execute" from the questioner,
             # we need to actually execute the intent now

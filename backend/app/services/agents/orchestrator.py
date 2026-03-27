@@ -1,5 +1,6 @@
 """Agent orchestrator — central coordinator for dispatching to agents and logging actions."""
 
+import inspect
 import logging
 import time
 from uuid import UUID
@@ -232,25 +233,62 @@ class AgentOrchestrator:
         start = time.time()
         try:
             agent_cls = _get_agent_class(agent_name)
-            method = getattr(agent_cls, action, None)
+
+            # Determine if the method is a static method or an instance method.
+            # Static methods (GroqAgent, OpenAIAgent) accept db as a parameter.
+            # Instance methods (HubSpot, Twilio, ZoomInfo, Apollo, Taplio) need
+            # the class instantiated and do NOT accept db — they resolve keys internally.
+            raw_attr = agent_cls.__dict__.get(action)
+            is_static = isinstance(raw_attr, staticmethod)
+
+            if is_static:
+                method = getattr(agent_cls, action)
+            else:
+                # Instantiate the agent class so instance methods are bound
+                agent_instance = agent_cls()
+                method = getattr(agent_instance, action)
+
             if method is None:
                 raise AttributeError(f"{agent_name} has no method '{action}'")
 
-            # Inject db and user_id into params
-            call_params = {**params, "db": db, "user_id": user_id}
+            # Build call_params by inspecting the method signature to only pass
+            # parameters it actually accepts, avoiding unexpected keyword args.
+            sig = inspect.signature(method)
+            accepted_params = set(sig.parameters.keys())
+            has_kwargs = any(
+                p.kind == inspect.Parameter.VAR_KEYWORD
+                for p in sig.parameters.values()
+            )
+
+            # Start with user-provided params
+            call_params = dict(params)
+
+            # Offer db and user_id — only include if the method accepts them
+            if "db" in accepted_params or has_kwargs:
+                call_params.setdefault("db", db)
+            if "user_id" in accepted_params or has_kwargs:
+                call_params.setdefault("user_id", user_id)
 
             # Inject prompt engine context for LLM agents
             if agent_name in ("groq", "openai") and "prompt_engine_context" not in call_params:
-                try:
-                    from app.services.agents.prompt_engine import PromptEngine
-                    pe = PromptEngine()
-                    call_params["prompt_engine_context"] = {
-                        "agent_name": agent_name,
-                        "action": action,
-                        "prompt_engine": pe,
-                    }
-                except Exception:
-                    pass  # Non-critical — agents fall back to hardcoded prompts
+                if "prompt_engine_context" in accepted_params or has_kwargs:
+                    try:
+                        from app.services.agents.prompt_engine import PromptEngine
+                        pe = PromptEngine()
+                        call_params["prompt_engine_context"] = {
+                            "agent_name": agent_name,
+                            "action": action,
+                            "prompt_engine": pe,
+                        }
+                    except Exception:
+                        pass  # Non-critical — agents fall back to hardcoded prompts
+
+            # Filter out any params the method doesn't accept (unless it has **kwargs)
+            if not has_kwargs:
+                call_params = {
+                    k: v for k, v in call_params.items()
+                    if k in accepted_params
+                }
 
             result = await method(**call_params)
 
