@@ -107,12 +107,16 @@ async def get_integration_status(
         mode="active" if hs_key else "not_configured",
     ))
 
-    # ZoomInfo
-    zi_key = app_settings.ZOOMINFO_API_KEY
+    # ZoomInfo — configured if API key, or client_id + private key are set
+    zi_configured = bool(
+        app_settings.ZOOMINFO_API_KEY
+        or (app_settings.ZOOMINFO_CLIENT_ID and app_settings.ZOOMINFO_PRIVATE_KEY)
+        or (app_settings.ZOOMINFO_CLIENT_ID and app_settings.ZOOMINFO_CLIENT_SECRET)
+    )
     integrations.append(IntegrationStatusEntry(
         name="zoominfo",
-        configured=bool(zi_key),
-        mode="active" if zi_key else "not_configured",
+        configured=zi_configured,
+        mode="active" if zi_configured else "not_configured",
     ))
 
     # Apollo

@@ -134,6 +134,7 @@ async def get_api_key(db: AsyncSession, service_name: str, user_id: UUID | None 
     env_mapping = {
         "hubspot": settings.HUBSPOT_API_KEY,
         "zoominfo": settings.ZOOMINFO_API_KEY,
+        "zoominfo_client_id": settings.ZOOMINFO_CLIENT_ID,
         "apollo": settings.APOLLO_API_KEY,
         "twilio": settings.TWILIO_AUTH_TOKEN,
         "aws_ses": settings.AWS_SECRET_ACCESS_KEY,
