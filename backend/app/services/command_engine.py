@@ -49,6 +49,35 @@ INTENTS = {
     "send_whatsapp": "Send a WhatsApp Business message to a contact via Twilio",
     # Help
     "get_help": "How do I / what can you do / help",
+    # ── v2.0 Marketing Agent ──
+    "score_lead": "Score a lead / what's their lead score / rate this prospect",
+    "segment_customers": "Segment customers / group by behavior / create segments",
+    "create_social_post": "Create social media post / write a tweet / LinkedIn content",
+    "optimize_send_time": "When should I send / best time to email / optimize timing",
+    "generate_landing_page": "Create landing page copy / write a hero section",
+    "demand_gen": "Create demand generation sequence / nurture campaign",
+    "upsell_crosssell": "Recommend upsell / cross-sell / expansion opportunities",
+    "event_promotion": "Promote an event / create event marketing content",
+    "multilingual_content": "Translate content / write in Spanish / multilingual",
+    "chatbot_response": "Manage chatbot / create bot response / qualify lead via chat",
+    # ── v2.0 Sales Agent ──
+    "manage_pipeline": "Pipeline status / deal management / move deal stage",
+    "schedule_meeting": "Schedule a meeting / book a call / find available times",
+    "generate_quote": "Create a quote / proposal / pricing document",
+    "score_opportunity": "Score opportunity / MEDDIC analysis / deal health",
+    "account_insights": "Account insights / ABM intelligence / buying committee",
+    "renewal_recommendation": "Renewal risk / churn prevention / retention strategy",
+    "revenue_forecast": "Revenue forecast / pipeline forecast / sales projection",
+    "log_call_transcript": "Log a call / summarize call transcript / analyze meeting",
+    "automated_followup": "Create follow-up sequence / automated follow-up",
+    # ── v2.0 Platform Features ──
+    "churn_analysis": "Churn risk / which accounts are at risk / retention",
+    "dedup_check": "Find duplicates / dedup health / merge contacts",
+    "experiment_status": "Experiment results / A/B test / variant performance",
+    "community_stats": "Community stats / member count / waitlist status",
+    "call_analytics": "Call analytics / meeting summaries / sentiment analysis",
+    "plugin_marketplace": "Available plugins / marketplace / integrations",
+    "translate_content": "Translate this / convert to Spanish / multilingual",
     "unknown": "Can't classify",
 }
 
@@ -290,10 +319,122 @@ class CommandEngine:
         if intent == "get_help":
             return self._handle_help()
 
+        # ── v2.0 Marketing Agent intents ──
+        if intent == "score_lead":
+            return await self._handle_agent_dispatch("marketing", "score_leads", result.entities, user_id, db)
+        if intent == "segment_customers":
+            return await self._handle_agent_dispatch("marketing", "segment_customers", result.entities, user_id, db)
+        if intent == "create_social_post":
+            return await self._handle_agent_dispatch("marketing", "create_social_post", result.entities, user_id, db)
+        if intent == "optimize_send_time":
+            return await self._handle_agent_dispatch("marketing", "optimize_send_time", result.entities, user_id, db)
+        if intent == "generate_landing_page":
+            return await self._handle_agent_dispatch("marketing", "generate_landing_page_copy", result.entities, user_id, db)
+        if intent == "demand_gen":
+            return await self._handle_agent_dispatch("marketing", "create_demand_gen_sequence", result.entities, user_id, db)
+        if intent == "upsell_crosssell":
+            return await self._handle_agent_dispatch("marketing", "recommend_upsell_crosssell", result.entities, user_id, db)
+        if intent == "event_promotion":
+            return await self._handle_agent_dispatch("marketing", "create_event_promotion", result.entities, user_id, db)
+        if intent == "multilingual_content" or intent == "translate_content":
+            return await self._handle_agent_dispatch("marketing", "generate_multilingual_content", result.entities, user_id, db)
+        if intent == "chatbot_response":
+            return await self._handle_agent_dispatch("marketing", "manage_chatbot", result.entities, user_id, db)
+
+        # ── v2.0 Sales Agent intents ──
+        if intent == "manage_pipeline":
+            return await self._handle_agent_dispatch("sales", "manage_pipeline", result.entities, user_id, db)
+        if intent == "schedule_meeting":
+            return await self._handle_agent_dispatch("sales", "schedule_meeting", result.entities, user_id, db)
+        if intent == "generate_quote":
+            return await self._handle_agent_dispatch("sales", "generate_quote", result.entities, user_id, db)
+        if intent == "score_opportunity":
+            return await self._handle_agent_dispatch("sales", "score_opportunity", result.entities, user_id, db)
+        if intent == "account_insights":
+            return await self._handle_agent_dispatch("sales", "get_account_insights", result.entities, user_id, db)
+        if intent == "renewal_recommendation":
+            return await self._handle_agent_dispatch("sales", "recommend_renewals", result.entities, user_id, db)
+        if intent == "revenue_forecast":
+            return await self._handle_agent_dispatch("sales", "forecast_revenue", result.entities, user_id, db)
+        if intent == "log_call_transcript":
+            return await self._handle_agent_dispatch("sales", "log_call", result.entities, user_id, db)
+        if intent == "automated_followup":
+            return await self._handle_agent_dispatch("sales", "create_automated_followup", result.entities, user_id, db)
+
+        # ── v2.0 Platform Feature intents ──
+        if intent == "churn_analysis":
+            return await self._handle_insights_fetch("/insights/churn/predictions", "Churn Detection")
+        if intent == "dedup_check":
+            return await self._handle_insights_fetch("/insights/deduplication/health", "Deduplication Health")
+        if intent == "experiment_status":
+            return await self._handle_insights_fetch("/insights/experiments/summary", "Experiment Results")
+        if intent == "community_stats":
+            return await self._handle_insights_fetch("/insights/community/stats", "Community Stats")
+        if intent == "call_analytics":
+            return await self._handle_insights_fetch("/insights/calls/analytics", "Call Analytics")
+        if intent == "plugin_marketplace":
+            return await self._handle_insights_fetch("/insights/plugins/marketplace", "Plugin Marketplace")
+
         # Fallback — unknown intent
         return {"type": "text", "content": ""}
 
-    # ── Intent Handlers ──────────────────────────────────────────────────
+    # ── v2.0 Generic Handlers ────────────────────────────────────────────
+
+    async def _handle_agent_dispatch(
+        self, agent_name: str, action: str, entities: dict[str, Any], user_id: str, db
+    ) -> dict[str, Any]:
+        """Dispatch to any agent via the orchestrator and return formatted results."""
+        try:
+            from uuid import UUID as _UUID
+            uid = _UUID(user_id) if isinstance(user_id, str) else user_id
+            result = await AgentOrchestrator.dispatch(db, agent_name, action, entities, uid)
+            if result.get("status") == "success":
+                content = result.get("result", {})
+                if isinstance(content, dict):
+                    # Format key-value pairs nicely
+                    formatted = f"**{agent_name.title()} → {action.replace('_', ' ').title()}**\n\n"
+                    for k, v in content.items():
+                        if isinstance(v, (list, dict)):
+                            formatted += f"**{k.replace('_', ' ').title()}:** {json.dumps(v, indent=2, default=str)[:500]}\n\n"
+                        else:
+                            formatted += f"**{k.replace('_', ' ').title()}:** {v}\n"
+                    return {"type": "text", "content": formatted}
+                return {"type": "text", "content": str(content)}
+            else:
+                error = result.get("error", "Unknown error")
+                return {"type": "text", "content": f"⚠️ {agent_name}.{action} failed: {error}"}
+        except Exception as exc:
+            logger.error("Agent dispatch %s.%s failed: %s", agent_name, action, exc)
+            return {"type": "text", "content": f"⚠️ Could not execute {agent_name}.{action}: {sanitize_error(exc)}"}
+
+    async def _handle_insights_fetch(self, endpoint: str, label: str) -> dict[str, Any]:
+        """Fetch data from an insights endpoint and format for chat."""
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(f"http://127.0.0.1:8000/api/v1{endpoint}")
+                if resp.status_code == 200:
+                    data = resp.json()
+                    formatted = f"**{label}**\n\n"
+                    if isinstance(data, dict):
+                        for k, v in list(data.items())[:15]:
+                            if isinstance(v, (list, dict)):
+                                formatted += f"**{k.replace('_', ' ').title()}:** {json.dumps(v, default=str)[:300]}\n\n"
+                            else:
+                                formatted += f"**{k.replace('_', ' ').title()}:** {v}\n"
+                    elif isinstance(data, list):
+                        for item in data[:5]:
+                            if isinstance(item, dict):
+                                title = item.get("title", item.get("name", ""))
+                                desc = item.get("description", "")
+                                formatted += f"• **{title}**: {desc}\n"
+                    return {"type": "text", "content": formatted}
+                return {"type": "text", "content": f"⚠️ Could not fetch {label} (HTTP {resp.status_code})"}
+        except Exception as exc:
+            logger.error("Insights fetch %s failed: %s", endpoint, exc)
+            return {"type": "text", "content": f"⚠️ Could not fetch {label}: {sanitize_error(exc)}"}
+
+    # ── Original Intent Handlers ───────────────────────────────────────────
 
     async def _handle_find_leads(
         self, entities: dict[str, Any], user_id: str
