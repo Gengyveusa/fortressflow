@@ -15,6 +15,7 @@ from app.api.v1.chat import router as chat_router
 from app.api.v1.deals import router as deals_router
 from app.api.v1.settings import router as settings_router
 from app.api.v1.agents import router as agents_router
+from app.api.v1.insights import router as insights_router
 
 v1_router = APIRouter(prefix="/api/v1")
 v1_router.include_router(auth_router)
@@ -32,3 +33,4 @@ v1_router.include_router(chat_router)
 v1_router.include_router(deals_router)
 v1_router.include_router(settings_router)
 v1_router.include_router(agents_router)
+v1_router.include_router(insights_router)

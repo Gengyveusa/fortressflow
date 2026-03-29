@@ -515,3 +515,123 @@ Copyright © 2024–2026 Gengyve USA Inc. All rights reserved.
 This software and associated documentation files are the exclusive property of Gengyve USA Inc. Unauthorised copying, modification, distribution, or use of this software, in whole or in part, is strictly prohibited without prior written consent from Gengyve USA Inc.
 
 Contact: thad@gengyveusa.com
+
+---
+
+## New Features (v2.0)
+
+### Agent Capabilities Expansion
+- **Marketing Agent** with 15 skills: lead scoring, outbound sequencing, compliance checks, A/B variant generation, social post creation, analytics summarisation, chatbot management, multilingual content, demand-generation sequences, customer segmentation, upsell/cross-sell, event promotion, send time optimisation, landing page copy, campaign performance analysis
+- **Sales Agent** with 15 skills: lead enrichment, advanced lead search, pipeline management, automated follow-ups, task scheduling, call logging & transcription, sequence enrolment, real-time insights, meeting scheduling, quote generation, sales analytics, opportunity scoring, account-based insights, renewal recommendations, revenue forecasting
+- Registered in orchestrator's `_AGENT_REGISTRY` and `_ALLOWED_ACTIONS`
+
+### Multi-Layer Authentication Framework
+- **Intent Authentication**: HMAC-SHA256 signed credentials binding user+action+timestamp, hash-chained tamper-resistant ledger
+- **Authority Authentication**: C2PA-style provenance manifests with digital signatures and expert registry
+- **Science Authentication**: Knowledge graph of oral-systemic health conditions with citation verification
+- **Value Authentication**: Connected packaging via NFC/QR with product provenance, ingredients, certifications
+
+### Reinforcement Learning Reward Layer
+- Multi-armed bandit (Thompson Sampling / Epsilon-Greedy)
+- Pure Python Beta distribution sampling (no numpy dependency)
+- Safety checks requiring user approval for high-risk variants
+- Experiment logging and outcome tracking
+
+### Exclusive Community Portal
+- Invitation-only with invite codes and waitlist system
+- Priority-scored waitlist (role, company, referral bonuses)
+- 7-day onboarding welcome sequence
+- Events with scarcity (limited seats, tier-exclusive access)
+- FOMO metrics and real-time capacity indicators
+
+### Predictive Churn Detection
+- Logistic regression-based churn scoring with 6 features
+- Risk segmentation (LOW/MEDIUM/HIGH/CRITICAL)
+- Automated retention workflow triggers
+- Per-feature contribution analysis for explainability
+
+### Continuous Deduplication
+- Fuzzy matching (Levenshtein, Jaro-Winkler, Soundex)
+- Blocking strategies to avoid O(n²) comparisons
+- Golden record creation with best-field selection
+- Multi-CRM sync support
+
+### Multi-Lingual Support
+- 10 locales including RTL (Arabic)
+- AI-powered translation via Groq
+- Quality scoring per translation
+- User locale preferences with date/currency formatting
+
+### Call & Meeting Summarisation
+- AI transcript analysis via Groq
+- Sentiment scoring, objection detection, buying signals
+- Automatic action item extraction
+- CRM logging integration
+
+### Plugin Architecture
+- Plugin interface protocol with lifecycle management
+- Marketplace with ratings and install counts
+- Inter-plugin context sharing protocol
+- Plugin types: agent, data_source, visualisation, workflow, analytics, integration
+
+### New UI Pages
+
+| Page | Path | Description |
+|------|------|-------------|
+| Command Center | `/super-dashboard` | Unified dashboard with KPIs, RL experiments, churn, dedup, community |
+| Experiments | `/experiments` | RL A/B testing with variant performance and reward charts |
+| Churn Detection | `/churn-detection` | At-risk accounts, retention workflows, impact calculator |
+| Deduplication | `/deduplication` | Duplicate candidates, merge status, CRM sync health |
+| Community | `/community` | Invitation portal, waitlist, onboarding, events |
+| Knowledge Graph | `/science-graph` | Interactive oral-systemic health knowledge graph |
+| Packaging Auth | `/packaging` | Connected packaging verification with NFC/QR scan |
+
+### Accessibility (WCAG 2.1)
+- `aria-label` and `role` attributes on all interactive elements
+- Keyboard navigation support
+- Screen reader compatible with `sr-only` text
+- High contrast mode toggle
+- Reduced motion preference support (`prefers-reduced-motion`)
+- Focus management and visible focus indicators
+
+### New API Endpoints
+
+All under `/api/v1/insights/`:
+
+- `GET /proactive` — Proactive insights
+- `GET /experiments/summary` — RL experiment outcomes
+- `POST /experiments/select-variant` — Select next variant
+- `GET /churn/predictions` — Churn predictions
+- `POST /churn/trigger-retention` — Trigger retention workflow
+- `GET /deduplication/health` — Dedup health metrics
+- `GET /deduplication/candidates` — Duplicate candidates
+- `GET /community/stats` — Community statistics
+- `POST /community/waitlist` — Join waitlist
+- `GET /i18n/locales` — Supported locales
+- `GET /i18n/stats` — Translation statistics
+- `POST /i18n/translate` — Translate content
+- `GET /calls/analytics` — Call analytics
+- `POST /calls/summarize` — Summarise call transcript
+- `GET /plugins/marketplace` — Plugin marketplace
+- `GET /auth/science-graph` — Knowledge graph data
+- `GET /auth/packaging` — Connected packaging data
+
+---
+
+## Deployment & Testing
+
+```bash
+# Backend
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+
+# Frontend
+cd frontend
+npm install
+npm run dev
+
+# Run tests
+cd frontend && npm test
+cd backend && pytest
+```

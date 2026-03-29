@@ -23,6 +23,8 @@ _AGENT_REGISTRY: dict[str, tuple[str, str]] = {
     "twilio": ("app.services.agents.twilio_agent", "TwilioAgent"),
     "apollo": ("app.services.agents.apollo_agent", "ApolloAgent"),
     "taplio": ("app.services.agents.taplio_agent", "TaplioAgent"),
+    "marketing": ("app.services.agents.marketing_agent", "MarketingAgent"),
+    "sales": ("app.services.agents.sales_agent", "SalesAgent"),
 }
 
 # Allowed actions per agent (whitelist)
@@ -153,6 +155,20 @@ _ALLOWED_ACTIONS: dict[str, set[str]] = {
         "compose_dm", "bulk_compose_dms", "trigger_zapier_action",
         # ── Lead Database ──
         "search_leads", "get_post_analytics", "create_connection_request",
+    },
+    "marketing": {
+        "score_leads", "create_outbound_sequence", "check_compliance",
+        "generate_ab_variants", "create_social_post", "summarize_analytics",
+        "manage_chatbot", "generate_multilingual_content", "create_demand_gen_sequence",
+        "segment_customers", "recommend_upsell_crosssell", "create_event_promotion",
+        "optimize_send_time", "generate_landing_page_copy", "analyze_campaign_performance",
+    },
+    "sales": {
+        "enrich_lead", "advanced_lead_search", "manage_pipeline",
+        "create_automated_followup", "schedule_task", "log_call",
+        "enroll_in_sequence", "get_realtime_insights", "schedule_meeting",
+        "generate_quote", "summarize_sales_analytics", "score_opportunity",
+        "get_account_insights", "recommend_renewals", "forecast_revenue",
     },
 }
 
@@ -386,6 +402,8 @@ class AgentOrchestrator:
             "twilio": "twilio",
             "apollo": "apollo",
             "taplio": "taplio",
+            "marketing": "groq",
+            "sales": "groq",
         }
 
         statuses = []

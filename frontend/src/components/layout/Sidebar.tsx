@@ -16,6 +16,14 @@ import {
   Settings,
   Menu,
   Sparkles,
+  Gauge,
+  UserMinus,
+  Copy,
+  Crown,
+  FlaskConical,
+  ScanLine,
+  BrainCircuit,
+  Puzzle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -29,11 +37,18 @@ import { useChatPanel } from "@/components/chat/ChatPanelContext";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/super-dashboard", label: "Command Center", icon: Gauge },
   { href: "/leads", label: "Leads", icon: Users },
   { href: "/sequences", label: "Sequences", icon: GitBranch },
   { href: "/sequences/replies", label: "Reply Inbox", icon: Inbox },
   { href: "/templates", label: "Templates", icon: FileText },
   { href: "/presets", label: "Presets", icon: Rocket },
+  { href: "/experiments", label: "Experiments", icon: FlaskConical },
+  { href: "/churn-detection", label: "Churn Detection", icon: UserMinus },
+  { href: "/deduplication", label: "Deduplication", icon: Copy },
+  { href: "/community", label: "Community", icon: Crown },
+  { href: "/science-graph", label: "Knowledge Graph", icon: BrainCircuit },
+  { href: "/packaging", label: "Packaging Auth", icon: ScanLine },
   { href: "/compliance", label: "Compliance", icon: Shield },
   { href: "/deliverability", label: "Deliverability", icon: Mail },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },

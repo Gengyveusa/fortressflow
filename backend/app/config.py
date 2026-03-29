@@ -8,11 +8,14 @@ class Settings(BaseSettings):
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
     def fix_database_url_scheme(cls, v: str) -> str:
-        """Railway provides postgresql:// but we need postgresql+asyncpg://"""
+        """Railway/Neon provides postgresql:// but we need postgresql+asyncpg://
+        Also converts sslmode= to ssl= for asyncpg compatibility."""
         if v.startswith("postgresql://"):
-            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+            v = v.replace("postgresql://", "postgresql+asyncpg://", 1)
         if v.startswith("postgres://"):
-            return v.replace("postgres://", "postgresql+asyncpg://", 1)
+            v = v.replace("postgres://", "postgresql+asyncpg://", 1)
+        # asyncpg uses 'ssl' not 'sslmode'
+        v = v.replace("sslmode=require", "ssl=require")
         return v
 
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -50,6 +53,9 @@ class Settings(BaseSettings):
     ENRICHMENT_TTL_DAYS: int = 90
     ZOOMINFO_RATE_LIMIT: int = 25
     APOLLO_RATE_LIMIT: int = 50
+
+    # Taplio / Zapier
+    TAPLIO_ZAPIER_WEBHOOK_URL: str = ""
 
     # Twilio SMS
     TWILIO_ACCOUNT_SID: str = ""
