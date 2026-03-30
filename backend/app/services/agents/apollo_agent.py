@@ -167,99 +167,13 @@ class ApolloAgent:
                 logger.error("Apollo search_people error on %s: %s", endpoint, exc)
                 return {"error": str(exc)}
 
-        # Fallback: Use /people/match enrichment endpoint to "search" by building
-        # synthetic queries from the title/location (works on Basic/Free plans)
-        logger.info("Apollo search endpoints unavailable, falling back to enrichment-based search")
-        return await self._search_via_enrichment(
-            user_id=user_id,
-            title_query=title or query or "",
-            location=location or "",
-            per_page=min(per_page, 10),
-        )
-
-    async def _search_via_enrichment(
-        self,
-        user_id: UUID,
-        title_query: str,
-        location: str,
-        per_page: int = 10,
-    ) -> dict:
-        """Fallback search using Apollo's enrichment endpoint when search is unavailable.
-
-        Generates realistic name combinations and enriches them to find real contacts.
-        This works on Apollo Free/Basic plans that have enrichment but not search.
-        """
-        # Use common dental/business name patterns for the title query
-        common_names = [
-            ("John", "Smith"),
-            ("Sarah", "Johnson"),
-            ("Michael", "Williams"),
-            ("Jennifer", "Brown"),
-            ("David", "Jones"),
-            ("Lisa", "Davis"),
-            ("Robert", "Miller"),
-            ("Maria", "Garcia"),
-            ("James", "Wilson"),
-            ("Emily", "Anderson"),
-            ("Richard", "Taylor"),
-            ("Jessica", "Thomas"),
-            ("Daniel", "Martinez"),
-            ("Susan", "Hernandez"),
-            ("Mark", "Moore"),
-        ]
-
-        people = []
-        for first, last in common_names[:per_page]:
-            try:
-                match_payload = {
-                    "first_name": first,
-                    "last_name": last,
-                    "person_titles": [title_query] if title_query else None,
-                    "person_locations": [location] if location else None,
-                    "reveal_personal_emails": False,
-                }
-                # Remove None values
-                match_payload = {k: v for k, v in match_payload.items() if v is not None}
-
-                resp = await self._request_with_backoff(
-                    "POST",
-                    "/people/match",
-                    user_id=user_id,
-                    json=match_payload,
-                )
-                data = resp.json()
-                person = data.get("person", {})
-                if person and person.get("id"):
-                    people.append(
-                        {
-                            "id": person.get("id"),
-                            "first_name": person.get("first_name"),
-                            "last_name": person.get("last_name"),
-                            "name": person.get("name"),
-                            "email": person.get("email"),
-                            "title": person.get("title"),
-                            "organization_name": (
-                                person.get("organization", {}).get("name")
-                                if isinstance(person.get("organization"), dict)
-                                else ""
-                            ),
-                            "linkedin_url": person.get("linkedin_url"),
-                            "city": person.get("city"),
-                            "state": person.get("state"),
-                            "country": person.get("country"),
-                            "seniority": person.get("seniority"),
-                            "departments": person.get("departments"),
-                        }
-                    )
-            except Exception as exc:
-                logger.debug("Apollo match fallback failed for %s %s: %s", first, last, exc)
-                continue
-
+        # All search endpoints returned 403 — API plan doesn't include search
+        logger.warning("Apollo search not available on current plan (all endpoints returned 403)")
         return {
-            "people": people,
-            "pagination": {"total_entries": len(people), "page": 1, "per_page": per_page},
-            "source": "/people/match (enrichment fallback)",
-            "note": "Results from enrichment-based search. Upgrade Apollo plan for full search access.",
+            "error": "Apollo search API requires a plan upgrade. "
+            "Your current API key has enrichment access but not search. "
+            "Upgrade at apollo.io/settings/api-keys to enable /people/search.",
+            "error_code": "SEARCH_NOT_AVAILABLE",
         }
 
     async def search_organizations(
