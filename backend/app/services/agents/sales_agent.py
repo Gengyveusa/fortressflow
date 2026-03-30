@@ -8,17 +8,15 @@ opportunity scoring, account insights, renewal recommendations, and revenue fore
 All methods are async with rate limiting, structured returns, and error handling.
 """
 
-import asyncio
 import json
 import logging
 import time
 from datetime import UTC, datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 from app.services import api_key_service
 from app.utils.sanitize import sanitize_error
 

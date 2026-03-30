@@ -8,7 +8,7 @@ Tests for agent execution system fixes:
 
 import inspect
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 

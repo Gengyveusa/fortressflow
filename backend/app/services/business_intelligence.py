@@ -75,7 +75,6 @@ class BusinessIntelligence:
             Sequence,
             SequenceEnrollment,
             SequenceStatus,
-            EnrollmentStatus,
         )
         from app.models.touch_log import TouchAction, TouchLog
 
@@ -234,7 +233,7 @@ class BusinessIntelligence:
         )
         from app.models.touch_log import TouchAction, TouchLog
 
-        since = datetime.now(UTC) - timedelta(days=30)
+        datetime.now(UTC) - timedelta(days=30)
 
         async with AsyncSessionLocal() as db:
             result = await db.execute(
@@ -297,7 +296,7 @@ class BusinessIntelligence:
 
     async def _gather_deliverability_metrics(self) -> dict[str, Any]:
         """Get detailed deliverability health metrics."""
-        from sqlalchemy import func, select
+        from sqlalchemy import select
 
         from app.database import AsyncSessionLocal
         from app.models.sending_inbox import SendingInbox

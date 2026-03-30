@@ -7,7 +7,6 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import AsyncSessionLocal
 from app.models.agent_action_log import AgentActionLog
 from app.services import api_key_service
 from app.utils.sanitize import sanitize_error
@@ -428,7 +427,7 @@ class AgentOrchestrator:
 
             # Check env key
             env_key = await api_key_service.get_api_key(db, service_name)
-            has_env_key = bool(env_key) if not has_db_key else False  # Only check env if no DB key
+            bool(env_key) if not has_db_key else False  # Only check env if no DB key
 
             statuses.append({
                 "agent_name": agent_name,

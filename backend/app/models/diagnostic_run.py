@@ -1,6 +1,6 @@
 """Diagnostic run model — tracks testing agent scan history."""
 import uuid
-from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Column, DateTime, ForeignKey, Index, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.sql import func
 from app.database import Base

@@ -1,6 +1,5 @@
 """Email and phone validation helpers."""
 
-import re
 import time
 import threading
 

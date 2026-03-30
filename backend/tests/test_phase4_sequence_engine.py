@@ -6,13 +6,12 @@ All tests use in-memory mocks (no real database or external APIs).
 """
 
 import uuid
-from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import UTC, datetime
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from app.services.state_machine import (
-    EnrollmentState,
     StateTransitionError,
     can_transition,
     evaluate_condition,
@@ -25,7 +24,6 @@ from app.services.state_machine import (
     is_sendable,
     is_terminal,
     transition,
-    validate_transition,
 )
 
 

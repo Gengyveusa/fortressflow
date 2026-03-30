@@ -212,7 +212,6 @@ class ChatService:
     ) -> dict:
         """Non-streaming version of handle_message. Returns full response dict."""
         chunks = []
-        response_type = "text"
         async for chunk in self.handle_message(message, user_id, session_id):
             if chunk.startswith("[CMD]"):
                 # Structured command response

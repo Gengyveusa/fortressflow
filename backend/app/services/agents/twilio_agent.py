@@ -9,13 +9,11 @@ All methods are async. The synchronous Twilio SDK is wrapped with asyncio.to_thr
 import asyncio
 import json
 import logging
-from datetime import UTC, datetime
 from uuid import UUID
 
 from app.config import settings
 from app.database import AsyncSessionLocal
 from app.services.api_key_service import get_api_key
-from app.services.sms_service import send_sms as sms_service_send, SMSResult
 
 logger = logging.getLogger(__name__)
 
@@ -670,7 +668,6 @@ class TwilioAgent:
         send_at: ISO 8601 datetime string (must be 15+ min in future, max 7 days)
         """
         client = await self._get_twilio(user_id)
-        from_num = from_number or settings.TWILIO_PHONE_NUMBER
 
         messaging_service_sid = getattr(settings, "TWILIO_MESSAGING_SERVICE_SID", None)
         if not messaging_service_sid:
@@ -762,7 +759,7 @@ class TwilioAgent:
             return {"error": "Messaging service SID required"}
 
         try:
-            result = await asyncio.to_thread(
+            await asyncio.to_thread(
                 client.messaging.v1.services(ms_sid).phone_numbers(phone_number).fetch,
             )
             return {
@@ -791,7 +788,7 @@ class TwilioAgent:
 
         try:
             # Add to opt-out list
-            result = await asyncio.to_thread(
+            await asyncio.to_thread(
                 client.messaging.v1.services(ms_sid).phone_numbers.create,
                 phone_number=phone_number,
             )
@@ -1139,12 +1136,12 @@ class TwilioAgent:
 
         try:
             # Access via messaging service
-            campaign = await asyncio.to_thread(
+            await asyncio.to_thread(
                 client.messaging.v1.services.list,
                 limit=1,
             )
             # Try direct US App-to-Person lookup
-            us_app = await asyncio.to_thread(
+            await asyncio.to_thread(
                 client.messaging.v1.brand_registrations.list,
                 limit=10,
             )

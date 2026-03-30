@@ -416,7 +416,6 @@ def generate_ai_sequence_task(
     Returns the sequence ID and generation metadata.
     """
     async def _generate():
-        from app.database import AsyncSessionLocal
         from app.services.sequence_ai_service import SequenceAIService
 
         ai_svc = SequenceAIService()

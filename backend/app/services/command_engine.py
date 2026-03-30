@@ -484,7 +484,7 @@ class CommandEngine:
         self, entities: dict[str, Any], user_id: str
     ) -> dict[str, Any]:
         """Search for leads matching the given criteria."""
-        from sqlalchemy import func, select
+        from sqlalchemy import String, func, select
 
         from app.database import AsyncSessionLocal
         from app.models.lead import Lead
@@ -507,7 +507,6 @@ class CommandEngine:
                     func.cast(Lead.enriched_data, String).ilike(f"%{location}%")
                 )
 
-            from sqlalchemy import String
 
             query = query.limit(min(count, 100))
             result = await db.execute(query)
@@ -615,7 +614,7 @@ class CommandEngine:
         self, entities: dict[str, Any], user_id: str
     ) -> dict[str, Any]:
         """Pause a campaign/sequence."""
-        from sqlalchemy import select, update
+        from sqlalchemy import select
 
         from app.database import AsyncSessionLocal
         from app.models.sequence import Sequence, SequenceStatus
@@ -986,7 +985,7 @@ class CommandEngine:
 
                 sourcing = outreach_options.get("lead_sourcing", {})
                 existing = sourcing.get("existing_leads", 0)
-                parts.append(f"**Lead Sourcing**")
+                parts.append("**Lead Sourcing**")
                 parts.append(f"- Currently {existing} matching leads in your database")
                 parts.append(f"- {sourcing.get('action_needed', '')}\n")
 

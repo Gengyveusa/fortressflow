@@ -1,6 +1,5 @@
 """Tests for deliverability API endpoints."""
 
-import uuid
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest

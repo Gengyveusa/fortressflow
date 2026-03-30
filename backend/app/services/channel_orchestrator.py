@@ -13,14 +13,13 @@ direct channel dispatch. Provides:
 - Channel health monitoring
 """
 
-import asyncio
 import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, func, select, text
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -34,7 +33,7 @@ from app.models.sequence import (
 from app.models.template import Template
 from app.models.touch_log import TouchAction, TouchLog
 from app.services import compliance as compliance_svc
-from app.services.state_machine import EnrollmentState, is_sendable, transition
+from app.services.state_machine import EnrollmentState, transition
 
 logger = logging.getLogger(__name__)
 

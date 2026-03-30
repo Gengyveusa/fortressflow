@@ -16,9 +16,6 @@ from uuid import UUID
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
-from app.database import AsyncSessionLocal
-from app.services.api_key_service import get_api_key
 
 logger = logging.getLogger(__name__)
 

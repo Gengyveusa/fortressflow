@@ -19,7 +19,7 @@ import logging
 import random
 import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from uuid import UUID
 
@@ -29,11 +29,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.lead import Lead
-from app.models.sequence import SequenceEnrollment
 from app.models.touch_log import TouchAction, TouchLog
 from app.services import compliance as compliance_svc
 from app.services.linkedin_executor import ExecutionStatus, get_executor
-from app.services.platform_ai_service import ContentSuggestion, PlatformAIService
+from app.services.platform_ai_service import PlatformAIService
 
 logger = logging.getLogger(__name__)
 

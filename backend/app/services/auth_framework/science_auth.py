@@ -6,12 +6,10 @@ Pre-populated with oral-systemic health relationships.
 
 from __future__ import annotations
 
-import hashlib
-import json
 import re
 from dataclasses import dataclass, field, asdict
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class RelationshipStrength(str, Enum):

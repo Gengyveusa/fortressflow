@@ -13,7 +13,7 @@ Handles:
 
 import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 import pytz
@@ -26,7 +26,6 @@ from app.models.dnc import DNCBlock
 from app.models.lead import Lead
 from app.models.sequence import EnrollmentStatus, SequenceEnrollment
 from app.models.touch_log import TouchAction, TouchLog
-from app.services import compliance as compliance_svc
 
 logger = logging.getLogger(__name__)
 

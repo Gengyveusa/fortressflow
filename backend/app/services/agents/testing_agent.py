@@ -13,16 +13,14 @@ import logging
 import time
 from collections import defaultdict
 from datetime import datetime, timedelta, UTC
-from typing import Any, Optional
-from uuid import UUID, uuid4
+from uuid import UUID
 
-from sqlalchemy import select, func as sa_func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent_action_log import AgentActionLog
-from app.services.agents.orchestrator import _AGENT_REGISTRY, _ALLOWED_ACTIONS, AgentOrchestrator
+from app.services.agents.orchestrator import _ALLOWED_ACTIONS, AgentOrchestrator
 from app.services import api_key_service
-from app.utils.sanitize import sanitize_error
 
 logger = logging.getLogger(__name__)
 

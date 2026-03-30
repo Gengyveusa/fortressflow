@@ -226,7 +226,7 @@ def evaluate_condition(
     }
     """
     cond_type = condition.get("type", "")
-    within_hours = condition.get("within_hours")
+    condition.get("within_hours")
     step_pos = condition.get("step_position")
 
     # Filter history by step if specified

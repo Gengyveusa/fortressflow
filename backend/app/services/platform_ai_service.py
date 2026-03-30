@@ -181,7 +181,7 @@ class PlatformAIService:
             body = resp.json()
             for contact in body.get("results", []):
                 props = contact.get("properties", {})
-                email = props.get("email", "")
+                props.get("email", "")
 
                 # Calculate engagement score from HubSpot AI signals
                 predictive_score = float(
@@ -415,7 +415,7 @@ class PlatformAIService:
             body = resp.json()
             for record in body.get("result", {}).get("data", []):
                 intent_score = float(record.get("intentScore", 0))
-                email = record.get("emailAddress", "")
+                record.get("emailAddress", "")
 
                 # Normalize intent score to 0-100
                 normalized = min(100.0, max(0.0, intent_score))

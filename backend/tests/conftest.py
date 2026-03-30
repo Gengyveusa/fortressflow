@@ -4,7 +4,7 @@ Shared pytest fixtures.
 All fixtures use in-memory mocks — no real database required.
 """
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest

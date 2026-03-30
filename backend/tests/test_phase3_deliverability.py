@@ -7,7 +7,6 @@ so the test suite runs without credentials or network access.
 
 import math
 import uuid
-from datetime import UTC, date, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest

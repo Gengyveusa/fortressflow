@@ -33,7 +33,6 @@ from app.config import settings
 from app.models.lead import Lead
 from app.models.sequence import EnrollmentStatus, SequenceEnrollment
 from app.models.touch_log import TouchAction, TouchLog
-from app.services import compliance as compliance_svc
 from app.services.platform_ai_service import PlatformAIService
 from app.services.state_machine import (
     EnrollmentState,
@@ -576,7 +575,7 @@ class ReplyService:
             return ReplySentiment.out_of_office, confidence
 
         # 3. Positive / negative scoring
-        words_in_body = set(re.findall(r"\b[\w\s']+\b", body_lower))
+        set(re.findall(r"\b[\w\s']+\b", body_lower))
         body_text = body_lower
 
         positive_hits = sum(

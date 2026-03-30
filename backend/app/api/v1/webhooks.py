@@ -402,7 +402,7 @@ async def email_reply_webhook(
             # Some parsers send headers as raw string; skip parsing
             raw_headers = {}
 
-        signal = ReplySignal(
+        _signal = ReplySignal(
             channel="email",
             body=body,
             sender_email=sender_email,
@@ -575,7 +575,7 @@ async def ses_events_webhook(
         mail_obj = ses_event.get("mail", {})
         destination = mail_obj.get("destination", [])  # list of recipient emails
         message_id = mail_obj.get("messageId", "")
-        timestamp_str = mail_obj.get("timestamp", "")
+        _timestamp_str = mail_obj.get("timestamp", "")
         headers_list = mail_obj.get("headers", [])
 
         # Extract custom headers we inject at send time
@@ -963,9 +963,9 @@ async def apollo_phone_webhook(
     phone_numbers = person.get("phone_numbers", [])
     sanitized_phones = person.get("sanitized_phones", [])
     email = person.get("email")
-    first_name = person.get("first_name", "")
-    last_name = person.get("last_name", "")
-    org_name = person.get("organization", {}).get("name", "")
+    _first_name = person.get("first_name", "")
+    _last_name = person.get("last_name", "")
+    _org_name = person.get("organization", {}).get("name", "")
 
     if not phone_numbers and not sanitized_phones:
         logger.info("Apollo webhook: no phone numbers for person %s", person_id)

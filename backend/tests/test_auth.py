@@ -9,15 +9,10 @@ Covers:
 - Role-based access control
 """
 
-import uuid
-from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 
-from app.models.user import User, UserRole
+from app.models.user import UserRole
 from app.services.auth_service import (
-    ALGORITHM,
     create_access_token,
     create_refresh_token,
     decode_token,

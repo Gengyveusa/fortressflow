@@ -8,7 +8,7 @@ is dispatched. No code path should bypass this function.
 import hashlib
 import hmac
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import and_, func, select

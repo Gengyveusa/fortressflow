@@ -15,7 +15,6 @@ and can be fed directly into the visual builder (React Flow nodes/edges).
 """
 
 import asyncio
-import json
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -373,11 +372,11 @@ class SequenceAIService:
         """
         # Use Apollo's recommended step count, or default based on channels
         if num_steps:
-            target_steps = num_steps
+            pass
         elif apollo_rec.get("recommended_steps"):
-            target_steps = len(apollo_rec["recommended_steps"])
+            len(apollo_rec["recommended_steps"])
         else:
-            target_steps = 7  # Default multi-touch
+            pass  # Default multi-touch
 
         # Build name from prompt
         name = self._generate_sequence_name(prompt)

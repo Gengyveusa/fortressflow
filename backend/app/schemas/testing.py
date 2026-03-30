@@ -1,5 +1,4 @@
 """Pydantic schemas for the Testing Agent API."""
-from datetime import datetime
 from typing import Any, Optional
 from pydantic import BaseModel, Field
 

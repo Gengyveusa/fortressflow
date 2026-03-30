@@ -12,7 +12,6 @@ Handles:
 import logging
 from dataclasses import dataclass
 from typing import Any
-from uuid import UUID
 
 from app.config import settings
 

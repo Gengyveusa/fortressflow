@@ -10,7 +10,6 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from app.config import settings
 from app.utils.sanitize import sanitize_error
 
 logger = logging.getLogger(__name__)
@@ -76,7 +75,7 @@ class CampaignWizard:
             step_descriptions = []
             for i, step in enumerate(sequence_preview.get("steps", [])[:seq_length]):
                 step_type = step.get("step_type", "email")
-                delay = step.get("delay_hours", 0)
+                step.get("delay_hours", 0)
                 day = sum(
                     s.get("delay_hours", 0)
                     for s in sequence_preview.get("steps", [])[:i]
@@ -120,7 +119,7 @@ class CampaignWizard:
                 "channels": channels,
                 "tone": tone,
                 "sequence_length": seq_length,
-                "lead_ids": [str(l.id) for l in compliant_leads[:count]],
+                "lead_ids": [str(lead_item.id) for lead_item in compliant_leads[:count]],
                 "compliant_count": compliant_count,
                 "total_found": total_found,
                 "sequence_preview": sequence_preview,
@@ -159,10 +158,8 @@ class CampaignWizard:
         Returns progress updates as a dict (for SSE streaming by the chat service).
         """
         try:
-            from sqlalchemy import select
 
             from app.database import AsyncSessionLocal
-            from app.models.lead import Lead
             from app.models.sequence import (
                 Sequence,
                 SequenceEnrollment,
@@ -310,14 +307,13 @@ class CampaignWizard:
         from sqlalchemy import select
 
         from app.database import AsyncSessionLocal
-        from app.models.consent import Consent
         from app.models.dnc import DNCBlock
 
         if not leads:
             return []
 
-        lead_ids = [l.id for l in leads]
-        lead_emails = [l.email for l in leads]
+        lead_ids = [lead_item.id for lead_item in leads]  # noqa: F841
+        lead_emails = [lead_item.email for lead_item in leads]
 
         async with AsyncSessionLocal() as db:
             # Check DNC list
@@ -329,7 +325,7 @@ class CampaignWizard:
             blocked_emails = {row[0] for row in dnc_result.all()}
 
         # Filter out blocked leads
-        compliant = [l for l in leads if l.email not in blocked_emails]
+        compliant = [lead_item for lead_item in leads if lead_item.email not in blocked_emails]
         return compliant
 
     async def _generate_sequence_preview(
@@ -377,7 +373,7 @@ class CampaignWizard:
             "delay_hours": 0,
             "node_id": f"email_{position}",
             "config": {
-                "subject_hint": f"Quick question about your practice",
+                "subject_hint": "Quick question about your practice",
                 "description": f"Introduction email to {target}",
             },
         })

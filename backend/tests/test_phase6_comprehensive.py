@@ -18,11 +18,9 @@ asyncio_mode = "auto" handles async automatically.
 
 import json
 import uuid
-from collections import deque
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 
 
 # ══════════════════════════════════════════════════════════════════════════════

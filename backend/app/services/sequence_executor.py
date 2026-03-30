@@ -16,7 +16,7 @@ This service is called by the Celery beat scheduler every 15 minutes.
 import logging
 import random
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import and_, select
@@ -35,7 +35,6 @@ from app.models.template import Template
 from app.models.touch_log import TouchAction, TouchLog
 from app.services import compliance as compliance_svc
 from app.services.deliverability_router import DeliverabilityRouter
-from app.services.email_service import send_email
 from app.services.linkedin_service import (
     LinkedInAction,
     prepare_linkedin_outreach,
@@ -44,9 +43,6 @@ from app.services.sms_service import send_sms
 from app.services.state_machine import (
     EnrollmentState,
     evaluate_condition,
-    handle_bounce_signal,
-    is_sendable,
-    is_terminal,
     transition,
 )
 from app.services.template_engine import build_lead_context, render_template
@@ -630,7 +626,7 @@ async def _execute_hole_filler(
     if not can_send:
         return {"status": "blocked", "reason": reason, "channel": escalation_channel}
 
-    context = build_lead_context(lead=lead, sender=DEFAULT_SENDER)
+    build_lead_context(lead=lead, sender=DEFAULT_SENDER)
 
     result: dict = {
         "status": "sent",

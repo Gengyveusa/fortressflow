@@ -12,7 +12,6 @@ All sends are gated through can_send_to_lead() via the warmup/sequence engine.
 """
 
 import logging
-from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -22,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.models.domain import SendingDomain
 from app.models.sending_inbox import InboxStatus, SendingInbox
-from app.models.warmup import WarmupQueue, WarmupSeedLog
+from app.models.warmup import WarmupSeedLog
 from app.services.email_service import EmailResult, send_email
 
 logger = logging.getLogger(__name__)
@@ -350,7 +349,7 @@ class DeliverabilityRouter:
         """
         Return a comprehensive deliverability status dashboard.
         """
-        inboxes = await self.get_available_inboxes()
+        await self.get_available_inboxes()
 
         # Also get all inboxes regardless of status
         all_result = await self._db.execute(select(SendingInbox))

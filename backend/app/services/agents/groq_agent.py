@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.services import api_key_service
-from app.utils.sanitize import sanitize_error
 
 logger = logging.getLogger(__name__)
 

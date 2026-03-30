@@ -8,9 +8,6 @@ Tests cover:
 - Celery task: feedback push, topic categorization
 """
 
-import asyncio
-import json
-import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -324,7 +321,7 @@ class TestChatRateLimiting:
 
     @pytest.mark.asyncio
     async def test_rate_limit_allows_under_threshold(self):
-        from app.api.v1.chat import _check_chat_rate_limit, _CHAT_RATE_LIMIT
+        from app.api.v1.chat import _check_chat_rate_limit
 
         mock_redis = AsyncMock()
         mock_pipe = AsyncMock()
@@ -365,7 +362,7 @@ class TestChatRateLimiting:
 
     @pytest.mark.asyncio
     async def test_rate_limit_per_user_isolation(self):
-        from app.api.v1.chat import _check_chat_rate_limit, _CHAT_RATE_LIMIT
+        from app.api.v1.chat import _check_chat_rate_limit
 
         mock_redis = AsyncMock()
         mock_pipe = AsyncMock()

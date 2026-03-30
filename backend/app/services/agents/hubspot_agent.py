@@ -7,7 +7,6 @@ All methods are async with DB-first API key resolution and rate-limited retries.
 """
 
 import asyncio
-import json
 import logging
 from datetime import UTC, datetime
 from uuid import UUID
@@ -1299,7 +1298,7 @@ class HubSpotAgent:
     ) -> dict:
         """Trigger (enroll a contact in) a workflow."""
         try:
-            resp = await self._request_with_backoff(
+            await self._request_with_backoff(
                 "POST",
                 f"/automation/v2/workflows/{workflow_id}/enrollments/contacts/{contact_email}",
                 user_id=user_id,
@@ -2318,7 +2317,7 @@ class HubSpotAgent:
     ) -> dict:
         """Trigger (enroll a contact in) a workflow."""
         try:
-            resp = await self._request_with_backoff(
+            await self._request_with_backoff(
                 "POST",
                 f"/automation/v2/workflows/{workflow_id}/enrollments/contacts/{contact_email}",
                 user_id=user_id,

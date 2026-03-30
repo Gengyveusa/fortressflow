@@ -9,7 +9,6 @@ Three pre-built sequences targeting dental offices and DSOs:
 All templates use {{variable}} interpolation.
 """
 
-from app.models.template import TemplateCategory, TemplateChannel
 
 
 # ─────────────────────────────────────────────────────────────

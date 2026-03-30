@@ -6,7 +6,7 @@ response-trends, channel-breakdown, bounce-daily, audit-trail.
 Also expands dashboard and deliverability coverage.
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi.testclient import TestClient

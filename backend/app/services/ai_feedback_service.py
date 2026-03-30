@@ -11,14 +11,13 @@ future sequence generation refinement.
 
 import asyncio
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 from app.models.lead import Lead
 from app.models.sequence import EnrollmentStatus, SequenceEnrollment
 from app.models.touch_log import TouchAction, TouchLog
@@ -828,7 +827,7 @@ class AIFeedbackService:
         reply_rate = metrics.get("reply_rate", 0)
         open_rate = metrics.get("open_rate", 0)
         bounce_rate = metrics.get("bounce_rate", 0)
-        best_channel = metrics.get("best_performing_channel")
+        metrics.get("best_performing_channel")
 
         # Reply rate recommendations
         if reply_rate < 0.05:

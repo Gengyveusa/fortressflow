@@ -5,7 +5,7 @@ All tests run without a real database — AsyncSession is mocked.
 """
 import uuid
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -15,7 +15,6 @@ from app.services.compliance import (
     can_send_to_lead,
     record_consent,
     revoke_consent,
-    add_to_dnc,
     get_audit_trail,
 )
 

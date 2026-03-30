@@ -19,7 +19,7 @@ All tests use in-memory mocks (no real database or external APIs).
 """
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest

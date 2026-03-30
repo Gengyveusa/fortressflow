@@ -10,10 +10,8 @@ Tests cover:
 - API schemas: CommandResponse validation
 """
 
-import json
-import uuid
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -151,7 +149,7 @@ class TestCommandEngineHandlers:
         assert "Sales Agent" in result["content"]
 
     def test_handle_import_leads(self):
-        from app.services.command_engine import CommandEngine, IntentResult
+        from app.services.command_engine import CommandEngine
 
         engine = CommandEngine()
         # import_leads is handled inline in route_intent — test the static path
