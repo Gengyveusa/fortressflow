@@ -83,7 +83,7 @@ async def get_proactive_insights():
 @router.get("/experiments/summary")
 async def get_experiment_summary():
     """Return RL experiment outcomes."""
-    rl = _get_rl()
+
     return {
         "strategy": "thompson_sampling",
         "total_experiments": 5,

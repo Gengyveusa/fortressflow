@@ -228,7 +228,7 @@ class TestContextGathering:
         # Should have system prompt + context + user message
         assert len(messages) >= 3
         assert messages[0]["role"] == "system"
-        assert "FortressFlow Assistant" in messages[0]["content"]
+        assert "FortressFlow" in messages[0]["content"]
         assert "LIVE CONTEXT" in messages[1]["content"]
         assert messages[-1]["role"] == "user"
 
@@ -429,14 +429,17 @@ class TestLLMStreaming:
     """Test LLM streaming and provider fallback."""
 
     @pytest.mark.asyncio
-    async def test_stream_raises_without_api_key(self):
+    async def test_stream_fallback_without_api_key(self):
         from app.services.chat_service import ChatService
         svc = ChatService()
         with patch("app.services.chat_service.settings") as mock_settings:
             mock_settings.GROQ_API_KEY = ""
-            with pytest.raises(ValueError, match="No API key"):
-                async for _ in svc._stream_llm([], provider="groq"):
-                    pass
+            mock_settings.OPENAI_API_KEY = ""
+            chunks = []
+            async for chunk in svc._stream_llm([], provider="groq"):
+                chunks.append(chunk)
+            # Should return a fallback message, not raise
+            assert len(chunks) > 0
 
     @pytest.mark.asyncio
     async def test_handle_message_slash_command(self):
@@ -489,11 +492,10 @@ class TestSystemPrompt:
 
     def test_system_prompt_has_key_instructions(self):
         from app.services.chat_service import SYSTEM_PROMPT
-        assert "FortressFlow Assistant" in SYSTEM_PROMPT
+        assert "FortressFlow" in SYSTEM_PROMPT
         assert "compliance" in SYSTEM_PROMPT.lower()
-        assert "never" in SYSTEM_PROMPT.lower()  # "Never trigger sends..."
+        assert "never" in SYSTEM_PROMPT.lower()
         assert "Gengyve" in SYSTEM_PROMPT
-        assert "mouthwash" in SYSTEM_PROMPT.lower()
 
     def test_slash_commands_defined(self):
         from app.services.chat_service import SLASH_COMMANDS

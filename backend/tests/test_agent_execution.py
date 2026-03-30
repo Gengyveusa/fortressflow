@@ -32,8 +32,8 @@ class TestAgentRegistration:
     def test_taplio_in_registry(self):
         assert "taplio" in _AGENT_REGISTRY
 
-    def test_all_seven_agents_registered(self):
-        expected = {"groq", "openai", "hubspot", "zoominfo", "twilio", "apollo", "taplio"}
+    def test_all_agents_registered(self):
+        expected = {"groq", "openai", "hubspot", "zoominfo", "twilio", "apollo", "taplio", "marketing", "sales", "testing"}
         assert set(_AGENT_REGISTRY.keys()) == expected
 
     def test_apollo_has_allowed_actions(self):

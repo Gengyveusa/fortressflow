@@ -147,8 +147,8 @@ class TestCommandEngineHandlers:
         engine = CommandEngine()
         result = engine._handle_help()
         assert result["type"] == "text"
-        assert "Find periodontists" in result["content"]
-        assert "How are we doing" in result["content"]
+        assert "Marketing Agent" in result["content"]
+        assert "Sales Agent" in result["content"]
 
     def test_handle_import_leads(self):
         from app.services.command_engine import CommandEngine, IntentResult
