@@ -743,7 +743,8 @@ export default function MissionControlPage() {
     queryFn: async () => {
       try {
         const res = await api.get("/monitor/agent-heatmap");
-        return res.data;
+        const d = res.data;
+        return Array.isArray(d) ? d : d?.agents ?? MOCK_AGENTS;
       } catch {
         return MOCK_AGENTS;
       }
@@ -760,7 +761,8 @@ export default function MissionControlPage() {
     queryFn: async () => {
       try {
         const res = await api.get("/monitor/agent-live-feed");
-        return res.data;
+        const d = res.data;
+        return Array.isArray(d) ? d : d?.items ?? MOCK_FEED;
       } catch {
         return MOCK_FEED;
       }
@@ -777,7 +779,7 @@ export default function MissionControlPage() {
     queryFn: async () => {
       try {
         const res = await api.get("/monitor/provenance");
-        return res.data;
+        return res.data ?? MOCK_PROVENANCE;
       } catch {
         return MOCK_PROVENANCE;
       }
@@ -794,7 +796,7 @@ export default function MissionControlPage() {
     queryFn: async () => {
       try {
         const res = await api.get("/monitor/journey-funnel");
-        return res.data;
+        return res.data ?? MOCK_JOURNEY;
       } catch {
         return MOCK_JOURNEY;
       }
