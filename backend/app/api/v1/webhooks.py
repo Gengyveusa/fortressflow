@@ -106,7 +106,7 @@ async def hubspot_webhook(
     for event in events:
         subscription_type = event.get("subscriptionType", "")
         property_name = event.get("propertyName", "")
-        object_id = event.get("objectId")
+        _object_id = event.get("objectId")
 
         if subscription_type != "contact.propertyChange":
             continue
@@ -192,7 +192,7 @@ async def twilio_sms_webhook(
     """
     try:
         form_data = dict(await request.form())
-        raw_body = await request.body()
+        _raw_body = await request.body()
     except Exception as exc:
         logger.error("Twilio SMS webhook: failed to parse form data: %s", exc)
         sentry_sdk.capture_exception(exc)
@@ -227,7 +227,7 @@ async def twilio_sms_webhook(
     try:
         message_sid = form_data.get("MessageSid", "")
         from_number = form_data.get("From", "")
-        body_text = form_data.get("Body", "")
+        _body_text = form_data.get("Body", "")
         message_status = form_data.get("MessageStatus", "")
 
         # Look up lead by phone number for logging
@@ -370,7 +370,7 @@ async def email_reply_webhook(
     )
 
     try:
-        from app.services.reply_service import ReplyService, ReplySignal
+        from app.services.reply_service import ReplyService, ReplySignal  # noqa: F401
 
         # Build ReplySignal from Parsio / generic payload
         # Parsio fields: from_email, subject, body_text, headers, message_id

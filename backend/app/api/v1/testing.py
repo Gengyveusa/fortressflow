@@ -1,8 +1,7 @@
 """Testing Agent API — diagnostics, failure analysis, fix generation."""
 import logging
-from datetime import datetime, timedelta, UTC
+from datetime import datetime
 from typing import Optional
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
@@ -15,7 +14,6 @@ from app.services.agents.orchestrator import AgentOrchestrator
 from app.schemas.testing import (
     DiagnosticRequest, DiagnoseIssueRequest, GenerateFixRequest,
     ValidateFixRequest, IntegrationTestRequest, GenerateTestCasesRequest,
-    FailureAnalysisRequest,
 )
 
 logger = logging.getLogger(__name__)
