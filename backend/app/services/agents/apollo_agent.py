@@ -119,7 +119,8 @@ class ApolloAgent:
             payload["contact_email_status"] = [department]
 
         # Try search endpoints in order of capability
-        for endpoint in ["/people/search", "/mixed_people/search"]:
+        # Scoped API keys may only have access to specific endpoints
+        for endpoint in ["/mixed_people/api_search", "/contacts/search", "/people/search"]:
             try:
                 resp = await self._request_with_backoff(
                     "POST",
@@ -129,51 +130,65 @@ class ApolloAgent:
                 )
                 data = resp.json()
                 people = data.get("people", data.get("contacts", []))
+                if not isinstance(people, list):
+                    people = []
+                total_entries = data.get("total_entries") or data.get("pagination", {}).get("total_entries", 0)
                 return {
-                    "people": [
-                        {
-                            "id": p.get("id"),
-                            "first_name": p.get("first_name"),
-                            "last_name": p.get("last_name"),
-                            "name": p.get("name"),
-                            "email": p.get("email"),
-                            "title": p.get("title"),
-                            "organization_name": (
-                                p.get("organization", {}).get("name")
-                                if isinstance(p.get("organization"), dict)
-                                else p.get("organization_name", "")
-                            ),
-                            "linkedin_url": p.get("linkedin_url"),
-                            "city": p.get("city"),
-                            "state": p.get("state"),
-                            "country": p.get("country"),
-                            "seniority": p.get("seniority"),
-                            "departments": p.get("departments"),
-                        }
-                        for p in people
-                    ],
+                    "people": [self._normalize_person(p) for p in people],
                     "pagination": {
                         "page": data.get("pagination", {}).get("page", page),
                         "per_page": data.get("pagination", {}).get("per_page", per_page),
-                        "total_entries": data.get("pagination", {}).get("total_entries", 0),
+                        "total_entries": total_entries,
                         "total_pages": data.get("pagination", {}).get("total_pages", 0),
                     },
+                    "total_entries": total_entries,
                     "source": endpoint,
                 }
             except httpx.HTTPStatusError as exc:
-                if exc.response.status_code == 403:
-                    logger.info("Apollo %s not available (403), trying next endpoint", endpoint)
+                if exc.response.status_code in (403, 404):
+                    logger.info(
+                        "Apollo %s not available (%s), trying next endpoint", endpoint, exc.response.status_code
+                    )
                     continue
                 logger.error("Apollo search_people error on %s: %s", endpoint, exc)
                 return {"error": str(exc)}
 
-        # All search endpoints returned 403 — API plan doesn't include search
-        logger.warning("Apollo search not available on current plan (all endpoints returned 403)")
+        # All search endpoints failed
+        logger.warning("Apollo search not available on current API key (all endpoints returned 403/404)")
         return {
-            "error": "Apollo search API requires a plan upgrade. "
-            "Your current API key has enrichment access but not search. "
-            "Upgrade at apollo.io/settings/api-keys to enable /people/search.",
+            "error": "Apollo search API not accessible with current key. "
+            "Ensure your API key is scoped to include search endpoints.",
             "error_code": "SEARCH_NOT_AVAILABLE",
+        }
+
+    @staticmethod
+    def _normalize_person(p: dict) -> dict:
+        """Normalize a person record from any Apollo endpoint format."""
+        # Handle obfuscated last names from mixed_people/api_search
+        last_name = p.get("last_name") or p.get("last_name_obfuscated", "")
+        first_name = p.get("first_name", "")
+        name = p.get("name") or f"{first_name} {last_name}".strip()
+
+        # Organization can be a dict or a string
+        org = p.get("organization", {})
+        org_name = org.get("name", "") if isinstance(org, dict) else p.get("organization_name", "")
+
+        return {
+            "id": p.get("id"),
+            "first_name": first_name,
+            "last_name": last_name,
+            "name": name,
+            "email": p.get("email", ""),
+            "has_email": p.get("has_email", False),
+            "title": p.get("title", ""),
+            "organization_name": org_name,
+            "linkedin_url": p.get("linkedin_url", ""),
+            "city": p.get("city", ""),
+            "state": p.get("state", ""),
+            "country": p.get("country", ""),
+            "seniority": p.get("seniority", ""),
+            "departments": p.get("departments", []),
+            "has_direct_phone": p.get("has_direct_phone", ""),
         }
 
     async def search_organizations(
@@ -201,40 +216,49 @@ class ApolloAgent:
         if revenue_ranges:
             payload["organization_revenue_ranges"] = revenue_ranges
 
-        try:
-            resp = await self._request_with_backoff(
-                "POST",
-                "/organizations/search",
-                user_id=user_id,
-                json=payload,
-            )
-            data = resp.json()
-            orgs = data.get("organizations", [])
-            return {
-                "organizations": [
-                    {
-                        "id": o.get("id"),
-                        "name": o.get("name"),
-                        "website_url": o.get("website_url"),
-                        "industry": o.get("industry"),
-                        "estimated_num_employees": o.get("estimated_num_employees"),
-                        "annual_revenue": o.get("annual_revenue"),
-                        "city": o.get("city"),
-                        "state": o.get("state"),
-                        "country": o.get("country"),
-                        "linkedin_url": o.get("linkedin_url"),
-                        "founded_year": o.get("founded_year"),
-                    }
-                    for o in orgs
-                ],
-                "pagination": {
-                    "page": data.get("pagination", {}).get("page", page),
-                    "total_entries": data.get("pagination", {}).get("total_entries", 0),
-                },
-            }
-        except httpx.HTTPStatusError as exc:
-            logger.error("Apollo search_organizations error: %s", exc)
-            return {"error": str(exc)}
+        for endpoint in ["/organizations/search", "/mixed_companies/search", "/accounts/search"]:
+            try:
+                resp = await self._request_with_backoff(
+                    "POST",
+                    endpoint,
+                    user_id=user_id,
+                    json=payload,
+                )
+                data = resp.json()
+                orgs = data.get("organizations", data.get("accounts", data.get("companies", [])))
+                if not isinstance(orgs, list):
+                    orgs = []
+                return {
+                    "organizations": [
+                        {
+                            "id": o.get("id"),
+                            "name": o.get("name"),
+                            "website_url": o.get("website_url"),
+                            "industry": o.get("industry"),
+                            "estimated_num_employees": o.get("estimated_num_employees"),
+                            "annual_revenue": o.get("annual_revenue"),
+                            "city": o.get("city"),
+                            "state": o.get("state"),
+                            "country": o.get("country"),
+                            "linkedin_url": o.get("linkedin_url"),
+                            "founded_year": o.get("founded_year"),
+                        }
+                        for o in orgs
+                    ],
+                    "pagination": {
+                        "page": data.get("pagination", {}).get("page", page),
+                        "total_entries": data.get("pagination", {}).get("total_entries", 0),
+                    },
+                    "source": endpoint,
+                }
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code in (403, 404):
+                    logger.info("Apollo %s not available (%s), trying next", endpoint, exc.response.status_code)
+                    continue
+                logger.error("Apollo search_organizations error on %s: %s", endpoint, exc)
+                return {"error": str(exc)}
+
+        return {"error": "Apollo organization search not accessible with current API key."}
 
     async def get_organization_job_postings(
         self,
