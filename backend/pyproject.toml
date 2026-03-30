@@ -16,9 +16,11 @@ include = ["app*"]
 
 [tool.ruff]
 line-length = 120
-select = ["E", "F", "W"]
-ignore = ["F811", "E501"]  # F811: method redefinition (HubSpot v1/v2), E501: line length
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["F811", "E501"]
+
+[tool.ruff.lint.per-file-ignores]
 "alembic/*" = ["E501", "F401"]
-"tests/*" = ["F841"]
+"tests/*" = ["F841", "E401"]

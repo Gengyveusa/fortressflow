@@ -243,7 +243,8 @@ def test_verify_invalid_token():
 
 def test_verify_tampered_token(lead_id):
     """Token with modified payload is rejected."""
-    import base64, json
+    import base64
+    import json
     token = generate_unsubscribe_token(lead_id, "email")
     decoded = json.loads(base64.urlsafe_b64decode(token.encode()).decode())
     # Tamper with the payload

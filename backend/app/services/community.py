@@ -111,7 +111,8 @@ class CommunityService:
         entry = WaitlistEntry(email=email, company=company, role=role, referral_source=referral_source, position=len(self._waitlist) + 1, priority_score=score)
         self._waitlist.append(entry)
         self._waitlist.sort(key=lambda e: -e.priority_score)
-        for i, e in enumerate(self._waitlist): e.position = i + 1
+        for i, e in enumerate(self._waitlist):
+            e.position = i + 1
         logger.info("Waitlist entry: %s (score: %.1f, position: %d)", email, score, entry.position)
         return entry
 
