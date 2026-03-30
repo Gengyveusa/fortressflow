@@ -24,6 +24,7 @@ import {
   ScanLine,
   BrainCircuit,
   Puzzle,
+  TestTube2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -51,6 +52,7 @@ const navItems = [
   { href: "/packaging", label: "Packaging Auth", icon: ScanLine },
   { href: "/compliance", label: "Compliance", icon: Shield },
   { href: "/deliverability", label: "Deliverability", icon: Mail },
+  { href: "/testing", label: "Testing Agent", icon: TestTube2 },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

@@ -25,6 +25,7 @@ _AGENT_REGISTRY: dict[str, tuple[str, str]] = {
     "taplio": ("app.services.agents.taplio_agent", "TaplioAgent"),
     "marketing": ("app.services.agents.marketing_agent", "MarketingAgent"),
     "sales": ("app.services.agents.sales_agent", "SalesAgent"),
+    "testing": ("app.services.agents.testing_agent", "TestingAgent"),
 }
 
 # Allowed actions per agent (whitelist)
@@ -169,6 +170,11 @@ _ALLOWED_ACTIONS: dict[str, set[str]] = {
         "enroll_in_sequence", "get_realtime_insights", "schedule_meeting",
         "generate_quote", "summarize_sales_analytics", "score_opportunity",
         "get_account_insights", "recommend_renewals", "forecast_revenue",
+    },
+    "testing": {
+        "health_check", "run_diagnostic", "analyze_failures",
+        "diagnose_issue", "generate_fix", "validate_fix",
+        "run_integration_test", "generate_test_cases",
     },
 }
 
@@ -404,6 +410,7 @@ class AgentOrchestrator:
             "taplio": "taplio",
             "marketing": "groq",
             "sales": "groq",
+            "testing": "groq",
         }
 
         statuses = []
