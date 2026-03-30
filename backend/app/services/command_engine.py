@@ -282,7 +282,7 @@ class CommandEngine:
             )
 
         if intent == "find_leads":
-            return await self._handle_find_leads(result.entities, user_id)
+            return await self._handle_find_leads(result.entities, user_id, db)
 
         if intent == "import_leads":
             return {
@@ -664,8 +664,8 @@ class CommandEngine:
 
     # ── Original Intent Handlers ───────────────────────────────────────────
 
-    async def _handle_find_leads(self, entities: dict[str, Any], user_id: str) -> dict[str, Any]:
-        """Search for leads matching the given criteria."""
+    async def _handle_find_leads(self, entities: dict[str, Any], user_id: str, db=None) -> dict[str, Any]:
+        """Search for leads — local DB first, then automatically cascade to Apollo."""
         from sqlalchemy import String, func, select
 
         from app.database import AsyncSessionLocal
@@ -675,7 +675,8 @@ class CommandEngine:
         location = entities.get("location", "")
         count = int(entities.get("count", 25))
 
-        async with AsyncSessionLocal() as db:
+        # Step 1: Search local DB
+        async with AsyncSessionLocal() as local_db:
             query = select(Lead)
 
             if specialty:
@@ -688,20 +689,30 @@ class CommandEngine:
                 query = query.where(func.cast(Lead.enriched_data, String).ilike(f"%{location}%"))
 
             query = query.limit(min(count, 100))
-            result = await db.execute(query)
+            result = await local_db.execute(query)
             leads = result.scalars().all()
 
+        # Step 2: If no local leads, automatically search Apollo
         if not leads:
             search_desc = specialty or "your criteria"
+            location_desc = f" in {location}" if location else ""
+
+            # Try Apollo search automatically
+            apollo_result = await self._auto_search_apollo(specialty or "dentist", location, count, user_id, db)
+            if apollo_result:
+                return apollo_result
+
+            # Apollo also failed — give helpful guidance
             return {
                 "type": "text",
                 "content": (
-                    f"No leads found matching **{search_desc}**"
-                    f"{f' in {location}' if location else ''}. "
-                    "Would you like me to:\n"
-                    "1. Search with broader criteria?\n"
-                    "2. Enrich new leads via ZoomInfo/Apollo?\n"
-                    "3. Import leads from CSV?"
+                    f"No leads found matching **{search_desc}**{location_desc} in the local database.\n\n"
+                    "I tried searching Apollo's 210M+ contact database but couldn't connect. "
+                    "To enable external lead search:\n\n"
+                    "1. **Configure Apollo API key** in Settings → Integrations\n"
+                    "2. **Import leads** from CSV via Leads → Import\n"
+                    "3. **Connect HubSpot** for CRM sync\n\n"
+                    "Once connected, I can search Apollo, ZoomInfo, and enrich leads automatically."
                 ),
             }
 
@@ -728,6 +739,101 @@ class CommandEngine:
                 + "Want me to create a campaign targeting these leads?"
             ),
         }
+
+    async def _auto_search_apollo(
+        self, query: str, location: str, count: int, user_id: str, db=None
+    ) -> dict[str, Any] | None:
+        """Automatically search Apollo when local DB has no leads. Returns None if Apollo unavailable."""
+        if db is None:
+            # Try to get a db session
+            try:
+                from app.database import AsyncSessionLocal
+
+                async with AsyncSessionLocal() as session:
+                    return await self._auto_search_apollo(query, location, count, user_id, session)
+            except Exception:
+                return None
+
+        try:
+            uid = UUID(user_id) if isinstance(user_id, str) else user_id
+            location_desc = f" in {location}" if location else ""
+
+            result = await AgentOrchestrator.dispatch(
+                db=db,
+                agent_name="apollo",
+                action="search_people",
+                params={
+                    "query": query,
+                    "location": location,
+                    "per_page": min(count, 25),
+                },
+                user_id=uid,
+            )
+
+            if result.get("status") == "success":
+                data = result.get("result", {})
+                latency = result.get("latency_ms", "N/A")
+
+                # Format Apollo results nicely
+                people = data.get("people", data.get("contacts", []))
+                if isinstance(data, dict) and not people:
+                    # Result might be the full response
+                    people = data.get("results", [])
+
+                if isinstance(people, list) and people:
+                    formatted_lines = []
+                    for i, person in enumerate(people[:count], 1):
+                        if isinstance(person, dict):
+                            name = person.get("name", person.get("first_name", ""))
+                            if not name and person.get("first_name"):
+                                name = f"{person.get('first_name', '')} {person.get('last_name', '')}"
+                            title = person.get("title", person.get("headline", ""))
+                            org = person.get("organization_name", person.get("company", ""))
+                            email = person.get("email", "")
+                            email_str = f" — {email}" if email else ""
+                            formatted_lines.append(f"{i}. **{name}** — {title} at {org}{email_str}")
+
+                    if formatted_lines:
+                        return {
+                            "type": "text",
+                            "content": (
+                                f"🔍 **Apollo Search Results** — Found contacts matching "
+                                f"**{query}**{location_desc}:\n\n"
+                                + "\n".join(formatted_lines)
+                                + f"\n\n*Source: Apollo (210M+ contacts) — {latency}ms*\n\n"
+                                "What would you like to do next?\n"
+                                "• **Enrich** these contacts with ZoomInfo\n"
+                                "• **Create a campaign** targeting them\n"
+                                "• **Add to HubSpot** CRM\n"
+                                "• **Search again** with different criteria"
+                            ),
+                        }
+
+                # Apollo returned data but in an unexpected format — show raw
+                return {
+                    "type": "text",
+                    "content": (
+                        f"🔍 **Apollo Search** for **{query}**{location_desc}:\n\n"
+                        f"{json.dumps(data, indent=2, default=str)[:2000]}\n\n"
+                        f"*Source: Apollo — {latency}ms*"
+                    ),
+                }
+
+            # Apollo dispatch failed — check if it's a key issue
+            error = result.get("error", "")
+            if "api_key" in error.lower() or "unauthorized" in error.lower() or "401" in error:
+                return None  # Let caller show configuration guidance
+            return {
+                "type": "text",
+                "content": (
+                    f"Searched Apollo for **{query}**{location_desc} but got: {error}\n\n"
+                    "This might be a temporary issue. Try again or check your Apollo API configuration."
+                ),
+            }
+
+        except Exception as exc:
+            logger.warning("Auto Apollo search failed: %s", exc)
+            return None
 
     async def _handle_enrich_leads(self, entities: dict[str, Any], user_id: str, db=None) -> dict[str, Any]:
         """Trigger lead enrichment — counts un-enriched leads and dispatches to ZoomInfo."""

@@ -191,7 +191,8 @@ class ChatService:
         # ── Standard LLM Chat ──
         context = await self._gather_context()
         insights = await self._route_to_ai_platforms(message)
-        messages = self._build_messages(message, context, insights, session_id)
+        chat_history = await self._load_chat_history(user_id, session_id, limit=6)
+        messages = self._build_messages(message, context, insights, session_id, chat_history)
 
         full_response = ""
         try:
@@ -420,6 +421,45 @@ class ChatService:
         return executed
 
     # ── Session State Management ─────────────────────────────────────────
+
+    async def _load_chat_history(
+        self,
+        user_id: str,
+        session_id: str,
+        limit: int = 6,
+    ) -> list[dict[str, str]]:
+        """Load recent chat history for this session to provide LLM context."""
+        try:
+            from sqlalchemy import select
+
+            from app.database import AsyncSessionLocal
+            from app.models.chat import ChatLog
+
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(
+                    select(ChatLog.message, ChatLog.response)
+                    .where(
+                        ChatLog.session_id == session_id,
+                        ChatLog.user_id == user_id,
+                    )
+                    .order_by(ChatLog.created_at.desc())
+                    .limit(limit)
+                )
+                rows = result.all()
+
+                # Build history in chronological order (oldest first)
+                history = []
+                for row in reversed(rows):
+                    msg, resp = row
+                    if msg:
+                        history.append({"role": "user", "content": str(msg)})
+                    if resp:
+                        history.append({"role": "assistant", "content": str(resp)})
+                return history
+
+        except Exception as exc:
+            logger.warning("_load_chat_history failed: %s", exc)
+            return []
 
     async def _load_session_state(
         self,
@@ -692,8 +732,9 @@ class ChatService:
         context: dict[str, Any],
         insights: dict[str, str],
         session_id: str,
+        chat_history: list[dict[str, str]] | None = None,
     ) -> list[dict[str, str]]:
-        """Build the message list for the LLM."""
+        """Build the message list for the LLM, including recent conversation history."""
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
         # Inject live context if available
@@ -730,6 +771,14 @@ class ChatService:
                     "content": f"[{platform_label} Insight]\n{insight}",
                 }
             )
+
+        # Recent conversation history (provides context for follow-ups like "2" or "yes")
+        if chat_history:
+            for entry in chat_history:
+                role = entry.get("role", "user")
+                content = entry.get("content", "")
+                if content and role in ("user", "assistant"):
+                    messages.append({"role": role, "content": content[:500]})
 
         # User message
         messages.append({"role": "user", "content": message})
