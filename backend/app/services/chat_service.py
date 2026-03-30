@@ -275,7 +275,7 @@ class ChatService:
             engine = CommandEngine()
             result = await engine.classify_intent(message)
 
-            if result.intent == "unknown" or result.confidence < 0.4:
+            if result.intent == "unknown" or result.confidence < 0.3:
                 # Low confidence — fall through to standard LLM chat
                 return None
 

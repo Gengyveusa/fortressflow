@@ -118,33 +118,22 @@ Respond ONLY with valid JSON — no markdown, no explanation:
 {{"intent": "<intent_name>", "confidence": <0.0-1.0>, "entities": {{...extracted entities...}}, "missing_required": [...]}}
 
 Rules:
-- confidence should reflect how clearly the message maps to the intent
-- If the message is ambiguous, use "unknown" with low confidence
-- missing_required lists entity keys that are needed but not present in the message
-- For "create_campaign", required entities are: target_description (specialty or audience)
-- For "find_leads", required entities are: specialty_or_criteria
-- For "check_status", nothing is required
-- For "pause_campaign" / "resume_campaign", campaign_name is required
-- For "send_sms", required entities are: phone_number, sms_body
-- For "sync_crm", nothing is required
-- For "search_company", required entities are: company_query
-- For "ai_generate", required entities are: ai_prompt
-- For "apollo_search", required entities are: apollo_query (title, location, or company)
-- For "apollo_sequence", required entities are: sequence_name or contact reference
-- For "linkedin_post", required entities are: linkedin_topic
-- For "linkedin_dm", required entities are: recipient name or profile reference
-- For "score_lead", extract: name, company, specialty, location + any engagement data
-- For "score_opportunity", extract: company, deal_value, stage, champion info
-- For "account_insights", extract: company name
-- For "revenue_forecast", extract: timeframe (e.g., "Q2", "next quarter")
-- For "multilingual_content" / "translate_content", extract: locale (target language code), content to translate
-- For "create_social_post", extract: linkedin_topic, platform preference
-- For "manage_pipeline", extract: company, deal_name, action_type (analyze/create/update)
-- For "segment_customers", nothing required
-- For "churn_analysis" / "dedup_check" / "experiment_status" / "community_stats" / "call_analytics", nothing required
-- ALWAYS include the full original user message as "raw_message" in entities
-- For "send_whatsapp", required entities are: whatsapp_number, whatsapp_body
-- For "plan_outreach", required entities are: target_description (who to reach). Route here for complex multi-step requests involving lead sourcing + outreach, or when user asks "what are my options" for contacting people
+- BE DECISIVE. If the user's message clearly relates to an intent, assign HIGH confidence (0.8-0.95).
+- Only use "unknown" if the message truly has no relation to any intent.
+- missing_required should be EMPTY for most intents — the system handles defaults.
+- ONLY populate missing_required for these specific intents when the listed fields are truly absent:
+  * "create_campaign": target_description (who to reach)
+  * "find_leads": specialty_or_criteria (what kind of leads)
+  * "pause_campaign" / "resume_campaign": campaign_name
+  * "send_sms": phone_number AND sms_body
+  * "send_whatsapp": whatsapp_number AND whatsapp_body
+- For ALL OTHER intents, leave missing_required as an EMPTY array [].
+- The user's raw message contains enough context — extract what you can and let the system handle the rest.
+- ALWAYS include the full original user message as "raw_message" in entities.
+- Extract any available entities (name, company, specialty, location, etc.) but do NOT mark them as missing.
+- For v2.0 agent intents (score_lead, manage_pipeline, score_opportunity, revenue_forecast, etc.), ALWAYS set missing_required to [] — these agents have intelligent defaults.
+- For "plan_outreach", extract target_description from the message context.
+- confidence >= 0.8 for clear requests, 0.6-0.8 for reasonable matches, < 0.5 only for very ambiguous messages.
 
 User message: {message}"""
 
@@ -168,11 +157,49 @@ class IntentResult:
         self.missing_required = missing_required or []
         self.raw_response = raw_response
 
+    # ── Intents that route directly to agent dispatch (skip SmartQuestioner) ──
+    _AGENT_DISPATCH_INTENTS = {
+        "score_lead",
+        "segment_customers",
+        "create_social_post",
+        "optimize_send_time",
+        "generate_landing_page",
+        "demand_gen",
+        "upsell_crosssell",
+        "event_promotion",
+        "multilingual_content",
+        "translate_content",
+        "chatbot_response",
+        "manage_pipeline",
+        "schedule_meeting",
+        "generate_quote",
+        "score_opportunity",
+        "account_insights",
+        "renewal_recommendation",
+        "revenue_forecast",
+        "log_call_transcript",
+        "automated_followup",
+        "churn_analysis",
+        "dedup_check",
+        "experiment_status",
+        "community_stats",
+        "call_analytics",
+        "plugin_marketplace",
+    }
+
     def is_actionable(self) -> bool:
-        return self.intent != "unknown" and self.confidence >= 0.7
+        # Agent dispatch intents are actionable at lower confidence since
+        # they have robust default param handling
+        if self.intent in self._AGENT_DISPATCH_INTENTS:
+            return self.intent != "unknown" and self.confidence >= 0.45
+        return self.intent != "unknown" and self.confidence >= 0.55
 
     def needs_clarification(self) -> bool:
-        return (self.intent != "unknown" and self.confidence < 0.7) or bool(self.missing_required)
+        # Agent dispatch intents should NEVER go to SmartQuestioner —
+        # they handle missing params via defaults in _handle_agent_dispatch
+        if self.intent in self._AGENT_DISPATCH_INTENTS:
+            return False
+        return (self.intent != "unknown" and not self.is_actionable()) or bool(self.missing_required)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -403,47 +430,186 @@ class CommandEngine:
             params = dict(entities)
             raw_message = params.pop("raw_message", "")
 
-            # Marketing agent param mapping
+            # Always provide context from the original message
+            if "context" not in params:
+                params["context"] = raw_message
+
+            # ── Marketing Agent param mapping ──
+            # Match actual MarketingAgent method signatures exactly
             if agent_name == "marketing":
-                if action == "score_leads" and "leads" not in params:
-                    params["leads"] = [
-                        {
+                if action == "score_leads":
+                    if "leads" not in params:
+                        params["leads"] = [
+                            {
+                                "name": params.get("name", "Unknown"),
+                                "company": params.get("company", ""),
+                                "role": params.get("specialty", params.get("role", "")),
+                                "location": params.get("location", ""),
+                                "context": raw_message,
+                            }
+                        ]
+
+                elif action == "create_outbound_sequence":
+                    # Expects: target_persona, industry, value_proposition
+                    params.setdefault("target_persona", params.get("specialty", raw_message or "dental professionals"))
+                    params.setdefault("industry", "dental/healthcare")
+                    params.setdefault("value_proposition", raw_message or "B2B dental outreach")
+                    params.setdefault("tone", params.get("tone", "professional"))
+
+                elif action == "create_social_post":
+                    # Expects: topic, platform
+                    params.setdefault("topic", params.get("linkedin_topic", raw_message or "dental industry insights"))
+                    params.setdefault("platform", params.get("platform", "linkedin"))
+
+                elif action == "generate_multilingual_content":
+                    # Expects: source_content, target_languages
+                    params.setdefault("source_content", raw_message or "Welcome to our dental practice")
+                    params.setdefault(
+                        "target_languages", [params.pop("locale", "es")] if "locale" in params else ["es"]
+                    )
+
+                elif action == "generate_landing_page_copy":
+                    # Expects: product_or_offer, target_audience
+                    params.setdefault("product_or_offer", raw_message or "dental services")
+                    params.setdefault("target_audience", params.get("specialty", "dental professionals"))
+
+                elif action == "create_demand_gen_sequence":
+                    # Expects: campaign_goal, target_audience
+                    params.setdefault("campaign_goal", raw_message or "lead generation")
+                    params.setdefault("target_audience", params.get("specialty", "dental professionals"))
+
+                elif action == "segment_customers":
+                    # Expects: customers (list[dict])
+                    params.setdefault("customers", [{"context": raw_message, "source": "chat_request"}])
+
+                elif action == "optimize_send_time":
+                    # Expects: audience_data (dict)
+                    params.setdefault("audience_data", {"context": raw_message, "industry": "dental"})
+
+                elif action == "recommend_upsell_crosssell":
+                    # Expects: customer_profile, current_products, available_products
+                    params.setdefault("customer_profile", {"context": raw_message})
+                    params.setdefault("current_products", [])
+                    params.setdefault("available_products", [])
+
+                elif action == "create_event_promotion":
+                    # Expects: event_name, event_type, event_date
+                    params.setdefault("event_name", raw_message or "upcoming event")
+                    params.setdefault("event_type", "webinar")
+                    params.setdefault("event_date", "TBD")
+
+                elif action == "analyze_campaign_performance":
+                    # Expects: campaign_data (dict)
+                    params.setdefault("campaign_data", {"context": raw_message})
+
+                elif action == "manage_chatbot":
+                    # Expects: visitor_message
+                    params.setdefault("visitor_message", raw_message)
+
+                elif action == "check_compliance":
+                    # Expects: content, channel
+                    params.setdefault("content", raw_message)
+                    params.setdefault("channel", "email")
+
+                elif action == "summarize_analytics":
+                    # Expects: metrics_data (dict)
+                    params.setdefault("metrics_data", {"context": raw_message})
+
+                elif action == "generate_ab_variants":
+                    # Expects: original_content
+                    params.setdefault("original_content", raw_message)
+
+            # ── Sales Agent param mapping ──
+            # Match actual SalesAgent method signatures exactly
+            elif agent_name == "sales":
+                if action == "enrich_lead":
+                    # Expects: lead_data (dict)
+                    if "lead_data" not in params:
+                        params["lead_data"] = {
                             "name": params.get("name", ""),
                             "company": params.get("company", ""),
-                            "role": params.get("specialty", params.get("role", "")),
-                            "location": params.get("location", ""),
+                            "email": params.get("email", ""),
                             "context": raw_message,
                         }
-                    ]
-                if action in ("create_outbound_sequence", "create_demand_gen_sequence") and "topic" not in params:
-                    params["topic"] = raw_message
-                if action == "create_social_post" and "topic" not in params:
-                    params["topic"] = raw_message
-                if action == "generate_multilingual_content" and "content" not in params:
-                    params["content"] = raw_message
-                    params["target_locales"] = [params.pop("locale", "es")]
-                if action == "generate_landing_page_copy" and "product" not in params:
-                    params["product"] = raw_message
 
-            # Sales agent param mapping
-            if agent_name == "sales":
-                if action == "enrich_lead" and "lead" not in params:
-                    params["lead"] = {
-                        "name": params.get("name", ""),
-                        "company": params.get("company", ""),
-                        "context": raw_message,
-                    }
-                if action == "manage_pipeline" and "action_type" not in params:
-                    params["action_type"] = "analyze"
-                if action == "score_opportunity" and "opportunity" not in params:
-                    params["opportunity"] = {"name": params.get("company", ""), "context": raw_message}
-                if action == "get_account_insights" and "account" not in params:
-                    params["account"] = {"name": params.get("company", ""), "context": raw_message}
-                if action == "forecast_revenue" and "pipeline" not in params:
-                    params["pipeline"] = {"context": raw_message}
-                if action == "log_call" and "transcript" not in params:
-                    params["transcript"] = raw_message
+                elif action == "manage_pipeline":
+                    # Expects: action (str) — NOT action_type
+                    params.setdefault("action", params.pop("action_type", "analyze"))
 
+                elif action == "score_opportunity":
+                    # Expects: deal_id (str), deal_data (dict)
+                    params.setdefault("deal_id", params.get("deal_id", "chat_request"))
+                    params.setdefault(
+                        "deal_data",
+                        {
+                            "name": params.get("company", ""),
+                            "context": raw_message,
+                            "amount": params.get("deal_value", 0),
+                            "stage": params.get("stage", "unknown"),
+                        },
+                    )
+
+                elif action == "get_account_insights":
+                    # Expects: account_id (str), account_name (str)
+                    params.setdefault("account_id", params.get("account_id", "chat_request"))
+                    params.setdefault("account_name", params.get("company", raw_message or "unknown"))
+
+                elif action == "forecast_revenue":
+                    # Expects: pipeline_data (dict, optional), forecast_period (str)
+                    params.setdefault("pipeline_data", {"context": raw_message})
+                    params.setdefault("forecast_period", params.get("timeframe", "quarter"))
+
+                elif action == "log_call":
+                    # Expects: contact_id (str), plus optional transcript, notes
+                    params.setdefault("contact_id", params.get("contact_id", "chat_request"))
+                    params.setdefault("transcript", raw_message)
+                    params.setdefault("notes", raw_message)
+
+                elif action == "schedule_meeting":
+                    # Expects: contact_id, contact_name, contact_email
+                    params.setdefault("contact_id", params.get("contact_id", "chat_request"))
+                    params.setdefault("contact_name", params.get("name", ""))
+                    params.setdefault("contact_email", params.get("email", ""))
+
+                elif action == "generate_quote":
+                    # Expects: contact_name, company, products (list[dict])
+                    params.setdefault("contact_name", params.get("name", ""))
+                    params.setdefault("company", params.get("company", ""))
+                    params.setdefault("products", [{"name": "dental services", "context": raw_message}])
+
+                elif action == "recommend_renewals":
+                    # Expects: accounts (list[dict])
+                    params.setdefault("accounts", [{"context": raw_message}])
+
+                elif action == "create_automated_followup":
+                    # Expects: contact_email, contact_name, company, context
+                    params.setdefault("contact_email", params.get("email", ""))
+                    params.setdefault("contact_name", params.get("name", ""))
+                    params.setdefault("company", params.get("company", ""))
+                    params.setdefault("context", raw_message)
+
+                elif action == "advanced_lead_search":
+                    # Expects: query, title, industry, location, etc. — all optional
+                    params.setdefault("query", raw_message)
+
+                elif action == "summarize_sales_analytics":
+                    # Expects: time_range (str)
+                    params.setdefault("time_range", params.get("timeframe", "30d"))
+
+                elif action == "get_realtime_insights":
+                    # Expects: context_type (str, default "dashboard")
+                    params.setdefault("context_type", "dashboard")
+
+            logger.info(
+                "Dispatching %s.%s with params: %s",
+                agent_name,
+                action,
+                {
+                    k: (str(v)[:80] if isinstance(v, (str, list, dict)) else v)
+                    for k, v in params.items()
+                    if k not in ("db", "user_id", "prompt_engine_context")
+                },
+            )
             result = await AgentOrchestrator.dispatch(db, agent_name, action, params, uid)
             if result.get("status") == "success":
                 content = result.get("result", {})
@@ -1326,11 +1492,17 @@ class CommandEngine:
             if intent not in INTENTS:
                 intent = "unknown"
 
+            missing_req = data.get("missing_required", [])
+            # Agent dispatch intents handle their own defaults —
+            # never let the LLM force clarification questions on them
+            if intent in IntentResult._AGENT_DISPATCH_INTENTS:
+                missing_req = []
+
             return IntentResult(
                 intent=intent,
                 confidence=float(data.get("confidence", 0.0)),
                 entities=data.get("entities", {}),
-                missing_required=data.get("missing_required", []),
+                missing_required=missing_req,
                 raw_response=raw,
             )
         except (json.JSONDecodeError, ValueError, TypeError) as exc:
