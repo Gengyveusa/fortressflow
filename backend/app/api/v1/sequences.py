@@ -27,7 +27,6 @@ from app.schemas.sequence import (
     ABVariantAnalytics,
     ChannelHealthResponse,
     EnrollmentMonitorResponse,
-    EnrollmentResponse,
     EnrollRequest,
     ReplyListResponse,
     ReplyLogResponse,
@@ -728,7 +727,7 @@ async def get_reply_inbox(
     optionally filtered by sentiment (positive/negative/neutral/out_of_office/unsubscribe)
     or channel (email/sms/linkedin).
     """
-    from sqlalchemy import desc, text
+    from sqlalchemy import text
 
     # Query reply_logs table with optional filters.
     # The reply_logs table is managed by the ReplyService (raw SQL via text()).
@@ -842,7 +841,7 @@ async def get_sequence_monitor(
     breakdown, and daily send counts. Designed for the operations monitor
     dashboard to observe live sequence execution.
     """
-    from datetime import date, timedelta, UTC, datetime as dt
+    from datetime import timedelta, UTC, datetime as dt
     from sqlalchemy import text
 
     result = await db.execute(select(Sequence).where(Sequence.id == sequence_id))

@@ -87,7 +87,7 @@ async def list_leads(
         total=total,
         page=page,
         page_size=page_size,
-        items=[LeadResponse.model_validate(l) for l in leads],
+        items=[LeadResponse.model_validate(lead) for lead in leads],
     )
 
 

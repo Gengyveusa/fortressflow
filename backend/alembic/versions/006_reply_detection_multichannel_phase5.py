@@ -17,7 +17,7 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
 
-from migration_helpers import table_exists, index_exists, constraint_exists
+from migration_helpers import table_exists, index_exists, constraint_exists  # noqa: F401
 
 revision = "006_phase5_reply_detection"
 down_revision = "005_sequence_engine_phase4"

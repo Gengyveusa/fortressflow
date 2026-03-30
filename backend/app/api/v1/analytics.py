@@ -294,7 +294,7 @@ async def sequence_performance(
     seq_ids = list(seq_data.keys())
     name_map: dict[str, str] = {}
     if seq_ids:
-        from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+        from sqlalchemy.dialects.postgresql import UUID as PG_UUID  # noqa: F401
         import uuid
 
         seq_uuids = [uuid.UUID(s) for s in seq_ids]

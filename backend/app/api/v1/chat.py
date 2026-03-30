@@ -14,12 +14,10 @@ import logging
 import time
 import uuid
 from datetime import UTC, datetime
-from typing import Annotated
-
 import redis.asyncio as aioredis
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from sqlalchemy import distinct, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
@@ -30,7 +28,6 @@ from app.models.chat import ChatLog
 from app.schemas.chat import (
     ChatHistoryResponse,
     ChatRequest,
-    ChatResponse,
     CommandResponse,
 )
 from app.services.chat_service import ChatService
