@@ -133,6 +133,16 @@ Rules:
 - For "apollo_sequence", required entities are: sequence_name or contact reference
 - For "linkedin_post", required entities are: linkedin_topic
 - For "linkedin_dm", required entities are: recipient name or profile reference
+- For "score_lead", extract: name, company, specialty, location + any engagement data
+- For "score_opportunity", extract: company, deal_value, stage, champion info
+- For "account_insights", extract: company name
+- For "revenue_forecast", extract: timeframe (e.g., "Q2", "next quarter")
+- For "multilingual_content" / "translate_content", extract: locale (target language code), content to translate
+- For "create_social_post", extract: linkedin_topic, platform preference
+- For "manage_pipeline", extract: company, deal_name, action_type (analyze/create/update)
+- For "segment_customers", nothing required
+- For "churn_analysis" / "dedup_check" / "experiment_status" / "community_stats" / "call_analytics", nothing required
+- ALWAYS include the full original user message as "raw_message" in entities
 - For "send_whatsapp", required entities are: whatsapp_number, whatsapp_body
 - For "plan_outreach", required entities are: target_description (who to reach). Route here for complex multi-step requests involving lead sourcing + outreach, or when user asks "what are my options" for contacting people
 
@@ -387,7 +397,41 @@ class CommandEngine:
         try:
             from uuid import UUID as _UUID
             uid = _UUID(user_id) if isinstance(user_id, str) else user_id
-            result = await AgentOrchestrator.dispatch(db, agent_name, action, entities, uid)
+
+            # Build params from entities — map common entity names to what agents expect
+            params = dict(entities)
+            raw_message = params.pop("raw_message", "")
+
+            # Marketing agent param mapping
+            if agent_name == "marketing":
+                if action == "score_leads" and "leads" not in params:
+                    params["leads"] = [{"name": params.get("name", ""), "company": params.get("company", ""), "role": params.get("specialty", params.get("role", "")), "location": params.get("location", ""), "context": raw_message}]
+                if action in ("create_outbound_sequence", "create_demand_gen_sequence") and "topic" not in params:
+                    params["topic"] = raw_message
+                if action == "create_social_post" and "topic" not in params:
+                    params["topic"] = raw_message
+                if action == "generate_multilingual_content" and "content" not in params:
+                    params["content"] = raw_message
+                    params["target_locales"] = [params.pop("locale", "es")]
+                if action == "generate_landing_page_copy" and "product" not in params:
+                    params["product"] = raw_message
+
+            # Sales agent param mapping
+            if agent_name == "sales":
+                if action == "enrich_lead" and "lead" not in params:
+                    params["lead"] = {"name": params.get("name", ""), "company": params.get("company", ""), "context": raw_message}
+                if action == "manage_pipeline" and "action_type" not in params:
+                    params["action_type"] = "analyze"
+                if action == "score_opportunity" and "opportunity" not in params:
+                    params["opportunity"] = {"name": params.get("company", ""), "context": raw_message}
+                if action == "get_account_insights" and "account" not in params:
+                    params["account"] = {"name": params.get("company", ""), "context": raw_message}
+                if action == "forecast_revenue" and "pipeline" not in params:
+                    params["pipeline"] = {"context": raw_message}
+                if action == "log_call" and "transcript" not in params:
+                    params["transcript"] = raw_message
+
+            result = await AgentOrchestrator.dispatch(db, agent_name, action, params, uid)
             if result.get("status") == "success":
                 content = result.get("result", {})
                 if isinstance(content, dict):
