@@ -161,50 +161,34 @@ class DeliverabilityRouter:
 
     # ── SES Event Processing ───────────────────────────────────────────
 
-    async def process_ses_event(
-        self, event_type: str, inbox_email: str, recipient_email: str
-    ) -> None:
+    async def process_ses_event(self, event_type: str, inbox_email: str, recipient_email: str) -> None:
         """
         Process an SES event (bounce, complaint, delivery, open, click)
         and update inbox + seed log metrics.
         """
         # Find the inbox
-        result = await self._db.execute(
-            select(SendingInbox).where(
-                SendingInbox.email_address == inbox_email
-            )
-        )
+        result = await self._db.execute(select(SendingInbox).where(SendingInbox.email_address == inbox_email))
         inbox = result.scalar_one_or_none()
 
         if inbox is None:
-            logger.warning(
-                "SES event for unknown inbox %s: %s", inbox_email, event_type
-            )
+            logger.warning("SES event for unknown inbox %s: %s", inbox_email, event_type)
             return
 
         if event_type == "Bounce":
             inbox.total_bounced += 1
-            await self._update_seed_outcome(
-                inbox.id, recipient_email, bounced=True
-            )
+            await self._update_seed_outcome(inbox.id, recipient_email, bounced=True)
         elif event_type == "Complaint":
             inbox.total_complaints += 1
-            await self._update_seed_outcome(
-                inbox.id, recipient_email, complained=True
-            )
+            await self._update_seed_outcome(inbox.id, recipient_email, complained=True)
         elif event_type == "Open":
             inbox.total_opens += 1
-            await self._update_seed_outcome(
-                inbox.id, recipient_email, opened=True
-            )
+            await self._update_seed_outcome(inbox.id, recipient_email, opened=True)
         elif event_type == "Click":
             # Clicks imply opens
             inbox.total_opens += 1
         elif event_type == "Reply":
             inbox.total_replies += 1
-            await self._update_seed_outcome(
-                inbox.id, recipient_email, replied=True
-            )
+            await self._update_seed_outcome(inbox.id, recipient_email, replied=True)
 
         # Recalculate 7-day rolling rates
         await self._recalculate_rolling_rates(inbox)
@@ -221,15 +205,11 @@ class DeliverabilityRouter:
     ) -> None:
         """Update WarmupSeedLog with outcome data for learning loops."""
         # Find the lead by email
-        lead_result = await self._db.execute(
-            select(SendingInbox).where(SendingInbox.id == inbox_id)
-        )
+        lead_result = await self._db.execute(select(SendingInbox).where(SendingInbox.id == inbox_id))
 
         from app.models.lead import Lead
 
-        lead_result = await self._db.execute(
-            select(Lead).where(Lead.email == recipient_email)
-        )
+        lead_result = await self._db.execute(select(Lead).where(Lead.email == recipient_email))
         lead = lead_result.scalar_one_or_none()
         if not lead:
             return
@@ -273,24 +253,14 @@ class DeliverabilityRouter:
         # Health score recalculation
         bounce_penalty = min(50.0, inbox.bounce_rate_7d * 1000)
         spam_penalty = min(40.0, inbox.spam_rate_7d * 40000)
-        low_open_penalty = (
-            max(0.0, (0.15 - inbox.open_rate_7d) * 100)
-            if inbox.total_sent > 50
-            else 0.0
-        )
-        inbox.health_score = max(
-            0.0, min(100.0, 100.0 - bounce_penalty - spam_penalty - low_open_penalty)
-        )
+        low_open_penalty = max(0.0, (0.15 - inbox.open_rate_7d) * 100) if inbox.total_sent > 50 else 0.0
+        inbox.health_score = max(0.0, min(100.0, 100.0 - bounce_penalty - spam_penalty - low_open_penalty))
 
     # ── Daily Reset ────────────────────────────────────────────────────
 
     async def reset_daily_counters(self) -> int:
         """Reset daily_sent counters for all inboxes. Called by scheduler at midnight."""
-        result = await self._db.execute(
-            update(SendingInbox)
-            .where(SendingInbox.daily_sent > 0)
-            .values(daily_sent=0)
-        )
+        result = await self._db.execute(update(SendingInbox).where(SendingInbox.daily_sent > 0).values(daily_sent=0))
         count = result.rowcount or 0
         logger.info("Reset daily counters for %d inboxes", count)
         return count
@@ -305,9 +275,7 @@ class DeliverabilityRouter:
 
         for domain in domains:
             # Sum metrics from all inboxes on this domain
-            inbox_result = await self._db.execute(
-                select(SendingInbox).where(SendingInbox.domain == domain.domain)
-            )
+            inbox_result = await self._db.execute(select(SendingInbox).where(SendingInbox.domain == domain.domain))
             inboxes = inbox_result.scalars().all()
 
             if not inboxes:
@@ -319,20 +287,14 @@ class DeliverabilityRouter:
 
             # Weighted average health score
             if domain.total_sent > 0:
-                weighted_health = sum(
-                    i.health_score * i.total_sent for i in inboxes
-                ) / domain.total_sent
+                weighted_health = sum(i.health_score * i.total_sent for i in inboxes) / domain.total_sent
                 domain.health_score = weighted_health
 
             # Warmup progress: average across inboxes
-            warming_inboxes = [
-                i for i in inboxes if i.status == InboxStatus.warming
-            ]
+            warming_inboxes = [i for i in inboxes if i.status == InboxStatus.warming]
             if warming_inboxes:
                 max_days = settings.WARMUP_DURATION_WEEKS * 7
-                avg_progress = sum(i.warmup_day for i in warming_inboxes) / len(
-                    warming_inboxes
-                )
+                avg_progress = sum(i.warmup_day for i in warming_inboxes) / len(warming_inboxes)
                 domain.warmup_progress = min(100.0, (avg_progress / max_days) * 100)
             elif all(i.status == InboxStatus.active for i in inboxes):
                 domain.warmup_progress = 100.0
@@ -364,22 +326,14 @@ class DeliverabilityRouter:
         return {
             "summary": {
                 "total_inboxes": len(all_inboxes),
-                "active_inboxes": sum(
-                    1 for i in all_inboxes if i.status == InboxStatus.active
-                ),
-                "warming_inboxes": sum(
-                    1 for i in all_inboxes if i.status == InboxStatus.warming
-                ),
-                "paused_inboxes": sum(
-                    1 for i in all_inboxes if i.status == InboxStatus.paused
-                ),
+                "active_inboxes": sum(1 for i in all_inboxes if i.status == InboxStatus.active),
+                "warming_inboxes": sum(1 for i in all_inboxes if i.status == InboxStatus.warming),
+                "paused_inboxes": sum(1 for i in all_inboxes if i.status == InboxStatus.paused),
                 "total_sent_today": total_daily_sent,
                 "total_daily_limit": total_daily_limit,
                 "daily_cap": settings.DAILY_WARMUP_VOLUME_CAP,
                 "capacity_pct": (
-                    total_daily_sent / settings.DAILY_WARMUP_VOLUME_CAP * 100
-                    if settings.DAILY_WARMUP_VOLUME_CAP
-                    else 0
+                    total_daily_sent / settings.DAILY_WARMUP_VOLUME_CAP * 100 if settings.DAILY_WARMUP_VOLUME_CAP else 0
                 ),
             },
             "inboxes": [

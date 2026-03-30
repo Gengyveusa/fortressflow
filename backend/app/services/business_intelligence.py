@@ -109,9 +109,7 @@ class BusinessIntelligence:
                     seq_id = row[0]
                     # Get enrollment counts
                     enrolled_result = await db.execute(
-                        select(func.count(SequenceEnrollment.id)).where(
-                            SequenceEnrollment.sequence_id == seq_id
-                        )
+                        select(func.count(SequenceEnrollment.id)).where(SequenceEnrollment.sequence_id == seq_id)
                     )
                     enrolled = enrolled_result.scalar_one() or 0
 
@@ -133,15 +131,17 @@ class BusinessIntelligence:
                     replied = int(stats[2])
                     bounced = int(stats[3])
 
-                    campaigns.append({
-                        "name": row[1],
-                        "status": row[2].value if hasattr(row[2], "value") else str(row[2]),
-                        "enrolled": enrolled,
-                        "sent": sent,
-                        "open_rate": f"{(opened / sent * 100):.1f}%" if sent > 0 else "N/A",
-                        "reply_rate": f"{(replied / sent * 100):.1f}%" if sent > 0 else "N/A",
-                        "bounce_rate": f"{(bounced / sent * 100):.1f}%" if sent > 0 else "N/A",
-                    })
+                    campaigns.append(
+                        {
+                            "name": row[1],
+                            "status": row[2].value if hasattr(row[2], "value") else str(row[2]),
+                            "enrolled": enrolled,
+                            "sent": sent,
+                            "open_rate": f"{(opened / sent * 100):.1f}%" if sent > 0 else "N/A",
+                            "reply_rate": f"{(replied / sent * 100):.1f}%" if sent > 0 else "N/A",
+                            "bounce_rate": f"{(bounced / sent * 100):.1f}%" if sent > 0 else "N/A",
+                        }
+                    )
 
                 metrics["campaigns"] = campaigns
                 metrics["active_campaigns"] = sum(1 for c in campaigns if c["status"] == "active")
@@ -236,11 +236,7 @@ class BusinessIntelligence:
         datetime.now(UTC) - timedelta(days=30)
 
         async with AsyncSessionLocal() as db:
-            result = await db.execute(
-                select(Sequence).where(
-                    Sequence.name.ilike(f"%{campaign_name}%")
-                ).limit(1)
-            )
+            result = await db.execute(select(Sequence).where(Sequence.name.ilike(f"%{campaign_name}%")).limit(1))
             seq = result.scalars().first()
             if not seq:
                 return {"error": f"No campaign found matching '{campaign_name}'"}
@@ -319,22 +315,25 @@ class BusinessIntelligence:
                         SendingInbox.warmup_day,
                         SendingInbox.daily_sent,
                         SendingInbox.daily_limit,
-                    ).order_by(SendingInbox.health_score.asc())
+                    )
+                    .order_by(SendingInbox.health_score.asc())
                     .limit(20)
                 )
                 inboxes = []
                 for row in result.all():
-                    inboxes.append({
-                        "email": row[0],
-                        "status": row[1],
-                        "health_score": f"{row[2]:.1f}",
-                        "bounce_rate": f"{row[3] * 100:.2f}%",
-                        "spam_rate": f"{row[4] * 100:.3f}%",
-                        "open_rate": f"{row[5] * 100:.1f}%",
-                        "reply_rate": f"{row[6] * 100:.1f}%",
-                        "warmup_day": row[7],
-                        "daily_usage": f"{row[8]}/{row[9]}",
-                    })
+                    inboxes.append(
+                        {
+                            "email": row[0],
+                            "status": row[1],
+                            "health_score": f"{row[2]:.1f}",
+                            "bounce_rate": f"{row[3] * 100:.2f}%",
+                            "spam_rate": f"{row[4] * 100:.3f}%",
+                            "open_rate": f"{row[5] * 100:.1f}%",
+                            "reply_rate": f"{row[6] * 100:.1f}%",
+                            "warmup_day": row[7],
+                            "daily_usage": f"{row[8]}/{row[9]}",
+                        }
+                    )
                 metrics["inboxes"] = inboxes
             except Exception as exc:
                 logger.warning("Inbox metrics error: %s", exc)
@@ -353,13 +352,15 @@ class BusinessIntelligence:
                 )
                 domains = []
                 for row in domain_result.all():
-                    domains.append({
-                        "domain": row[0],
-                        "spf": row[1],
-                        "dkim": row[2],
-                        "dmarc": row[3],
-                        "health_score": f"{row[4]:.1f}" if row[4] else "N/A",
-                    })
+                    domains.append(
+                        {
+                            "domain": row[0],
+                            "spf": row[1],
+                            "dkim": row[2],
+                            "dmarc": row[3],
+                            "health_score": f"{row[4]:.1f}" if row[4] else "N/A",
+                        }
+                    )
                 metrics["domains"] = domains
             except Exception as exc:
                 logger.warning("Domain metrics error: %s", exc)
@@ -367,9 +368,7 @@ class BusinessIntelligence:
 
         return metrics
 
-    async def _generate_summary(
-        self, metrics: dict[str, Any], focus: str = "overview"
-    ) -> str:
+    async def _generate_summary(self, metrics: dict[str, Any], focus: str = "overview") -> str:
         """Generate a conversational summary from metrics using LLM."""
         import json
 
@@ -441,7 +440,10 @@ class BusinessIntelligence:
                 resp = await client.chat.completions.create(
                     model=settings.GROQ_MODEL,
                     messages=[
-                        {"role": "system", "content": "You are a data analyst for FortressFlow, a dental outreach platform. Generate clear, actionable summaries."},
+                        {
+                            "role": "system",
+                            "content": "You are a data analyst for FortressFlow, a dental outreach platform. Generate clear, actionable summaries.",
+                        },
                         {"role": "user", "content": prompt},
                     ],
                     temperature=0.5,
@@ -460,7 +462,10 @@ class BusinessIntelligence:
                 resp = await client.chat.completions.create(
                     model=settings.OPENAI_MODEL,
                     messages=[
-                        {"role": "system", "content": "You are a data analyst for FortressFlow, a dental outreach platform."},
+                        {
+                            "role": "system",
+                            "content": "You are a data analyst for FortressFlow, a dental outreach platform.",
+                        },
                         {"role": "user", "content": prompt},
                     ],
                     temperature=0.5,
@@ -492,6 +497,7 @@ def _parse_timeframe(timeframe: str) -> int:
 
     # Try to parse "Nd" format
     import re
+
     match = re.match(r"(\d+)d", tf)
     if match:
         return int(match.group(1))

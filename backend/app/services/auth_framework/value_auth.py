@@ -45,6 +45,7 @@ class Ingredient:
 @dataclass
 class ProvenanceRecord:
     """Where the product (or its key ingredients) came from."""
+
     origin_country: str
     manufacturer: str
     lot_number: str
@@ -64,6 +65,7 @@ class ProvenanceRecord:
 @dataclass
 class PackageProfile:
     """Full digital twin of a connected product package."""
+
     product_id: str
     nfc_id: Optional[str] = None
     qr_code: Optional[str] = None
@@ -81,14 +83,18 @@ class PackageProfile:
             self.profile_hash = self._compute_hash()
 
     def _compute_hash(self) -> str:
-        payload = json.dumps({
-            "product_id": self.product_id,
-            "nfc_id": self.nfc_id,
-            "qr_code": self.qr_code,
-            "product_name": self.product_name,
-            "brand": self.brand,
-            "certifications": [c.value for c in self.certifications],
-        }, sort_keys=True, separators=(",", ":"))
+        payload = json.dumps(
+            {
+                "product_id": self.product_id,
+                "nfc_id": self.nfc_id,
+                "qr_code": self.qr_code,
+                "product_name": self.product_name,
+                "brand": self.brand,
+                "certifications": [c.value for c in self.certifications],
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
         return hashlib.sha256(payload.encode()).hexdigest()
 
     def to_dict(self) -> Dict[str, Any]:
@@ -114,6 +120,7 @@ class ResearchSummary:
 @dataclass
 class ScanResponse:
     """Payload returned to a consumer who scans a product."""
+
     product_info: PackageProfile
     personalized_tips: List[PersonalizedTip] = field(default_factory=list)
     research_summaries: List[ResearchSummary] = field(default_factory=list)
@@ -127,6 +134,7 @@ class ScanResponse:
 @dataclass
 class ScanEvent:
     """An immutable record that a product was scanned."""
+
     event_id: str
     product_id: str
     scan_type: ScanEventType
@@ -144,8 +152,8 @@ class ConnectedPackagingService:
 
     def __init__(self):
         self._products: Dict[str, PackageProfile] = {}
-        self._nfc_index: Dict[str, str] = {}   # nfc_id -> product_id
-        self._qr_index: Dict[str, str] = {}    # qr_code -> product_id
+        self._nfc_index: Dict[str, str] = {}  # nfc_id -> product_id
+        self._qr_index: Dict[str, str] = {}  # qr_code -> product_id
         self._events: List[ScanEvent] = []
         self._user_profiles: Dict[str, Dict[str, Any]] = {}
 
@@ -248,49 +256,59 @@ class ConnectedPackagingService:
 
         # Generic tips based on product certifications
         if CertificationType.ADA_SEAL in profile.certifications:
-            tips.append(PersonalizedTip(
-                tip_id=secrets.token_hex(6),
-                text="This product carries the ADA Seal of Acceptance, meaning it has been independently tested for safety and efficacy.",
-                relevance_score=0.9,
-                category="certification",
-            ))
+            tips.append(
+                PersonalizedTip(
+                    tip_id=secrets.token_hex(6),
+                    text="This product carries the ADA Seal of Acceptance, meaning it has been independently tested for safety and efficacy.",
+                    relevance_score=0.9,
+                    category="certification",
+                )
+            )
 
         # Condition-specific tips
         active_ingredients = [i for i in profile.ingredients if i.is_active]
         if active_ingredients:
             names = ", ".join(i.name for i in active_ingredients)
-            tips.append(PersonalizedTip(
-                tip_id=secrets.token_hex(6),
-                text=f"Active ingredients in this product: {names}. Consult your dental professional for personalized guidance.",
-                relevance_score=0.85,
-                category="ingredients",
-            ))
+            tips.append(
+                PersonalizedTip(
+                    tip_id=secrets.token_hex(6),
+                    text=f"Active ingredients in this product: {names}. Consult your dental professional for personalized guidance.",
+                    relevance_score=0.85,
+                    category="ingredients",
+                )
+            )
 
         if "diabetes" in conditions:
-            tips.append(PersonalizedTip(
-                tip_id=secrets.token_hex(6),
-                text="Managing oral health is especially important with diabetes. Periodontal disease and blood sugar levels influence each other.",
-                relevance_score=0.95,
-                category="health_connection",
-            ))
+            tips.append(
+                PersonalizedTip(
+                    tip_id=secrets.token_hex(6),
+                    text="Managing oral health is especially important with diabetes. Periodontal disease and blood sugar levels influence each other.",
+                    relevance_score=0.95,
+                    category="health_connection",
+                )
+            )
 
         if "pregnancy" in conditions:
-            tips.append(PersonalizedTip(
-                tip_id=secrets.token_hex(6),
-                text="Maintaining gum health during pregnancy is linked to better outcomes. Ask your dentist about a pregnancy oral care plan.",
-                relevance_score=0.93,
-                category="health_connection",
-            ))
+            tips.append(
+                PersonalizedTip(
+                    tip_id=secrets.token_hex(6),
+                    text="Maintaining gum health during pregnancy is linked to better outcomes. Ask your dentist about a pregnancy oral care plan.",
+                    relevance_score=0.93,
+                    category="health_connection",
+                )
+            )
 
         allergen_ingredients = [i for i in profile.ingredients if i.allergen_flag]
         if allergen_ingredients:
             names = ", ".join(i.name for i in allergen_ingredients)
-            tips.append(PersonalizedTip(
-                tip_id=secrets.token_hex(6),
-                text=f"Allergen notice: this product contains {names}.",
-                relevance_score=1.0,
-                category="safety",
-            ))
+            tips.append(
+                PersonalizedTip(
+                    tip_id=secrets.token_hex(6),
+                    text=f"Allergen notice: this product contains {names}.",
+                    relevance_score=1.0,
+                    category="safety",
+                )
+            )
 
         return tips
 
@@ -335,25 +353,31 @@ class ConnectedPackagingService:
         cat = profile.category.lower()
 
         if "toothpaste" in cat or "dentifrice" in cat:
-            summaries.append(ResearchSummary(
-                title="Fluoride Toothpaste Efficacy in Caries Prevention",
-                summary="Systematic reviews confirm that fluoride toothpaste reduces caries incidence by 24-33% compared to non-fluoride alternatives.",
-                doi="10.1002/14651858.CD007868.pub2",
-                relevance_score=0.9,
-            ))
+            summaries.append(
+                ResearchSummary(
+                    title="Fluoride Toothpaste Efficacy in Caries Prevention",
+                    summary="Systematic reviews confirm that fluoride toothpaste reduces caries incidence by 24-33% compared to non-fluoride alternatives.",
+                    doi="10.1002/14651858.CD007868.pub2",
+                    relevance_score=0.9,
+                )
+            )
         if "mouthwash" in cat or "rinse" in cat:
-            summaries.append(ResearchSummary(
-                title="Antimicrobial Mouth Rinses as Adjuncts to Oral Hygiene",
-                summary="Chlorhexidine and CPC-based rinses show statistically significant plaque and gingivitis reduction when used alongside brushing.",
-                doi="10.1002/14651858.CD008676.pub2",
-                relevance_score=0.88,
-            ))
+            summaries.append(
+                ResearchSummary(
+                    title="Antimicrobial Mouth Rinses as Adjuncts to Oral Hygiene",
+                    summary="Chlorhexidine and CPC-based rinses show statistically significant plaque and gingivitis reduction when used alongside brushing.",
+                    doi="10.1002/14651858.CD008676.pub2",
+                    relevance_score=0.88,
+                )
+            )
         if not summaries:
-            summaries.append(ResearchSummary(
-                title="Oral Health and Overall Wellness",
-                summary="Maintaining good oral hygiene is associated with reduced risk of systemic conditions including cardiovascular disease and diabetes.",
-                relevance_score=0.75,
-            ))
+            summaries.append(
+                ResearchSummary(
+                    title="Oral Health and Overall Wellness",
+                    summary="Maintaining good oral hygiene is associated with reduced risk of systemic conditions including cardiovascular disease and diabetes.",
+                    relevance_score=0.75,
+                )
+            )
         return summaries
 
     def _compute_rewards(self, user_id: Optional[str], product_id: str) -> Dict[str, Any]:
@@ -361,10 +385,7 @@ class ConnectedPackagingService:
         if not user_id:
             return {"eligible": False, "reason": "Sign in to earn rewards."}
 
-        user_scans = sum(
-            1 for e in self._events
-            if e.user_id == user_id and e.product_id == product_id
-        )
+        user_scans = sum(1 for e in self._events if e.user_id == user_id and e.product_id == product_id)
         points = user_scans * 10
         tier = "bronze"
         if points >= 100:

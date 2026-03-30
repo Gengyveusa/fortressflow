@@ -44,7 +44,7 @@ class HubSpotService:
             if resp.status_code != 429:
                 resp.raise_for_status()
                 return resp
-            retry_after = float(resp.headers.get("Retry-After", _BACKOFF_BASE * (2 ** attempt)))
+            retry_after = float(resp.headers.get("Retry-After", _BACKOFF_BASE * (2**attempt)))
             logger.warning("HubSpot rate limit hit; retrying in %.1fs (attempt %d)", retry_after, attempt + 1)
             await asyncio.sleep(retry_after)
         resp.raise_for_status()
@@ -97,9 +97,7 @@ class HubSpotService:
 
     # ── Pull: HubSpot → Local ──────────────────────────────────────────
 
-    async def pull_contacts_from_hubspot(
-        self, since: datetime | None = None
-    ) -> list[dict]:
+    async def pull_contacts_from_hubspot(self, since: datetime | None = None) -> list[dict]:
         """Search HubSpot for contacts modified since a given datetime.
 
         Uses the CRM search API with filterGroups on hs_lastmodifieddate.
@@ -250,12 +248,16 @@ class HubSpotService:
         }
         try:
             resp = await self._request_with_backoff(
-                "POST", "/crm/v3/objects/deals", json=payload,
+                "POST",
+                "/crm/v3/objects/deals",
+                json=payload,
             )
             data = resp.json()
             logger.info(
                 "Created HubSpot deal '%s' (id=%s) for contact %s",
-                deal_name, data.get("id"), hs_contact_id,
+                deal_name,
+                data.get("id"),
+                hs_contact_id,
             )
             props = data.get("properties", {})
             props["hs_object_id"] = data.get("id")
@@ -274,7 +276,9 @@ class HubSpotService:
         payload = {"properties": {"dealstage": stage}}
         try:
             resp = await self._request_with_backoff(
-                "PATCH", f"/crm/v3/objects/deals/{deal_id}", json=payload,
+                "PATCH",
+                f"/crm/v3/objects/deals/{deal_id}",
+                json=payload,
             )
             data = resp.json()
             logger.info("Updated HubSpot deal %s to stage '%s'", deal_id, stage)
@@ -310,9 +314,7 @@ class HubSpotService:
                     deal_resp = await self._request_with_backoff(
                         "GET",
                         f"/crm/v3/objects/deals/{did}",
-                        params={
-                            "properties": "dealname,pipeline,dealstage,amount,createdate,hs_lastmodifieddate"
-                        },
+                        params={"properties": "dealname,pipeline,dealstage,amount,createdate,hs_lastmodifieddate"},
                     )
                     deal_data = deal_resp.json()
                     props = deal_data.get("properties", {})
@@ -322,7 +324,9 @@ class HubSpotService:
                     logger.warning("Failed to fetch deal %s: %s", did, exc)
 
             logger.info(
-                "Synced %d deals for HubSpot contact %s", len(deals), hs_contact_id,
+                "Synced %d deals for HubSpot contact %s",
+                len(deals),
+                hs_contact_id,
             )
             return deals
         except Exception as exc:
@@ -338,20 +342,20 @@ class HubSpotService:
             return []
         try:
             resp = await self._request_with_backoff(
-                "GET", "/crm/v3/pipelines/deals",
+                "GET",
+                "/crm/v3/pipelines/deals",
             )
             data = resp.json()
             pipelines: list[dict] = []
             for p in data.get("results", []):
-                stages = [
-                    {"stage_id": s.get("id", ""), "label": s.get("label", "")}
-                    for s in p.get("stages", [])
-                ]
-                pipelines.append({
-                    "pipeline_id": p.get("id", ""),
-                    "label": p.get("label", ""),
-                    "stages": stages,
-                })
+                stages = [{"stage_id": s.get("id", ""), "label": s.get("label", "")} for s in p.get("stages", [])]
+                pipelines.append(
+                    {
+                        "pipeline_id": p.get("id", ""),
+                        "label": p.get("label", ""),
+                        "stages": stages,
+                    }
+                )
             return pipelines
         except Exception as exc:
             logger.error("HubSpot list_pipelines error: %s", exc)
@@ -380,8 +384,6 @@ class HubSpotService:
         except Exception as exc:
             logger.error("HubSpot log_activity error: %s", exc)
 
-    async def create_note(
-        self, lead_id: UUID, content: str, hs_contact_id: str = ""
-    ) -> None:
+    async def create_note(self, lead_id: UUID, content: str, hs_contact_id: str = "") -> None:
         """Create a note engagement in HubSpot."""
         await self.log_activity(lead_id, "NOTE", content, hs_contact_id=hs_contact_id)

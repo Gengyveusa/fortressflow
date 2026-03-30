@@ -69,9 +69,7 @@ class ApolloAgent:
             if resp.status_code != 429:
                 resp.raise_for_status()
                 return resp
-            retry_after = float(
-                resp.headers.get("Retry-After", _BACKOFF_BASE * (2 ** attempt))
-            )
+            retry_after = float(resp.headers.get("Retry-After", _BACKOFF_BASE * (2**attempt)))
             logger.warning(
                 "Apollo rate limit hit; retrying in %.1fs (attempt %d)",
                 retry_after,
@@ -116,7 +114,10 @@ class ApolloAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/people/search", user_id=user_id, json=payload,
+                "POST",
+                "/people/search",
+                user_id=user_id,
+                json=payload,
             )
             data = resp.json()
             people = data.get("people", [])
@@ -177,7 +178,10 @@ class ApolloAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/organizations/search", user_id=user_id, json=payload,
+                "POST",
+                "/organizations/search",
+                user_id=user_id,
+                json=payload,
             )
             data = resp.json()
             orgs = data.get("organizations", [])
@@ -208,12 +212,16 @@ class ApolloAgent:
             return {"error": str(exc)}
 
     async def get_organization_job_postings(
-        self, db, user_id: UUID, organization_id: str,
+        self,
+        db,
+        user_id: UUID,
+        organization_id: str,
     ) -> dict:
         """Get open job postings at a target organization."""
         try:
             resp = await self._request_with_backoff(
-                "GET", f"/organizations/{organization_id}/job_postings",
+                "GET",
+                f"/organizations/{organization_id}/job_postings",
                 user_id=user_id,
             )
             data = resp.json()
@@ -275,7 +283,10 @@ class ApolloAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/people/match", user_id=user_id, json=payload,
+                "POST",
+                "/people/match",
+                user_id=user_id,
+                json=payload,
             )
             data = resp.json()
             person = data.get("person", {})
@@ -287,7 +298,9 @@ class ApolloAgent:
                     "last_name": person.get("last_name"),
                     "name": person.get("name"),
                     "email": person.get("email"),
-                    "phone": person.get("phone_numbers", [{}])[0].get("sanitized_number") if person.get("phone_numbers") else None,
+                    "phone": person.get("phone_numbers", [{}])[0].get("sanitized_number")
+                    if person.get("phone_numbers")
+                    else None,
                     "title": person.get("title"),
                     "organization_name": person.get("organization", {}).get("name"),
                     "linkedin_url": person.get("linkedin_url"),
@@ -303,12 +316,16 @@ class ApolloAgent:
             return {"error": str(exc)}
 
     async def bulk_enrich_people(
-        self, db, user_id: UUID, details: list[dict],
+        self,
+        db,
+        user_id: UUID,
+        details: list[dict],
     ) -> dict:
         """Bulk enrich up to 10 people per call. POST /people/bulk_match."""
         try:
             resp = await self._request_with_backoff(
-                "POST", "/people/bulk_match",
+                "POST",
+                "/people/bulk_match",
                 user_id=user_id,
                 json={"details": details[:10]},
             )
@@ -334,12 +351,16 @@ class ApolloAgent:
             return {"error": str(exc)}
 
     async def enrich_organization(
-        self, db, user_id: UUID, domain: str,
+        self,
+        db,
+        user_id: UUID,
+        domain: str,
     ) -> dict:
         """Enrich an organization by domain. GET /organizations/enrich."""
         try:
             resp = await self._request_with_backoff(
-                "GET", "/organizations/enrich",
+                "GET",
+                "/organizations/enrich",
                 user_id=user_id,
                 params={"domain": domain},
             )
@@ -395,7 +416,10 @@ class ApolloAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/contacts", user_id=user_id, json=payload,
+                "POST",
+                "/contacts",
+                user_id=user_id,
+                json=payload,
             )
             data = resp.json()
             contact = data.get("contact", {})
@@ -411,12 +435,17 @@ class ApolloAgent:
             return {"error": str(exc)}
 
     async def update_contact(
-        self, db, user_id: UUID, contact_id: str, **properties,
+        self,
+        db,
+        user_id: UUID,
+        contact_id: str,
+        **properties,
     ) -> dict:
         """Update a contact's properties. PATCH /contacts/{id}."""
         try:
             resp = await self._request_with_backoff(
-                "PATCH", f"/contacts/{contact_id}",
+                "PATCH",
+                f"/contacts/{contact_id}",
                 user_id=user_id,
                 json=properties,
             )
@@ -434,12 +463,16 @@ class ApolloAgent:
             return {"error": str(exc)}
 
     async def bulk_create_contacts(
-        self, db, user_id: UUID, contacts: list[dict],
+        self,
+        db,
+        user_id: UUID,
+        contacts: list[dict],
     ) -> dict:
         """Bulk create contacts. POST /contacts/bulk."""
         try:
             resp = await self._request_with_backoff(
-                "POST", "/contacts/bulk",
+                "POST",
+                "/contacts/bulk",
                 user_id=user_id,
                 json={"contacts": contacts},
             )
@@ -472,7 +505,10 @@ class ApolloAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/contacts/search", user_id=user_id, json=payload,
+                "POST",
+                "/contacts/search",
+                user_id=user_id,
+                json=payload,
             )
             data = resp.json()
             contacts = data.get("contacts", [])
@@ -498,12 +534,17 @@ class ApolloAgent:
             return {"error": str(exc)}
 
     async def delete_contact(
-        self, db, user_id: UUID, contact_id: str,
+        self,
+        db,
+        user_id: UUID,
+        contact_id: str,
     ) -> bool:
         """Delete a contact from Apollo. DELETE /contacts/{id}."""
         try:
             await self._request_with_backoff(
-                "DELETE", f"/contacts/{contact_id}", user_id=user_id,
+                "DELETE",
+                f"/contacts/{contact_id}",
+                user_id=user_id,
             )
             return True
         except httpx.HTTPStatusError as exc:
@@ -513,7 +554,12 @@ class ApolloAgent:
     # ── Accounts ───────────────────────────────────────────────────────────
 
     async def create_account(
-        self, db, user_id: UUID, name: str, domain: str | None = None, **kwargs,
+        self,
+        db,
+        user_id: UUID,
+        name: str,
+        domain: str | None = None,
+        **kwargs,
     ) -> dict:
         """Create an account in Apollo CRM. POST /accounts."""
         payload: dict = {"name": name}
@@ -523,7 +569,10 @@ class ApolloAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/accounts", user_id=user_id, json=payload,
+                "POST",
+                "/accounts",
+                user_id=user_id,
+                json=payload,
             )
             data = resp.json()
             account = data.get("account", {})
@@ -537,12 +586,17 @@ class ApolloAgent:
             return {"error": str(exc)}
 
     async def update_account(
-        self, db, user_id: UUID, account_id: str, **properties,
+        self,
+        db,
+        user_id: UUID,
+        account_id: str,
+        **properties,
     ) -> dict:
         """Update an account's properties. PATCH /accounts/{id}."""
         try:
             resp = await self._request_with_backoff(
-                "PATCH", f"/accounts/{account_id}",
+                "PATCH",
+                f"/accounts/{account_id}",
                 user_id=user_id,
                 json=properties,
             )
@@ -558,12 +612,16 @@ class ApolloAgent:
             return {"error": str(exc)}
 
     async def bulk_create_accounts(
-        self, db, user_id: UUID, accounts: list[dict],
+        self,
+        db,
+        user_id: UUID,
+        accounts: list[dict],
     ) -> dict:
         """Bulk create accounts. POST /accounts/bulk."""
         try:
             resp = await self._request_with_backoff(
-                "POST", "/accounts/bulk",
+                "POST",
+                "/accounts/bulk",
                 user_id=user_id,
                 json={"accounts": accounts},
             )
@@ -600,7 +658,10 @@ class ApolloAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/deals", user_id=user_id, json=payload,
+                "POST",
+                "/deals",
+                user_id=user_id,
+                json=payload,
             )
             data = resp.json()
             deal = data.get("deal", data)
@@ -615,12 +676,17 @@ class ApolloAgent:
             return {"error": str(exc)}
 
     async def list_deals(
-        self, db, user_id: UUID, page: int = 1, per_page: int = 25,
+        self,
+        db,
+        user_id: UUID,
+        page: int = 1,
+        per_page: int = 25,
     ) -> dict:
         """List deals. GET /deals."""
         try:
             resp = await self._request_with_backoff(
-                "GET", "/deals",
+                "GET",
+                "/deals",
                 user_id=user_id,
                 params={"page": page, "per_page": min(per_page, 100)},
             )
@@ -646,12 +712,17 @@ class ApolloAgent:
             return {"error": str(exc)}
 
     async def get_deal(
-        self, db, user_id: UUID, deal_id: str,
+        self,
+        db,
+        user_id: UUID,
+        deal_id: str,
     ) -> dict:
         """Get a deal by ID. GET /deals/{id}."""
         try:
             resp = await self._request_with_backoff(
-                "GET", f"/deals/{deal_id}", user_id=user_id,
+                "GET",
+                f"/deals/{deal_id}",
+                user_id=user_id,
             )
             data = resp.json()
             deal = data.get("deal", data)
@@ -667,12 +738,17 @@ class ApolloAgent:
             return {"error": str(exc)}
 
     async def update_deal(
-        self, db, user_id: UUID, deal_id: str, **properties,
+        self,
+        db,
+        user_id: UUID,
+        deal_id: str,
+        **properties,
     ) -> dict:
         """Update a deal. PATCH /deals/{id}."""
         try:
             resp = await self._request_with_backoff(
-                "PATCH", f"/deals/{deal_id}",
+                "PATCH",
+                f"/deals/{deal_id}",
                 user_id=user_id,
                 json=properties,
             )
@@ -691,7 +767,10 @@ class ApolloAgent:
     # ── Sequences ──────────────────────────────────────────────────────────
 
     async def search_sequences(
-        self, db, user_id: UUID, query: str | None = None,
+        self,
+        db,
+        user_id: UUID,
+        query: str | None = None,
     ) -> dict:
         """Search email sequences. POST /sequences/search."""
         payload: dict = {}
@@ -700,7 +779,10 @@ class ApolloAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/sequences/search", user_id=user_id, json=payload,
+                "POST",
+                "/sequences/search",
+                user_id=user_id,
+                json=payload,
             )
             data = resp.json()
             sequences = data.get("sequences", [])
@@ -735,7 +817,8 @@ class ApolloAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", f"/sequences/{sequence_id}/contacts",
+                "POST",
+                f"/sequences/{sequence_id}/contacts",
                 user_id=user_id,
                 json=payload,
             )
@@ -800,7 +883,10 @@ class ApolloAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/tasks", user_id=user_id, json=payload,
+                "POST",
+                "/tasks",
+                user_id=user_id,
+                json=payload,
             )
             data = resp.json()
             task = data.get("task", data)
@@ -817,12 +903,16 @@ class ApolloAgent:
             return {"error": str(exc)}
 
     async def bulk_create_tasks(
-        self, db, user_id: UUID, tasks: list[dict],
+        self,
+        db,
+        user_id: UUID,
+        tasks: list[dict],
     ) -> dict:
         """Bulk create tasks. POST /tasks/bulk."""
         try:
             resp = await self._request_with_backoff(
-                "POST", "/tasks/bulk",
+                "POST",
+                "/tasks/bulk",
                 user_id=user_id,
                 json={"tasks": tasks},
             )
@@ -853,7 +943,10 @@ class ApolloAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/tasks/search", user_id=user_id, json=payload,
+                "POST",
+                "/tasks/search",
+                user_id=user_id,
+                json=payload,
             )
             data = resp.json()
             found_tasks = data.get("tasks", [])
@@ -905,7 +998,10 @@ class ApolloAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/calls", user_id=user_id, json=payload,
+                "POST",
+                "/calls",
+                user_id=user_id,
+                json=payload,
             )
             data = resp.json()
             call = data.get("call", data)
@@ -935,7 +1031,10 @@ class ApolloAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "GET", "/calls", user_id=user_id, params=params,
+                "GET",
+                "/calls",
+                user_id=user_id,
+                params=params,
             )
             data = resp.json()
             calls = data.get("calls", [])
@@ -961,12 +1060,17 @@ class ApolloAgent:
             return {"error": str(exc)}
 
     async def update_call_record(
-        self, db, user_id: UUID, call_id: str, **properties,
+        self,
+        db,
+        user_id: UUID,
+        call_id: str,
+        **properties,
     ) -> dict:
         """Update a call record. PUT /calls/{id}."""
         try:
             resp = await self._request_with_backoff(
-                "PUT", f"/calls/{call_id}",
+                "PUT",
+                f"/calls/{call_id}",
                 user_id=user_id,
                 json=properties,
             )
@@ -986,12 +1090,17 @@ class ApolloAgent:
     # ── Misc ───────────────────────────────────────────────────────────────
 
     async def get_usage_stats(
-        self, db, user_id: UUID,
+        self,
+        db,
+        user_id: UUID,
     ) -> dict:
         """Get Apollo account usage statistics. POST /usage."""
         try:
             resp = await self._request_with_backoff(
-                "POST", "/usage", user_id=user_id, json={},
+                "POST",
+                "/usage",
+                user_id=user_id,
+                json={},
             )
             data = resp.json()
             usage = data.get("usage", data)
@@ -1007,12 +1116,16 @@ class ApolloAgent:
             return {"error": str(exc)}
 
     async def list_users(
-        self, db, user_id: UUID,
+        self,
+        db,
+        user_id: UUID,
     ) -> dict:
         """List Apollo users in the team. GET /users."""
         try:
             resp = await self._request_with_backoff(
-                "GET", "/users", user_id=user_id,
+                "GET",
+                "/users",
+                user_id=user_id,
             )
             data = resp.json()
             users = data.get("users", [])
@@ -1033,12 +1146,16 @@ class ApolloAgent:
             return {"error": str(exc)}
 
     async def list_email_accounts(
-        self, db, user_id: UUID,
+        self,
+        db,
+        user_id: UUID,
     ) -> dict:
         """List connected email accounts. GET /email_accounts."""
         try:
             resp = await self._request_with_backoff(
-                "GET", "/email_accounts", user_id=user_id,
+                "GET",
+                "/email_accounts",
+                user_id=user_id,
             )
             data = resp.json()
             accounts = data.get("email_accounts", [])

@@ -44,6 +44,7 @@ def _sanitize_cell(value: str) -> str:
         return value.lstrip("=+-@\t\r")
     return value
 
+
 router = APIRouter(prefix="/leads", tags=["leads"])
 
 
@@ -54,9 +55,7 @@ async def create_lead(
     current_user: User = Depends(get_current_user),
 ) -> LeadResponse:
     """Create a new lead."""
-    result = await db.execute(
-        select(Lead).where(func.lower(Lead.email) == body.email.lower())
-    )
+    result = await db.execute(select(Lead).where(func.lower(Lead.email) == body.email.lower()))
     if result.scalar_one_or_none() is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
     lead = Lead(**body.model_dump())
@@ -78,9 +77,7 @@ async def list_leads(
     total = total_result.scalar_one()
 
     offset = (page - 1) * page_size
-    result = await db.execute(
-        select(Lead).order_by(Lead.created_at.desc()).offset(offset).limit(page_size)
-    )
+    result = await db.execute(select(Lead).order_by(Lead.created_at.desc()).offset(offset).limit(page_size))
     leads = result.scalars().all()
 
     return LeadListResponse(
@@ -111,9 +108,7 @@ async def import_leads_csv(
     - UTF-8 with BOM handling, latin-1 fallback
     """
     if not file.filename or not file.filename.endswith(".csv"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Only CSV files are accepted"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only CSV files are accepted")
 
     # ── MIME type check ──────────────────────────────────────────────
     content_type = (file.content_type or "").split(";")[0].strip().lower()
@@ -151,9 +146,7 @@ async def import_leads_csv(
 
     # ── Column validation ────────────────────────────────────────────
     if reader.fieldnames is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="CSV file is empty or malformed"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="CSV file is empty or malformed")
     header_set = {f.strip().lower() for f in reader.fieldnames if f}
     missing_cols = required - header_set
     if missing_cols:
@@ -195,9 +188,7 @@ async def import_leads_csv(
             continue
 
         # Dedupe by email (case-insensitive)
-        existing = await db.execute(
-            select(Lead).where(func.lower(Lead.email) == email_normalized.lower())
-        )
+        existing = await db.execute(select(Lead).where(func.lower(Lead.email) == email_normalized.lower()))
         if existing.scalar_one_or_none() is not None:
             skipped_dupes += 1
             continue
@@ -221,7 +212,9 @@ async def import_leads_csv(
             continue
 
     await db.flush()
-    logger.info("CSV import: %d total, %d imported, %d dupes, %d errors", total_rows, imported, skipped_dupes, len(errors))
+    logger.info(
+        "CSV import: %d total, %d imported, %d dupes, %d errors", total_rows, imported, skipped_dupes, len(errors)
+    )
     return CSVImportResponse(
         total_rows=total_rows,
         imported=imported,
@@ -263,9 +256,7 @@ async def import_leads_hubspot(
             continue
 
         # Dedupe by email (case-insensitive)
-        result = await db.execute(
-            select(Lead).where(func.lower(Lead.email) == email_normalized.lower())
-        )
+        result = await db.execute(select(Lead).where(func.lower(Lead.email) == email_normalized.lower()))
         existing_lead = result.scalar_one_or_none()
 
         if existing_lead is not None:
@@ -299,7 +290,9 @@ async def import_leads_hubspot(
             continue
 
     await db.flush()
-    logger.info("HubSpot sync: %d total, %d synced, %d skipped, %d errors", total_contacts, synced, skipped, len(errors))
+    logger.info(
+        "HubSpot sync: %d total, %d synced, %d skipped, %d errors", total_contacts, synced, skipped, len(errors)
+    )
     return HubSpotSyncResponse(
         total_contacts=total_contacts,
         synced=synced,

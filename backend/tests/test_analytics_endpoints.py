@@ -21,12 +21,14 @@ def client():
 
 def _override_db(mock_db):
     from app.database import get_db
+
     app.dependency_overrides[get_db] = lambda: mock_db
 
 
 def _override_auth(user=None):
     """Override auth to bypass JWT validation."""
     from app.auth import get_current_user
+
     mock_user = user or MagicMock()
     mock_user.id = "00000000-0000-0000-0000-000000000001"
     mock_user.email = "test@test.com"
@@ -182,6 +184,7 @@ class TestRecentActivity:
     def test_recent_activity_with_data(self, client):
         mock_db = AsyncMock()
         import uuid
+
         touch = MagicMock()
         touch.id = uuid.uuid4()
         touch.channel = "email"

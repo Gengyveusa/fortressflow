@@ -1,4 +1,5 @@
 """Testing Agent API — diagnostics, failure analysis, fix generation."""
+
 import logging
 from typing import Optional
 
@@ -11,8 +12,12 @@ from app.database import get_db
 from app.models.user import User
 from app.services.agents.orchestrator import AgentOrchestrator
 from app.schemas.testing import (
-    DiagnosticRequest, DiagnoseIssueRequest, GenerateFixRequest,
-    ValidateFixRequest, IntegrationTestRequest, GenerateTestCasesRequest,
+    DiagnosticRequest,
+    DiagnoseIssueRequest,
+    GenerateFixRequest,
+    ValidateFixRequest,
+    IntegrationTestRequest,
+    GenerateTestCasesRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -65,7 +70,9 @@ async def diagnose_issue(
 ):
     """Diagnose a specific agent/action failure using LLM."""
     result = await AgentOrchestrator.dispatch(
-        db, "testing", "diagnose_issue",
+        db,
+        "testing",
+        "diagnose_issue",
         {"agent_name": request.agent_name, "action": request.action, "error_message": request.error_message},
         user.id,
     )
@@ -80,7 +87,9 @@ async def generate_fix(
 ):
     """Generate a code fix suggestion (never auto-applied)."""
     result = await AgentOrchestrator.dispatch(
-        db, "testing", "generate_fix",
+        db,
+        "testing",
+        "generate_fix",
         {"agent_name": request.agent_name, "action": request.action, "error_message": request.error_message},
         user.id,
     )
@@ -95,7 +104,9 @@ async def validate_fix(
 ):
     """Validate a fix by re-running the workflow."""
     result = await AgentOrchestrator.dispatch(
-        db, "testing", "validate_fix",
+        db,
+        "testing",
+        "validate_fix",
         {"agent_name": request.agent_name, "action": request.action},
         user.id,
     )
@@ -124,7 +135,9 @@ async def generate_test_cases(
 ):
     """Generate pytest test cases for an agent action."""
     result = await AgentOrchestrator.dispatch(
-        db, "testing", "generate_test_cases",
+        db,
+        "testing",
+        "generate_test_cases",
         {"agent_name": request.agent_name, "action": request.action},
         user.id,
     )
@@ -140,6 +153,7 @@ async def list_fix_suggestions(
 ):
     """List fix suggestions."""
     from app.models.fix_suggestion import FixSuggestion
+
     query = select(FixSuggestion).where(FixSuggestion.user_id == user.id)
     if status:
         query = query.where(FixSuggestion.status == status)
@@ -148,8 +162,12 @@ async def list_fix_suggestions(
     suggestions = result.scalars().all()
     return [
         {
-            "id": str(s.id), "agent_name": s.agent_name, "action": s.action,
-            "severity": s.severity, "fix_type": s.fix_type, "status": s.status,
+            "id": str(s.id),
+            "agent_name": s.agent_name,
+            "action": s.action,
+            "severity": s.severity,
+            "fix_type": s.fix_type,
+            "status": s.status,
             "diagnosis": s.diagnosis[:200] if s.diagnosis else "",
             "suggested_fix": s.suggested_fix[:200] if s.suggested_fix else "",
             "created_at": s.created_at.isoformat() if s.created_at else "",
@@ -166,6 +184,7 @@ async def list_diagnostic_runs(
 ):
     """List recent diagnostic runs."""
     from app.models.diagnostic_run import DiagnosticRun
+
     query = (
         select(DiagnosticRun)
         .where(DiagnosticRun.user_id == user.id)
@@ -176,8 +195,11 @@ async def list_diagnostic_runs(
     runs = result.scalars().all()
     return [
         {
-            "id": str(r.id), "run_type": r.run_type, "status": r.status,
-            "summary": r.summary, "started_at": r.started_at.isoformat() if r.started_at else "",
+            "id": str(r.id),
+            "run_type": r.run_type,
+            "status": r.status,
+            "summary": r.summary,
+            "started_at": r.started_at.isoformat() if r.started_at else "",
             "completed_at": r.completed_at.isoformat() if r.completed_at else "",
         }
         for r in runs

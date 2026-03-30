@@ -66,7 +66,13 @@ def upgrade() -> None:
         op.create_table(
             "warmup_configs",
             sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
-            sa.Column("inbox_id", UUID(as_uuid=True), sa.ForeignKey("sending_inboxes.id", ondelete="CASCADE"), unique=True, nullable=False),
+            sa.Column(
+                "inbox_id",
+                UUID(as_uuid=True),
+                sa.ForeignKey("sending_inboxes.id", ondelete="CASCADE"),
+                unique=True,
+                nullable=False,
+            ),
             sa.Column("ramp_duration_weeks", sa.Integer, nullable=False, server_default=sa.text("6")),
             sa.Column("initial_daily_volume", sa.Integer, nullable=False, server_default=sa.text("5")),
             sa.Column("target_daily_volume", sa.Integer, nullable=False, server_default=sa.text("50")),
@@ -89,7 +95,9 @@ def upgrade() -> None:
         op.create_table(
             "warmup_seed_logs",
             sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
-            sa.Column("inbox_id", UUID(as_uuid=True), sa.ForeignKey("sending_inboxes.id", ondelete="CASCADE"), nullable=False),
+            sa.Column(
+                "inbox_id", UUID(as_uuid=True), sa.ForeignKey("sending_inboxes.id", ondelete="CASCADE"), nullable=False
+            ),
             sa.Column("lead_id", UUID(as_uuid=True), sa.ForeignKey("leads.id", ondelete="CASCADE"), nullable=False),
             sa.Column("warmup_date", sa.Date, nullable=False),
             sa.Column("selected_by", sa.String(100), nullable=False),
@@ -112,17 +120,21 @@ def upgrade() -> None:
 
     # ── Alter warmup_queue: change inbox_id to UUID FK ─────────────────
     # Check if inbox_id is still the old string type (from migration 001)
-    result = bind.execute(sa.text(
-        "SELECT data_type FROM information_schema.columns "
-        "WHERE table_name = 'warmup_queue' AND column_name = 'inbox_id'"
-    ))
+    result = bind.execute(
+        sa.text(
+            "SELECT data_type FROM information_schema.columns "
+            "WHERE table_name = 'warmup_queue' AND column_name = 'inbox_id'"
+        )
+    )
     row = result.fetchone()
     if row and row[0] in ("character varying", "text"):
         op.drop_index("ix_warmup_queue_inbox_id", table_name="warmup_queue", if_exists=True)
         op.drop_column("warmup_queue", "inbox_id")
         op.add_column(
             "warmup_queue",
-            sa.Column("inbox_id", UUID(as_uuid=True), sa.ForeignKey("sending_inboxes.id", ondelete="CASCADE"), nullable=False),
+            sa.Column(
+                "inbox_id", UUID(as_uuid=True), sa.ForeignKey("sending_inboxes.id", ondelete="CASCADE"), nullable=False
+            ),
         )
         if not index_exists(bind, "ix_warmup_queue_inbox_id"):
             op.create_index("ix_warmup_queue_inbox_id", "warmup_queue", ["inbox_id"])
@@ -137,25 +149,37 @@ def upgrade() -> None:
     if not column_exists(bind, "warmup_queue", "seed_lead_ids"):
         op.add_column("warmup_queue", sa.Column("seed_lead_ids", JSONB, nullable=True))
     if not column_exists(bind, "warmup_queue", "health_check_passed"):
-        op.add_column("warmup_queue", sa.Column("health_check_passed", sa.Boolean, nullable=False, server_default=sa.text("true")))
+        op.add_column(
+            "warmup_queue", sa.Column("health_check_passed", sa.Boolean, nullable=False, server_default=sa.text("true"))
+        )
     if not column_exists(bind, "warmup_queue", "health_check_details"):
         op.add_column("warmup_queue", sa.Column("health_check_details", JSONB, nullable=True))
 
     # ── Enhance sending_domains ────────────────────────────────────────
     if not column_exists(bind, "sending_domains", "spf_verified"):
-        op.add_column("sending_domains", sa.Column("spf_verified", sa.Boolean, nullable=False, server_default=sa.text("false")))
+        op.add_column(
+            "sending_domains", sa.Column("spf_verified", sa.Boolean, nullable=False, server_default=sa.text("false"))
+        )
     if not column_exists(bind, "sending_domains", "dkim_verified"):
-        op.add_column("sending_domains", sa.Column("dkim_verified", sa.Boolean, nullable=False, server_default=sa.text("false")))
+        op.add_column(
+            "sending_domains", sa.Column("dkim_verified", sa.Boolean, nullable=False, server_default=sa.text("false"))
+        )
     if not column_exists(bind, "sending_domains", "dmarc_verified"):
-        op.add_column("sending_domains", sa.Column("dmarc_verified", sa.Boolean, nullable=False, server_default=sa.text("false")))
+        op.add_column(
+            "sending_domains", sa.Column("dmarc_verified", sa.Boolean, nullable=False, server_default=sa.text("false"))
+        )
     if not column_exists(bind, "sending_domains", "bimi_verified"):
-        op.add_column("sending_domains", sa.Column("bimi_verified", sa.Boolean, nullable=False, server_default=sa.text("false")))
+        op.add_column(
+            "sending_domains", sa.Column("bimi_verified", sa.Boolean, nullable=False, server_default=sa.text("false"))
+        )
     if not column_exists(bind, "sending_domains", "ses_domain_arn"):
         op.add_column("sending_domains", sa.Column("ses_domain_arn", sa.String(512), nullable=True))
     if not column_exists(bind, "sending_domains", "ses_dkim_tokens"):
         op.add_column("sending_domains", sa.Column("ses_dkim_tokens", JSONB, nullable=True))
     if not column_exists(bind, "sending_domains", "total_complaints"):
-        op.add_column("sending_domains", sa.Column("total_complaints", sa.Integer, nullable=False, server_default=sa.text("0")))
+        op.add_column(
+            "sending_domains", sa.Column("total_complaints", sa.Integer, nullable=False, server_default=sa.text("0"))
+        )
     if not column_exists(bind, "sending_domains", "dedicated_ip_pool"):
         op.add_column("sending_domains", sa.Column("dedicated_ip_pool", sa.String(255), nullable=True))
     if not column_exists(bind, "sending_domains", "dedicated_ips"):
@@ -173,7 +197,10 @@ def upgrade() -> None:
     if not column_exists(bind, "sending_domains", "notes"):
         op.add_column("sending_domains", sa.Column("notes", sa.Text, nullable=True))
     if not column_exists(bind, "sending_domains", "updated_at"):
-        op.add_column("sending_domains", sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=True))
+        op.add_column(
+            "sending_domains",
+            sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=True),
+        )
 
 
 def downgrade() -> None:

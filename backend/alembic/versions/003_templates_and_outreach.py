@@ -22,9 +22,7 @@ def upgrade() -> None:
 
     # Create enum types — use DO blocks so creation is idempotent at the SQL level
     create_enum_idempotent("template_channel", ["email", "sms", "linkedin"])
-    create_enum_idempotent(
-        "template_category", ["cold_outreach", "follow_up", "re_engagement", "custom"]
-    )
+    create_enum_idempotent("template_category", ["cold_outreach", "follow_up", "re_engagement", "custom"])
 
     # Create templates table
     if not table_exists(bind, "templates"):
@@ -39,7 +37,9 @@ def upgrade() -> None:
             ),
             sa.Column(
                 "category",
-                ENUM("cold_outreach", "follow_up", "re_engagement", "custom", name="template_category", create_type=False),
+                ENUM(
+                    "cold_outreach", "follow_up", "re_engagement", "custom", name="template_category", create_type=False
+                ),
                 nullable=False,
                 server_default="custom",
             ),

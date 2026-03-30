@@ -23,16 +23,12 @@ def upgrade() -> None:
     bind = op.get_bind()
 
     # ── Enum types — use DO blocks so creation is idempotent at the SQL level
-    create_enum_idempotent(
-        "step_type", ["email", "sms", "linkedin", "delay", "condition"]
-    )
+    create_enum_idempotent("step_type", ["email", "sms", "linkedin", "delay", "condition"])
     create_enum_idempotent(
         "enrollment_status",
         ["active", "paused", "completed", "bounced", "replied", "unsubscribed", "failed"],
     )
-    create_enum_idempotent(
-        "sequence_status", ["draft", "active", "paused", "archived"]
-    )
+    create_enum_idempotent("sequence_status", ["draft", "active", "paused", "archived"])
 
     # ── sending_domains ─────────────────────────────────────────────────
     if not table_exists(bind, "sending_domains"):
@@ -94,7 +90,10 @@ def upgrade() -> None:
             sa.Column(
                 "status",
                 ENUM(
-                    "draft", "active", "paused", "archived",
+                    "draft",
+                    "active",
+                    "paused",
+                    "archived",
                     name="sequence_status",
                     create_type=False,
                 ),
@@ -134,7 +133,11 @@ def upgrade() -> None:
             sa.Column(
                 "step_type",
                 ENUM(
-                    "email", "sms", "linkedin", "delay", "condition",
+                    "email",
+                    "sms",
+                    "linkedin",
+                    "delay",
+                    "condition",
                     name="step_type",
                     create_type=False,
                 ),
@@ -179,8 +182,13 @@ def upgrade() -> None:
             sa.Column(
                 "status",
                 ENUM(
-                    "active", "paused", "completed", "bounced", "replied",
-                    "unsubscribed", "failed",
+                    "active",
+                    "paused",
+                    "completed",
+                    "bounced",
+                    "replied",
+                    "unsubscribed",
+                    "failed",
                     name="enrollment_status",
                     create_type=False,
                 ),

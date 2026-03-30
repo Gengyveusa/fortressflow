@@ -17,12 +17,8 @@ from app.database import Base
 class SendingDomain(Base):
     __tablename__ = "sending_domains"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    domain: Mapped[str] = mapped_column(
-        String(255), unique=True, nullable=False, index=True
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    domain: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
 
     # DNS verification statuses
     spf_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -32,9 +28,7 @@ class SendingDomain(Base):
 
     # SES domain identity
     ses_domain_arn: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    ses_dkim_tokens: Mapped[dict | None] = mapped_column(
-        JSONB, nullable=True
-    )  # DKIM CNAME records from SES
+    ses_dkim_tokens: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # DKIM CNAME records from SES
 
     # Health metrics
     health_score: Mapped[float] = mapped_column(Float, default=100.0, nullable=False)
@@ -45,20 +39,12 @@ class SendingDomain(Base):
 
     # Dedicated IP pool
     dedicated_ip_pool: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    dedicated_ips: Mapped[dict | None] = mapped_column(
-        JSONB, nullable=True
-    )  # List of IPs in the pool
+    dedicated_ips: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # List of IPs in the pool
 
     # DMARC policy
-    dmarc_policy: Mapped[str | None] = mapped_column(
-        String(50), nullable=True
-    )  # "none", "quarantine", "reject"
-    dmarc_rua: Mapped[str | None] = mapped_column(
-        String(255), nullable=True
-    )  # Aggregate report email
-    dmarc_ruf: Mapped[str | None] = mapped_column(
-        String(255), nullable=True
-    )  # Forensic report email
+    dmarc_policy: Mapped[str | None] = mapped_column(String(50), nullable=True)  # "none", "quarantine", "reject"
+    dmarc_rua: Mapped[str | None] = mapped_column(String(255), nullable=True)  # Aggregate report email
+    dmarc_ruf: Mapped[str | None] = mapped_column(String(255), nullable=True)  # Forensic report email
 
     # BIMI
     bimi_svg_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
@@ -67,9 +53,7 @@ class SendingDomain(Base):
     # Notes
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

@@ -1,9 +1,11 @@
 """Fix suggestion model — stores LLM-generated fix proposals for human review."""
+
 import uuid
 from sqlalchemy import Column, DateTime, ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.sql import func
 from app.database import Base
+
 
 class FixSuggestion(Base):
     __tablename__ = "fix_suggestions"

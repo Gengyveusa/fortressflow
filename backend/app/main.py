@@ -108,8 +108,8 @@ if settings.SENTRY_DSN:
             StarletteIntegration(transaction_style="endpoint"),
             FastApiIntegration(transaction_style="endpoint"),
             LoggingIntegration(
-                level=logging.INFO,        # breadcrumb level
-                event_level=logging.ERROR, # Sentry event level
+                level=logging.INFO,  # breadcrumb level
+                event_level=logging.ERROR,  # Sentry event level
             ),
             RedisIntegration(),
             SqlalchemyIntegration(),
@@ -224,6 +224,7 @@ app.include_router(v1_router)
 # Built-in endpoints
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @app.get("/health", tags=["health"], include_in_schema=True)
 async def health_check() -> dict:
     """Liveness probe — returns 200 OK when the application is running."""
@@ -232,7 +233,6 @@ async def health_check() -> dict:
         "version": "0.7.1",
         "environment": settings.ENVIRONMENT,
     }
-
 
 
 @app.get("/ready", tags=["health"], include_in_schema=True)
@@ -272,6 +272,7 @@ async def readiness_check() -> dict:
 
     status_code = 200 if healthy else 503
     from fastapi.responses import JSONResponse as _JSONResponse
+
     return _JSONResponse(
         status_code=status_code,
         content={"status": "ready" if healthy else "degraded", "checks": checks},

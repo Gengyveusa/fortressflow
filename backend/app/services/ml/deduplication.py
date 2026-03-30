@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 # Data classes
 # ---------------------------------------------------------------------------
 
+
 class MatchMethod(str, Enum):
     EXACT = "exact"
     FUZZY = "fuzzy"
@@ -60,8 +61,7 @@ class DuplicateCandidate:
             "record_b_id": self.record_b_id,
             "overall_score": round(self.overall_score, 4),
             "field_scores": [
-                {"field": fs.field, "score": round(fs.score, 4), "method": fs.method.value}
-                for fs in self.field_scores
+                {"field": fs.field, "score": round(fs.score, 4), "method": fs.method.value} for fs in self.field_scores
             ],
             "suggested_action": self.suggested_action.value,
         }
@@ -70,6 +70,7 @@ class DuplicateCandidate:
 # ---------------------------------------------------------------------------
 # String similarity algorithms (pure Python)
 # ---------------------------------------------------------------------------
+
 
 def levenshtein_distance(s1: str, s2: str) -> int:
     """Classic dynamic-programming Levenshtein edit distance."""
@@ -146,9 +147,7 @@ def jaro_similarity(s1: str, s2: str) -> float:
             transpositions += 1
         k += 1
 
-    return (
-        matches / len1 + matches / len2 + (matches - transpositions / 2) / matches
-    ) / 3.0
+    return (matches / len1 + matches / len2 + (matches - transpositions / 2) / matches) / 3.0
 
 
 def jaro_winkler_similarity(s1: str, s2: str, prefix_weight: float = 0.1) -> float:
@@ -178,12 +177,23 @@ def soundex(name: str) -> str:
         return ""
 
     code_map = {
-        "B": "1", "F": "1", "P": "1", "V": "1",
-        "C": "2", "G": "2", "J": "2", "K": "2",
-        "Q": "2", "S": "2", "X": "2", "Z": "2",
-        "D": "3", "T": "3",
+        "B": "1",
+        "F": "1",
+        "P": "1",
+        "V": "1",
+        "C": "2",
+        "G": "2",
+        "J": "2",
+        "K": "2",
+        "Q": "2",
+        "S": "2",
+        "X": "2",
+        "Z": "2",
+        "D": "3",
+        "T": "3",
         "L": "4",
-        "M": "5", "N": "5",
+        "M": "5",
+        "N": "5",
         "R": "6",
     }
 
@@ -250,6 +260,7 @@ NORMALISERS: Dict[str, Any] = {
 # Core deduplication engine
 # ---------------------------------------------------------------------------
 
+
 class DeduplicationEngine:
     """Identifies, scores, and merges duplicate CRM records."""
 
@@ -271,7 +282,8 @@ class DeduplicationEngine:
 
         logger.info(
             "DeduplicationEngine initialised with threshold=%.2f, %d field configs",
-            self.threshold, len(self.field_config),
+            self.threshold,
+            len(self.field_config),
         )
 
     # -- Duplicate finding ---------------------------------------------------
@@ -328,7 +340,9 @@ class DeduplicationEngine:
 
         logger.info(
             "Found %d duplicate candidates from %d records (threshold=%.2f)",
-            len(candidates), len(records), threshold,
+            len(candidates),
+            len(records),
+            threshold,
         )
         return candidates
 
@@ -353,16 +367,19 @@ class DeduplicationEngine:
 
         golden = self.create_golden_record(contributing, primary_id=primary_id)
 
-        self._merge_history.append({
-            "timestamp": time.time(),
-            "primary_id": primary_id,
-            "merged_ids": duplicate_ids,
-            "golden_record_id": golden.get("id", primary_id),
-        })
+        self._merge_history.append(
+            {
+                "timestamp": time.time(),
+                "primary_id": primary_id,
+                "merged_ids": duplicate_ids,
+                "golden_record_id": golden.get("id", primary_id),
+            }
+        )
 
         logger.info(
             "Merged %d records into golden record %s",
-            len(contributing), primary_id,
+            len(contributing),
+            primary_id,
         )
         return golden
 
@@ -406,9 +423,7 @@ class DeduplicationEngine:
                 rec_is_primary = rec_id == primary_id
 
                 # Heuristic: prefer longer, or primary on tie
-                if len(val_str) > best_length or (
-                    len(val_str) == best_length and rec_is_primary and not is_primary
-                ):
+                if len(val_str) > best_length or (len(val_str) == best_length and rec_is_primary and not is_primary):
                     best_value = val
                     best_length = len(val_str)
                     is_primary = rec_is_primary
@@ -418,9 +433,7 @@ class DeduplicationEngine:
 
         rid = primary_id or str(uuid.uuid4())
         golden["id"] = rid
-        golden["_merged_from"] = [
-            str(r.get("id", r.get("record_id"))) for r in records
-        ]
+        golden["_merged_from"] = [str(r.get("id", r.get("record_id"))) for r in records]
         golden["_merged_at"] = time.time()
 
         self._golden_records[rid] = golden
@@ -448,29 +461,37 @@ class DeduplicationEngine:
                 try:
                     if hasattr(adapter, "push_record"):
                         adapter.push_record(golden_record)
-                    results.append({
-                        "crm": getattr(adapter, "name", str(adapter)),
-                        "status": "synced",
-                    })
+                    results.append(
+                        {
+                            "crm": getattr(adapter, "name", str(adapter)),
+                            "status": "synced",
+                        }
+                    )
                 except Exception as exc:
                     logger.error("CRM sync failed for %s: %s", adapter, exc)
-                    results.append({
-                        "crm": getattr(adapter, "name", str(adapter)),
-                        "status": "failed",
-                        "error": str(exc),
-                    })
+                    results.append(
+                        {
+                            "crm": getattr(adapter, "name", str(adapter)),
+                            "status": "failed",
+                            "error": str(exc),
+                        }
+                    )
         else:
             # Simulated sync for default CRMs
             for crm_name in ("hubspot", "salesforce"):
-                results.append({
-                    "crm": crm_name,
-                    "status": "synced (simulated)",
-                    "record_id": record_id,
-                    "merged_count": len(merged_from),
-                })
+                results.append(
+                    {
+                        "crm": crm_name,
+                        "status": "synced (simulated)",
+                        "record_id": record_id,
+                        "merged_count": len(merged_from),
+                    }
+                )
 
         logger.info(
-            "Synced golden record %s to %d CRM(s)", record_id, len(results),
+            "Synced golden record %s to %d CRM(s)",
+            record_id,
+            len(results),
         )
         return {
             "golden_record_id": record_id,
@@ -483,14 +504,8 @@ class DeduplicationEngine:
     def get_dedup_health(self) -> Dict[str, Any]:
         """Return overall deduplication health metrics."""
         total_pairs = len(self._duplicate_pairs)
-        auto_merge_count = sum(
-            1 for c in self._duplicate_pairs
-            if c.suggested_action == SuggestedAction.AUTO_MERGE
-        )
-        review_count = sum(
-            1 for c in self._duplicate_pairs
-            if c.suggested_action == SuggestedAction.REVIEW
-        )
+        auto_merge_count = sum(1 for c in self._duplicate_pairs if c.suggested_action == SuggestedAction.AUTO_MERGE)
+        review_count = sum(1 for c in self._duplicate_pairs if c.suggested_action == SuggestedAction.REVIEW)
         merges_completed = len(self._merge_history)
         golden_count = len(self._golden_records)
 
@@ -507,8 +522,10 @@ class DeduplicationEngine:
             "average_match_score": round(avg_score, 4),
             "duplicate_rate": round(total_pairs / max(golden_count + total_pairs, 1), 4),
             "merge_rate": round(merges_completed / max(total_pairs, 1), 4),
-            "pending_reviews": review_count - sum(
-                1 for m in self._merge_history
+            "pending_reviews": review_count
+            - sum(
+                1
+                for m in self._merge_history
                 if any(
                     c.record_a_id in m.get("merged_ids", []) or c.record_b_id in m.get("merged_ids", [])
                     for c in self._duplicate_pairs
@@ -552,9 +569,7 @@ class DeduplicationEngine:
 
         return keys
 
-    def _compare_records(
-        self, a: Dict[str, Any], b: Dict[str, Any]
-    ) -> Tuple[float, List[MatchScore]]:
+    def _compare_records(self, a: Dict[str, Any], b: Dict[str, Any]) -> Tuple[float, List[MatchScore]]:
         """Compute weighted overall similarity and per-field scores."""
         field_scores: List[MatchScore] = []
         total_weight = 0.0

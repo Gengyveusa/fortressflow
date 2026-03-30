@@ -106,9 +106,7 @@ class PlatformAIService:
         """Generic retry wrapper with rate limiting and exponential backoff."""
         for attempt in range(_MAX_RETRIES):
             async with limiter:
-                resp = await self._client.request(
-                    method, url, headers=headers, **kwargs
-                )
+                resp = await self._client.request(method, url, headers=headers, **kwargs)
             if resp.status_code != 429:
                 resp.raise_for_status()
                 return resp
@@ -131,9 +129,7 @@ class PlatformAIService:
     def _hs_headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {settings.HUBSPOT_API_KEY}"}
 
-    async def breeze_data_agent_insights(
-        self, contact_emails: list[str]
-    ) -> list[AIScoreResult]:
+    async def breeze_data_agent_insights(self, contact_emails: list[str]) -> list[AIScoreResult]:
         """
         Query HubSpot Breeze Data Agent for contact-level engagement insights.
 
@@ -184,9 +180,7 @@ class PlatformAIService:
                 props.get("email", "")
 
                 # Calculate engagement score from HubSpot AI signals
-                predictive_score = float(
-                    props.get("hs_predictive_contact_score", 0) or 0
-                )
+                predictive_score = float(props.get("hs_predictive_contact_score", 0) or 0)
                 open_rate = float(props.get("hs_email_open_rate", 0) or 0)
                 click_rate = float(props.get("hs_email_click_rate", 0) or 0)
 
@@ -204,19 +198,13 @@ class PlatformAIService:
                             "open_rate": open_rate,
                             "click_rate": click_rate,
                             "lead_status": props.get("hs_lead_status"),
-                            "last_visit": props.get(
-                                "hs_analytics_last_visit_timestamp"
-                            ),
+                            "last_visit": props.get("hs_analytics_last_visit_timestamp"),
                         },
-                        recommended_action="seed_candidate"
-                        if normalized > 60
-                        else "monitor",
+                        recommended_action="seed_candidate" if normalized > 60 else "monitor",
                     )
                 )
 
-            logger.info(
-                "Breeze Data Agent: scored %d contacts", len(results)
-            )
+            logger.info("Breeze Data Agent: scored %d contacts", len(results))
 
         except Exception as exc:
             logger.error("Breeze Data Agent error: %s", exc)
@@ -243,15 +231,17 @@ class PlatformAIService:
             # Query contacts sorted by predictive engagement score
             filter_groups = []
             if criteria.get("industry"):
-                filter_groups.append({
-                    "filters": [
-                        {
-                            "propertyName": "industry",
-                            "operator": "EQ",
-                            "value": criteria["industry"],
-                        }
-                    ]
-                })
+                filter_groups.append(
+                    {
+                        "filters": [
+                            {
+                                "propertyName": "industry",
+                                "operator": "EQ",
+                                "value": criteria["industry"],
+                            }
+                        ]
+                    }
+                )
 
             resp = await self._request_with_retry(
                 "POST",
@@ -280,9 +270,7 @@ class PlatformAIService:
             body = resp.json()
             for contact in body.get("results", []):
                 props = contact.get("properties", {})
-                score = float(
-                    props.get("hs_predictive_contact_score", 0) or 0
-                )
+                score = float(props.get("hs_predictive_contact_score", 0) or 0)
                 seeds.append(
                     SeedRecommendation(
                         lead_id=contact.get("id", ""),
@@ -294,9 +282,7 @@ class PlatformAIService:
                     )
                 )
 
-            logger.info(
-                "Breeze Prospecting Agent: found %d seed candidates", len(seeds)
-            )
+            logger.info("Breeze Prospecting Agent: found %d seed candidates", len(seeds))
 
         except Exception as exc:
             logger.error("Breeze Prospecting Agent error: %s", exc)
@@ -377,9 +363,7 @@ class PlatformAIService:
     def _zi_headers(self, token: str) -> dict[str, str]:
         return {"Authorization": f"Bearer {token}"}
 
-    async def copilot_gtm_context_scores(
-        self, emails: list[str]
-    ) -> list[AIScoreResult]:
+    async def copilot_gtm_context_scores(self, emails: list[str]) -> list[AIScoreResult]:
         """
         Query ZoomInfo Copilot GTM Context Graph for intent and engagement signals.
 
@@ -439,18 +423,14 @@ class PlatformAIService:
                     )
                 )
 
-            logger.info(
-                "ZoomInfo Copilot Context Graph: scored %d contacts", len(results)
-            )
+            logger.info("ZoomInfo Copilot Context Graph: scored %d contacts", len(results))
 
         except Exception as exc:
             logger.error("ZoomInfo Copilot Context Graph error: %s", exc)
 
         return results
 
-    async def copilot_gtm_workspace_insights(
-        self, domain: str
-    ) -> dict[str, Any]:
+    async def copilot_gtm_workspace_insights(self, domain: str) -> dict[str, Any]:
         """
         Query ZoomInfo GTM Workspace for account-level intelligence.
 
@@ -484,9 +464,7 @@ class PlatformAIService:
             )
 
             data = resp.json().get("result", {}).get("data", [{}])[0]
-            logger.info(
-                "ZoomInfo GTM Workspace: insights for %s", domain
-            )
+            logger.info("ZoomInfo GTM Workspace: insights for %s", domain)
             return {
                 "platform": "zoominfo_gtm_workspace",
                 "company": data.get("companyName"),
@@ -507,9 +485,7 @@ class PlatformAIService:
     # APOLLO AI (2026 AGENTIC)
     # ═══════════════════════════════════════════════════════════════════
 
-    async def apollo_ai_score_leads(
-        self, lead_data: list[dict[str, Any]]
-    ) -> list[AIScoreResult]:
+    async def apollo_ai_score_leads(self, lead_data: list[dict[str, Any]]) -> list[AIScoreResult]:
         """
         Use Apollo AI's enhanced scoring engine to evaluate leads.
 
@@ -540,17 +516,11 @@ class PlatformAIService:
 
                 # Apollo's AI scoring composite
                 apollo_score = float(person.get("ai_score", 0) or 0)
-                engagement_score = float(
-                    person.get("engagement_score", 0) or 0
-                )
+                engagement_score = float(person.get("engagement_score", 0) or 0)
                 intent_score = float(person.get("intent_score", 0) or 0)
 
                 # Weighted composite
-                composite = (
-                    apollo_score * 0.4
-                    + engagement_score * 0.35
-                    + intent_score * 0.25
-                )
+                composite = apollo_score * 0.4 + engagement_score * 0.35 + intent_score * 0.25
                 normalized = min(100.0, max(0.0, composite))
 
                 results.append(
@@ -564,13 +534,9 @@ class PlatformAIService:
                             "intent_score": intent_score,
                             "seniority": person.get("seniority"),
                             "departments": person.get("departments", []),
-                            "organization": person.get("organization", {}).get(
-                                "name"
-                            ),
+                            "organization": person.get("organization", {}).get("name"),
                         },
-                        recommended_action="high_value_seed"
-                        if normalized > 65
-                        else "standard",
+                        recommended_action="high_value_seed" if normalized > 65 else "standard",
                     )
                 )
 
@@ -581,9 +547,7 @@ class PlatformAIService:
 
         return results
 
-    async def apollo_waterfall_enrich(
-        self, email: str
-    ) -> dict[str, Any]:
+    async def apollo_waterfall_enrich(self, email: str) -> dict[str, Any]:
         """
         Apollo waterfall enrichment — cascading data sources for maximum coverage.
 
@@ -636,9 +600,7 @@ class PlatformAIService:
     # UNIFIED OPERATIONS (cross-platform)
     # ═══════════════════════════════════════════════════════════════════
 
-    async def get_unified_lead_scores(
-        self, emails: list[str]
-    ) -> dict[str, AIScoreResult]:
+    async def get_unified_lead_scores(self, emails: list[str]) -> dict[str, AIScoreResult]:
         """
         Query all enabled AI platforms in parallel and return the best score
         for each email address.
@@ -656,11 +618,7 @@ class PlatformAIService:
             tasks.append(self.copilot_gtm_context_scores(emails))
 
         if settings.APOLLO_AI_ENABLED:
-            tasks.append(
-                self.apollo_ai_score_leads(
-                    [{"email": e} for e in emails]
-                )
-            )
+            tasks.append(self.apollo_ai_score_leads([{"email": e} for e in emails]))
 
         if not tasks:
             logger.info("No AI platforms enabled for scoring")
@@ -733,19 +691,13 @@ class PlatformAIService:
                             score=score_result.score,
                             reason=f"AI score {score_result.score:.0f} via {score_result.platform}",
                             platform=score_result.platform,
-                            engagement_likelihood=min(
-                                1.0, score_result.score / 100
-                            ),
+                            engagement_likelihood=min(1.0, score_result.score / 100),
                         )
                     )
 
         # 3. Fallback: add unscored candidates with default score
         if len(seeds) < batch:
-            remaining_unscored = [
-                e
-                for e in candidate_emails
-                if e not in {s.email for s in seeds}
-            ]
+            remaining_unscored = [e for e in candidate_emails if e not in {s.email for s in seeds}]
             for email in remaining_unscored[: batch - len(seeds)]:
                 seeds.append(
                     SeedRecommendation(
@@ -803,9 +755,7 @@ class PlatformAIService:
             )
             return False
 
-    async def _feedback_to_hubspot(
-        self, email: str, outcomes: dict[str, Any]
-    ) -> bool:
+    async def _feedback_to_hubspot(self, email: str, outcomes: dict[str, Any]) -> bool:
         """Send engagement feedback to HubSpot via note/property update."""
         if not settings.HUBSPOT_API_KEY:
             return False
@@ -864,9 +814,7 @@ class PlatformAIService:
             logger.error("HubSpot feedback error for %s: %s", email, exc)
             return False
 
-    async def _feedback_to_zoominfo(
-        self, email: str, outcomes: dict[str, Any]
-    ) -> bool:
+    async def _feedback_to_zoominfo(self, email: str, outcomes: dict[str, Any]) -> bool:
         """
         Log engagement outcomes for ZoomInfo Copilot learning.
 
@@ -915,9 +863,7 @@ class PlatformAIService:
             logger.error("ZoomInfo feedback error for %s: %s", email, exc)
             return False
 
-    async def _feedback_to_apollo(
-        self, email: str, outcomes: dict[str, Any]
-    ) -> bool:
+    async def _feedback_to_apollo(self, email: str, outcomes: dict[str, Any]) -> bool:
         """
         Push engagement data back to Apollo for AI model refinement.
 

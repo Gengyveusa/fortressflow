@@ -142,8 +142,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = (
-            "camera=(), microphone=(), geolocation=(), "
-            "payment=(), usb=(), interest-cohort=()"
+            "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
         )
         response.headers["Content-Security-Policy"] = self._csp
         response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
@@ -151,9 +150,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         # HSTS — only set over HTTPS in production to avoid breaking local dev
         if self._is_production:
-            response.headers["Strict-Transport-Security"] = (
-                "max-age=31536000; includeSubDomains; preload"
-            )
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
 
         return response
 
@@ -233,7 +230,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                     content={
                         "detail": "CSRF token missing or invalid.",
                         "hint": f"Include the token from the '{CSRF_COOKIE_NAME}' cookie "
-                                f"in the '{CSRF_HEADER_NAME}' request header.",
+                        f"in the '{CSRF_HEADER_NAME}' request header.",
                     },
                 )
 
@@ -243,11 +240,11 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         response.set_cookie(
             key=CSRF_COOKIE_NAME,
             value=cookie_token,
-            httponly=False,        # must be readable by JS to set the header
+            httponly=False,  # must be readable by JS to set the header
             samesite="strict",
             secure=self._is_production,
             path="/",
-            max_age=3600 * 24,     # 24-hour lifetime; refreshed on each response
+            max_age=3600 * 24,  # 24-hour lifetime; refreshed on each response
         )
 
         return response

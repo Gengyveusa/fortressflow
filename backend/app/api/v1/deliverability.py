@@ -40,9 +40,7 @@ async def list_domains(
     db: AsyncSession = Depends(get_db),
 ) -> list[DomainResponse]:
     """List all sending domains with health scores and verification status."""
-    result = await db.execute(
-        select(SendingDomain).order_by(SendingDomain.created_at.desc())
-    )
+    result = await db.execute(select(SendingDomain).order_by(SendingDomain.created_at.desc()))
     domains = result.scalars().all()
     return [DomainResponse.model_validate(d) for d in domains]
 
@@ -54,9 +52,7 @@ async def add_domain(
     db: AsyncSession = Depends(get_db),
 ) -> DomainResponse:
     """Add a new sending domain and initiate SES verification."""
-    existing = await db.execute(
-        select(SendingDomain).where(SendingDomain.domain == body.domain)
-    )
+    existing = await db.execute(select(SendingDomain).where(SendingDomain.domain == body.domain))
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -101,9 +97,7 @@ async def list_inboxes(
     db: AsyncSession = Depends(get_db),
 ) -> list[InboxResponse]:
     """List all sending inboxes with status and health metrics."""
-    result = await db.execute(
-        select(SendingInbox).order_by(SendingInbox.created_at.desc())
-    )
+    result = await db.execute(select(SendingInbox).order_by(SendingInbox.created_at.desc()))
     inboxes = result.scalars().all()
     return [InboxResponse.model_validate(i) for i in inboxes]
 
@@ -116,9 +110,7 @@ async def create_inbox(
 ) -> InboxResponse:
     """Create a new sending inbox and initiate SES email identity verification."""
     # Check for duplicate
-    existing = await db.execute(
-        select(SendingInbox).where(SendingInbox.email_address == body.email_address)
-    )
+    existing = await db.execute(select(SendingInbox).where(SendingInbox.email_address == body.email_address))
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -173,9 +165,7 @@ async def pause_inbox(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Pause a sending inbox (stops warmup and sending)."""
-    result = await db.execute(
-        select(SendingInbox).where(SendingInbox.id == inbox_id)
-    )
+    result = await db.execute(select(SendingInbox).where(SendingInbox.id == inbox_id))
     inbox = result.scalar_one_or_none()
     if inbox is None:
         raise HTTPException(status_code=404, detail="Inbox not found")
@@ -183,9 +173,7 @@ async def pause_inbox(
     inbox.status = InboxStatus.paused
 
     # Also pause warmup config
-    config_result = await db.execute(
-        select(WarmupConfig).where(WarmupConfig.inbox_id == inbox_id)
-    )
+    config_result = await db.execute(select(WarmupConfig).where(WarmupConfig.inbox_id == inbox_id))
     config = config_result.scalar_one_or_none()
     if config:
         config.is_active = False
@@ -201,18 +189,14 @@ async def resume_inbox(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Resume a paused sending inbox."""
-    result = await db.execute(
-        select(SendingInbox).where(SendingInbox.id == inbox_id)
-    )
+    result = await db.execute(select(SendingInbox).where(SendingInbox.id == inbox_id))
     inbox = result.scalar_one_or_none()
     if inbox is None:
         raise HTTPException(status_code=404, detail="Inbox not found")
 
     inbox.status = InboxStatus.warming if inbox.warmup_day < 42 else InboxStatus.active
 
-    config_result = await db.execute(
-        select(WarmupConfig).where(WarmupConfig.inbox_id == inbox_id)
-    )
+    config_result = await db.execute(select(WarmupConfig).where(WarmupConfig.inbox_id == inbox_id))
     config = config_result.scalar_one_or_none()
     if config:
         config.is_active = True
@@ -230,9 +214,7 @@ async def warmup_status(
     db: AsyncSession = Depends(get_db),
 ) -> list[WarmupStatus]:
     """Get warmup queue status and progress."""
-    result = await db.execute(
-        select(WarmupQueue).order_by(WarmupQueue.date.desc()).limit(50)
-    )
+    result = await db.execute(select(WarmupQueue).order_by(WarmupQueue.date.desc()).limit(50))
     entries = result.scalars().all()
     return [
         WarmupStatus(
@@ -258,9 +240,7 @@ async def get_warmup_config(
     db: AsyncSession = Depends(get_db),
 ) -> WarmupConfigResponse:
     """Get warmup configuration for an inbox."""
-    result = await db.execute(
-        select(WarmupConfig).where(WarmupConfig.inbox_id == inbox_id)
-    )
+    result = await db.execute(select(WarmupConfig).where(WarmupConfig.inbox_id == inbox_id))
     config = result.scalar_one_or_none()
     if config is None:
         raise HTTPException(status_code=404, detail="Warmup config not found")
@@ -275,9 +255,7 @@ async def update_warmup_config(
     db: AsyncSession = Depends(get_db),
 ) -> WarmupConfigResponse:
     """Update warmup configuration for an inbox."""
-    result = await db.execute(
-        select(WarmupConfig).where(WarmupConfig.inbox_id == inbox_id)
-    )
+    result = await db.execute(select(WarmupConfig).where(WarmupConfig.inbox_id == inbox_id))
     config = result.scalar_one_or_none()
     if config is None:
         raise HTTPException(status_code=404, detail="Warmup config not found")

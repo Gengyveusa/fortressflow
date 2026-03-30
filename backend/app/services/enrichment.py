@@ -42,10 +42,7 @@ def _is_transient_error(exc: Exception) -> bool:
 def _has_key_fields(data: dict) -> bool:
     """Return True if enrichment data has the key fields we need."""
     inner = data.get("data", {})
-    return all(
-        inner.get(field)
-        for field in ("email", "phone")
-    )
+    return all(inner.get(field) for field in ("email", "phone"))
 
 
 class EnrichmentService:
@@ -104,9 +101,7 @@ class EnrichmentService:
         errors: list[str] = []
 
         # Waterfall: ZoomInfo first
-        data = await self._try_enrich_with_retry(
-            self._zoominfo.enrich_person, lead.email, lead.company
-        )
+        data = await self._try_enrich_with_retry(self._zoominfo.enrich_person, lead.email, lead.company)
 
         # Fallback to Apollo if ZoomInfo misses key fields
         if not data or not _has_key_fields(data):
@@ -115,9 +110,7 @@ class EnrichmentService:
                     "ZoomInfo result missing key fields for %s, trying Apollo",
                     lead.email,
                 )
-            apollo_data = await self._try_enrich_with_retry(
-                self._apollo.enrich_person, lead.email
-            )
+            apollo_data = await self._try_enrich_with_retry(self._apollo.enrich_person, lead.email)
             if apollo_data:
                 if data:
                     data = self._merge_enrichment_data(data, apollo_data)
@@ -158,9 +151,7 @@ class EnrichmentService:
         }
         await db.flush()
 
-        logger.info(
-            "Enriched lead %s via %s", lead_id, data.get("source", "unknown")
-        )
+        logger.info("Enriched lead %s via %s", lead_id, data.get("source", "unknown"))
         return {
             "success": True,
             "enriched_fields": data,
@@ -194,17 +185,13 @@ class EnrichmentService:
                 return {}
         return {}
 
-    def _is_cache_fresh(
-        self, enriched_data: dict | None, last_enriched_at: datetime | None
-    ) -> bool:
+    def _is_cache_fresh(self, enriched_data: dict | None, last_enriched_at: datetime | None) -> bool:
         """Return True if cached enrichment data is within TTL."""
         if not enriched_data or not last_enriched_at:
             return False
         if last_enriched_at.tzinfo is None:
             last_enriched_at = last_enriched_at.replace(tzinfo=UTC)
-        return datetime.now(UTC) - last_enriched_at < timedelta(
-            days=settings.ENRICHMENT_TTL_DAYS
-        )
+        return datetime.now(UTC) - last_enriched_at < timedelta(days=settings.ENRICHMENT_TTL_DAYS)
 
     @staticmethod
     def _merge_enrichment_data(primary: dict, fallback: dict) -> dict:

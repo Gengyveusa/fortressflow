@@ -125,7 +125,7 @@ GROQ_DEFAULTS = {
                     '"body": "Hi Dr. {{first_name}},\\n\\nRunning a dental practice means juggling patient care, '
                     "staff management, and business operations. I noticed {{company}} might benefit from a solution "
                     "that automates scheduling, billing, and patient communications.\\n\\nWould you be open to a "
-                    '15-minute call this week to explore how we\'ve helped practices like yours save 10+ hours/week?\\n\\n'
+                    "15-minute call this week to explore how we've helped practices like yours save 10+ hours/week?\\n\\n"
                     'Best regards", "purpose": "Initial outreach — value proposition"}, '
                     '{"step_number": 2, "subject": "Quick follow-up, Dr. {{first_name}}", '
                     '"body": "Hi Dr. {{first_name}},\\n\\nI wanted to follow up on my previous note. '

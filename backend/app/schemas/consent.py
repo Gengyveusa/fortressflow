@@ -9,9 +9,7 @@ class ConsentCreate(BaseModel):
     lead_id: UUID
     channel: str = Field(..., pattern="^(email|sms|linkedin)$")
     method: str = Field(..., pattern="^(meeting_card|web_form|import_verified)$")
-    proof: dict[str, Any] = Field(
-        ..., description="Proof object containing timestamp, source, and IP"
-    )
+    proof: dict[str, Any] = Field(..., description="Proof object containing timestamp, source, and IP")
 
 
 class ConsentResponse(BaseModel):

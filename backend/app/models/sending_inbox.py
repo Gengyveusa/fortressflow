@@ -27,12 +27,8 @@ class InboxStatus(StrEnum):
 class SendingInbox(Base):
     __tablename__ = "sending_inboxes"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    email_address: Mapped[str] = mapped_column(
-        String(255), unique=True, nullable=False, index=True
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email_address: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
     domain: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
 
@@ -43,13 +39,9 @@ class SendingInbox(Base):
     dmarc_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Status and warmup
-    status: Mapped[str] = mapped_column(
-        String(50), nullable=False, default=InboxStatus.warming
-    )
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default=InboxStatus.warming)
     warmup_day: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    warmup_start_date: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    warmup_start_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Daily counters (reset each day by scheduler)
     daily_sent: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -76,16 +68,12 @@ class SendingInbox(Base):
     ai_optimal_send_hour: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )  # AI-recommended send hour (0-23 UTC)
-    ai_metadata: Mapped[dict | None] = mapped_column(
-        JSONB, nullable=True
-    )  # Additional AI insights
+    ai_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # Additional AI insights
 
     # Notes / config
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

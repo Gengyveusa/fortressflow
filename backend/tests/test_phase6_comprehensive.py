@@ -22,7 +22,6 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
-
 # ══════════════════════════════════════════════════════════════════════════════
 # 1. REPLY SERVICE TESTS
 # ══════════════════════════════════════════════════════════════════════════════
@@ -92,9 +91,7 @@ class TestReplyServiceEmailParsing:
         db = AsyncMock()
         svc = ReplyService(db)
 
-        sentiment, confidence = await svc.analyze_sentiment(
-            "This is an automatic reply. I am currently on vacation."
-        )
+        sentiment, confidence = await svc.analyze_sentiment("This is an automatic reply. I am currently on vacation.")
 
         assert sentiment == ReplySentiment.out_of_office
 
@@ -151,9 +148,7 @@ class TestReplySentimentAnalysis:
         from app.services.reply_service import ReplySentiment, ReplyService
 
         svc = ReplyService(AsyncMock())
-        sentiment, confidence = await svc.analyze_sentiment(
-            "Sounds good! Let's schedule a call for next week."
-        )
+        sentiment, confidence = await svc.analyze_sentiment("Sounds good! Let's schedule a call for next week.")
 
         assert sentiment == ReplySentiment.positive
 
@@ -162,9 +157,7 @@ class TestReplySentimentAnalysis:
         from app.services.reply_service import ReplySentiment, ReplyService
 
         svc = ReplyService(AsyncMock())
-        sentiment, confidence = await svc.analyze_sentiment(
-            "Not interested. Please stop contacting me."
-        )
+        sentiment, confidence = await svc.analyze_sentiment("Not interested. Please stop contacting me.")
 
         assert sentiment in (ReplySentiment.negative, ReplySentiment.unsubscribe)
         assert confidence > 0.5
@@ -174,9 +167,7 @@ class TestReplySentimentAnalysis:
         from app.services.reply_service import ReplySentiment, ReplyService
 
         svc = ReplyService(AsyncMock())
-        sentiment, confidence = await svc.analyze_sentiment(
-            "Please remove me from your list. I am not interested."
-        )
+        sentiment, confidence = await svc.analyze_sentiment("Please remove me from your list. I am not interested.")
 
         assert sentiment in (ReplySentiment.negative, ReplySentiment.unsubscribe)
 
@@ -185,9 +176,7 @@ class TestReplySentimentAnalysis:
         from app.services.reply_service import ReplySentiment, ReplyService
 
         svc = ReplyService(AsyncMock())
-        sentiment, confidence = await svc.analyze_sentiment(
-            "Acknowledged. We received your note."
-        )
+        sentiment, confidence = await svc.analyze_sentiment("Acknowledged. We received your note.")
 
         assert sentiment == ReplySentiment.neutral
 
@@ -196,9 +185,7 @@ class TestReplySentimentAnalysis:
         from app.services.reply_service import ReplySentiment, ReplyService
 
         svc = ReplyService(AsyncMock())
-        sentiment, confidence = await svc.analyze_sentiment(
-            "Unsubscribe. No more emails please."
-        )
+        sentiment, confidence = await svc.analyze_sentiment("Unsubscribe. No more emails please.")
 
         assert sentiment == ReplySentiment.unsubscribe
 
@@ -207,9 +194,7 @@ class TestReplySentimentAnalysis:
         from app.services.reply_service import ReplySentiment, ReplyService
 
         svc = ReplyService(AsyncMock())
-        sentiment, _ = await svc.analyze_sentiment(
-            "I'm out of the office on annual leave until April 1st."
-        )
+        sentiment, _ = await svc.analyze_sentiment("I'm out of the office on annual leave until April 1st.")
 
         assert sentiment == ReplySentiment.out_of_office
 
@@ -517,9 +502,7 @@ class TestChannelOrchestratorRateLimits:
         orch.check_global_limits = AsyncMock(return_value=(True, 350))
 
         with patch("app.services.channel_orchestrator.compliance_svc") as mock_compliance:
-            mock_compliance.can_send_to_lead = AsyncMock(
-                return_value=(False, "no_active_consent")
-            )
+            mock_compliance.can_send_to_lead = AsyncMock(return_value=(False, "no_active_consent"))
 
             enrollment = MagicMock()
             enrollment.id = uuid.uuid4()
@@ -545,12 +528,8 @@ class TestChannelOrchestratorRateLimits:
         orch.check_global_limits = AsyncMock(return_value=(True, 350))
 
         with patch("app.services.channel_orchestrator.compliance_svc") as mock_compliance:
-            mock_compliance.can_send_to_lead = AsyncMock(
-                return_value=(True, None)
-            )
-            orch._dispatch_to_channel = AsyncMock(
-                side_effect=RuntimeError("Unexpected error")
-            )
+            mock_compliance.can_send_to_lead = AsyncMock(return_value=(True, None))
+            orch._dispatch_to_channel = AsyncMock(side_effect=RuntimeError("Unexpected error"))
 
             enrollment = MagicMock()
             enrollment.id = uuid.uuid4()
@@ -586,9 +565,7 @@ class TestChannelOrchestratorFailover:
         db = AsyncMock()
         orch = ChannelOrchestrator(db)
         orch.check_global_limits = AsyncMock(return_value=(True, 350))
-        orch._dispatch_to_channel = AsyncMock(
-            return_value={"success": True, "message_id": "ses-msg-123"}
-        )
+        orch._dispatch_to_channel = AsyncMock(return_value={"success": True, "message_id": "ses-msg-123"})
 
         with patch("app.services.channel_orchestrator.compliance_svc") as mock_compliance:
             mock_compliance.can_send_to_lead = AsyncMock(return_value=(True, None))
@@ -616,12 +593,8 @@ class TestChannelOrchestratorFailover:
         db = AsyncMock()
         orch = ChannelOrchestrator(db)
         orch.check_global_limits = AsyncMock(return_value=(True, 350))
-        orch._dispatch_to_channel = AsyncMock(
-            return_value={"success": False, "error": "connection_timeout"}
-        )
-        orch.attempt_failover = AsyncMock(
-            return_value={"success": True, "channel": "sms"}
-        )
+        orch._dispatch_to_channel = AsyncMock(return_value={"success": False, "error": "connection_timeout"})
+        orch.attempt_failover = AsyncMock(return_value={"success": True, "channel": "sms"})
 
         with patch("app.services.channel_orchestrator.compliance_svc") as mock_compliance:
             mock_compliance.can_send_to_lead = AsyncMock(return_value=(True, None))
@@ -649,9 +622,7 @@ class TestChannelOrchestratorFailover:
         db = AsyncMock()
         orch = ChannelOrchestrator(db)
         orch.check_global_limits = AsyncMock(return_value=(True, 350))
-        orch._dispatch_to_channel = AsyncMock(
-            return_value={"success": False, "error": "bounce"}
-        )
+        orch._dispatch_to_channel = AsyncMock(return_value={"success": False, "error": "bounce"})
         orch.attempt_failover = AsyncMock()
 
         with patch("app.services.channel_orchestrator.compliance_svc") as mock_compliance:
@@ -709,11 +680,11 @@ class TestAIFeedbackService:
             result = MagicMock()
             count_map = {
                 0: 100,  # total_enrolled
-                1: 80,   # total_completed
-                2: 25,   # total_replied
-                3: 60,   # total_opened
-                4: 3,    # total_bounced
-                5: 2,    # total_unsubscribed
+                1: 80,  # total_completed
+                2: 25,  # total_replied
+                3: 60,  # total_opened
+                4: 3,  # total_bounced
+                5: 2,  # total_unsubscribed
             }
             result.scalar = MagicMock(return_value=count_map.get(call_count[0], 0))
             call_count[0] += 1
@@ -790,9 +761,7 @@ class TestAIFeedbackService:
         def mock_execute(*args, **kwargs):
             result = MagicMock()
             values = [100, 90, 30, 50, 5, 2]
-            result.scalar = MagicMock(
-                return_value=values[call_count[0]] if call_count[0] < len(values) else 0
-            )
+            result.scalar = MagicMock(return_value=values[call_count[0]] if call_count[0] < len(values) else 0)
             call_count[0] += 1
             return result
 
@@ -956,6 +925,7 @@ class TestSESWebhooks:
 
         # Build a minimal FastAPI app with the router
         from fastapi import FastAPI
+
         app = FastAPI()
         app.include_router(router)
         client = TestClient(app)
@@ -967,7 +937,9 @@ class TestSESWebhooks:
             with patch("httpx.AsyncClient") as mock_http:
                 mock_response = MagicMock()
                 mock_response.status_code = 200
-                mock_http.return_value.__aenter__ = AsyncMock(return_value=MagicMock(get=AsyncMock(return_value=mock_response)))
+                mock_http.return_value.__aenter__ = AsyncMock(
+                    return_value=MagicMock(get=AsyncMock(return_value=mock_response))
+                )
                 mock_http.return_value.__aexit__ = AsyncMock(return_value=None)
 
                 payload = {
@@ -994,7 +966,12 @@ class TestSESWebhooks:
         client = TestClient(app)
 
         db_mock = AsyncMock()
-        db_mock.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None), scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None)))))
+        db_mock.execute = AsyncMock(
+            return_value=MagicMock(
+                scalar_one_or_none=MagicMock(return_value=None),
+                scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None))),
+            )
+        )
         db_mock.add = MagicMock()
         db_mock.flush = AsyncMock()
         db_mock.commit = AsyncMock()
@@ -1440,9 +1417,7 @@ class TestSequenceExecutorEnrollment:
             result = MagicMock()
             if call_count[0] == 0:
                 # First call: enrollments
-                result.scalars = MagicMock(
-                    return_value=MagicMock(all=MagicMock(return_value=[enrollment]))
-                )
+                result.scalars = MagicMock(return_value=MagicMock(all=MagicMock(return_value=[enrollment])))
             else:
                 # Subsequent calls: sequence lookup
                 result.scalar_one_or_none = MagicMock(return_value=sequence)
@@ -1973,9 +1948,7 @@ class TestWarmupAISeedSelection:
 
         db = AsyncMock()
         mock_result = MagicMock()
-        mock_result.scalars = MagicMock(
-            return_value=MagicMock(all=MagicMock(return_value=[]))
-        )
+        mock_result.scalars = MagicMock(return_value=MagicMock(all=MagicMock(return_value=[])))
         db.execute = AsyncMock(return_value=mock_result)
 
         inbox = MagicMock()
@@ -1993,9 +1966,7 @@ class TestWarmupAISeedSelection:
         lead.email = "blocked@example.com"
 
         mock_result = MagicMock()
-        mock_result.scalars = MagicMock(
-            return_value=MagicMock(all=MagicMock(return_value=[lead]))
-        )
+        mock_result.scalars = MagicMock(return_value=MagicMock(all=MagicMock(return_value=[lead])))
         db.execute = AsyncMock(return_value=mock_result)
 
         with patch("app.services.warmup_ai.can_send_to_lead", new_callable=AsyncMock) as mock_can:
@@ -2015,9 +1986,7 @@ class TestWarmupAISeedSelection:
         lead.email = "ok@example.com"
 
         mock_result = MagicMock()
-        mock_result.scalars = MagicMock(
-            return_value=MagicMock(all=MagicMock(return_value=[lead]))
-        )
+        mock_result.scalars = MagicMock(return_value=MagicMock(all=MagicMock(return_value=[lead])))
         db.execute = AsyncMock(return_value=mock_result)
 
         with patch("app.services.warmup_ai.can_send_to_lead", new_callable=AsyncMock) as mock_can:

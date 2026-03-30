@@ -13,11 +13,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 
 class RelationshipStrength(str, Enum):
-    ESTABLISHED = "established"        # meta-analyses, systematic reviews
-    STRONG = "strong"                  # multiple RCTs
-    MODERATE = "moderate"              # observational + some RCTs
-    EMERGING = "emerging"              # preliminary studies
-    HYPOTHESIZED = "hypothesized"      # mechanistic plausibility only
+    ESTABLISHED = "established"  # meta-analyses, systematic reviews
+    STRONG = "strong"  # multiple RCTs
+    MODERATE = "moderate"  # observational + some RCTs
+    EMERGING = "emerging"  # preliminary studies
+    HYPOTHESIZED = "hypothesized"  # mechanistic plausibility only
 
 
 class EvidenceLevel(str, Enum):
@@ -32,6 +32,7 @@ class EvidenceLevel(str, Enum):
 @dataclass
 class Citation:
     """A single literature citation supporting a claim."""
+
     source: str
     doi: Optional[str] = None
     title: str = ""
@@ -47,9 +48,10 @@ class Citation:
 @dataclass
 class GraphNode:
     """A condition or concept in the knowledge graph."""
+
     node_id: str
     label: str
-    category: str          # e.g. "oral", "systemic", "biomarker"
+    category: str  # e.g. "oral", "systemic", "biomarker"
     description: str = ""
     aliases: List[str] = field(default_factory=list)
 
@@ -57,9 +59,10 @@ class GraphNode:
 @dataclass
 class GraphEdge:
     """A relationship between two nodes, annotated with strength and citations."""
+
     source_id: str
     target_id: str
-    relationship: str      # e.g. "increases_risk", "bidirectional", "mediates"
+    relationship: str  # e.g. "increases_risk", "bidirectional", "mediates"
     strength: RelationshipStrength = RelationshipStrength.MODERATE
     mechanism: str = ""
     citations: List[Citation] = field(default_factory=list)
@@ -69,6 +72,7 @@ class GraphEdge:
 @dataclass
 class VerificationResult:
     """Outcome of verifying a single claim against the knowledge graph."""
+
     claim_text: str
     supported: bool
     confidence: float
@@ -90,7 +94,7 @@ class KnowledgeGraph:
     def __init__(self):
         self._nodes: Dict[str, GraphNode] = {}
         self._edges: List[GraphEdge] = []
-        self._adjacency: Dict[str, List[int]] = {}   # node_id -> list of edge indices
+        self._adjacency: Dict[str, List[int]] = {}  # node_id -> list of edge indices
 
     # ── Graph mutation ──────────────────────────────────────────────────
 
@@ -153,30 +157,58 @@ def build_oral_systemic_graph() -> KnowledgeGraph:
 
     # ── Nodes ───────────────────────────────────────────────────────────
     nodes = [
-        GraphNode("periodontal", "Periodontal Disease", "oral",
-                  "Chronic inflammatory condition of gums and supporting structures",
-                  ["periodontitis", "gum disease", "gingivitis"]),
-        GraphNode("cardiovascular", "Cardiovascular Disease", "systemic",
-                  "Diseases of the heart and blood vessels",
-                  ["CVD", "heart disease", "atherosclerosis"]),
-        GraphNode("diabetes_t2", "Type 2 Diabetes", "systemic",
-                  "Chronic metabolic disorder with insulin resistance",
-                  ["T2DM", "diabetes mellitus", "diabetes"]),
-        GraphNode("pregnancy_complications", "Adverse Pregnancy Outcomes", "systemic",
-                  "Including preterm birth, low birth weight, preeclampsia",
-                  ["preterm birth", "preeclampsia", "pregnancy"]),
-        GraphNode("neurodegenerative", "Neurodegenerative Diseases", "systemic",
-                  "Progressive loss of neuronal function",
-                  ["Alzheimer's", "dementia", "cognitive decline"]),
-        GraphNode("kidney_disease", "Chronic Kidney Disease", "systemic",
-                  "Progressive loss of kidney function",
-                  ["CKD", "renal disease", "nephropathy"]),
-        GraphNode("crp", "C-Reactive Protein", "biomarker",
-                  "Systemic inflammatory marker",
-                  ["CRP", "inflammation marker"]),
-        GraphNode("oral_microbiome", "Oral Microbiome", "oral",
-                  "Community of microorganisms in the oral cavity",
-                  ["oral bacteria", "dental plaque microbiome"]),
+        GraphNode(
+            "periodontal",
+            "Periodontal Disease",
+            "oral",
+            "Chronic inflammatory condition of gums and supporting structures",
+            ["periodontitis", "gum disease", "gingivitis"],
+        ),
+        GraphNode(
+            "cardiovascular",
+            "Cardiovascular Disease",
+            "systemic",
+            "Diseases of the heart and blood vessels",
+            ["CVD", "heart disease", "atherosclerosis"],
+        ),
+        GraphNode(
+            "diabetes_t2",
+            "Type 2 Diabetes",
+            "systemic",
+            "Chronic metabolic disorder with insulin resistance",
+            ["T2DM", "diabetes mellitus", "diabetes"],
+        ),
+        GraphNode(
+            "pregnancy_complications",
+            "Adverse Pregnancy Outcomes",
+            "systemic",
+            "Including preterm birth, low birth weight, preeclampsia",
+            ["preterm birth", "preeclampsia", "pregnancy"],
+        ),
+        GraphNode(
+            "neurodegenerative",
+            "Neurodegenerative Diseases",
+            "systemic",
+            "Progressive loss of neuronal function",
+            ["Alzheimer's", "dementia", "cognitive decline"],
+        ),
+        GraphNode(
+            "kidney_disease",
+            "Chronic Kidney Disease",
+            "systemic",
+            "Progressive loss of kidney function",
+            ["CKD", "renal disease", "nephropathy"],
+        ),
+        GraphNode(
+            "crp", "C-Reactive Protein", "biomarker", "Systemic inflammatory marker", ["CRP", "inflammation marker"]
+        ),
+        GraphNode(
+            "oral_microbiome",
+            "Oral Microbiome",
+            "oral",
+            "Community of microorganisms in the oral cavity",
+            ["oral bacteria", "dental plaque microbiome"],
+        ),
     ]
     for n in nodes:
         g.add_node(n)
@@ -184,62 +216,133 @@ def build_oral_systemic_graph() -> KnowledgeGraph:
     # ── Edges ───────────────────────────────────────────────────────────
     edges = [
         GraphEdge(
-            "periodontal", "cardiovascular", "increases_risk",
-            RelationshipStrength.ESTABLISHED, "Systemic inflammation and bacteremia",
-            [Citation("J Periodontol", "10.1902/jop.2013.1340013",
-                      "Periodontitis and atherosclerotic CVD", True, 0.92,
-                      EvidenceLevel.META_ANALYSIS, 2013)],
+            "periodontal",
+            "cardiovascular",
+            "increases_risk",
+            RelationshipStrength.ESTABLISHED,
+            "Systemic inflammation and bacteremia",
+            [
+                Citation(
+                    "J Periodontol",
+                    "10.1902/jop.2013.1340013",
+                    "Periodontitis and atherosclerotic CVD",
+                    True,
+                    0.92,
+                    EvidenceLevel.META_ANALYSIS,
+                    2013,
+                )
+            ],
             bidirectional=False,
         ),
         GraphEdge(
-            "periodontal", "diabetes_t2", "bidirectional_risk",
+            "periodontal",
+            "diabetes_t2",
+            "bidirectional_risk",
             RelationshipStrength.ESTABLISHED,
             "Shared inflammatory pathways; hyperglycemia worsens periodontal status",
-            [Citation("Diabetes Care", "10.2337/dc13-2200",
-                      "Bidirectional relationship between diabetes and periodontitis",
-                      True, 0.95, EvidenceLevel.SYSTEMATIC_REVIEW, 2014)],
+            [
+                Citation(
+                    "Diabetes Care",
+                    "10.2337/dc13-2200",
+                    "Bidirectional relationship between diabetes and periodontitis",
+                    True,
+                    0.95,
+                    EvidenceLevel.SYSTEMATIC_REVIEW,
+                    2014,
+                )
+            ],
             bidirectional=True,
         ),
         GraphEdge(
-            "periodontal", "pregnancy_complications", "increases_risk",
+            "periodontal",
+            "pregnancy_complications",
+            "increases_risk",
             RelationshipStrength.STRONG,
             "Hematogenous spread of oral pathogens to the fetoplacental unit",
-            [Citation("BJOG", "10.1111/1471-0528.12247",
-                      "Periodontal disease and adverse pregnancy outcomes",
-                      True, 0.85, EvidenceLevel.META_ANALYSIS, 2013)],
+            [
+                Citation(
+                    "BJOG",
+                    "10.1111/1471-0528.12247",
+                    "Periodontal disease and adverse pregnancy outcomes",
+                    True,
+                    0.85,
+                    EvidenceLevel.META_ANALYSIS,
+                    2013,
+                )
+            ],
         ),
         GraphEdge(
-            "periodontal", "neurodegenerative", "increases_risk",
+            "periodontal",
+            "neurodegenerative",
+            "increases_risk",
             RelationshipStrength.EMERGING,
             "P. gingivalis and gingipains found in Alzheimer's brain tissue",
-            [Citation("Science Advances", "10.1126/sciadv.aau3333",
-                      "Porphyromonas gingivalis in Alzheimer's disease brains",
-                      True, 0.72, EvidenceLevel.COHORT, 2019)],
+            [
+                Citation(
+                    "Science Advances",
+                    "10.1126/sciadv.aau3333",
+                    "Porphyromonas gingivalis in Alzheimer's disease brains",
+                    True,
+                    0.72,
+                    EvidenceLevel.COHORT,
+                    2019,
+                )
+            ],
         ),
         GraphEdge(
-            "periodontal", "kidney_disease", "increases_risk",
+            "periodontal",
+            "kidney_disease",
+            "increases_risk",
             RelationshipStrength.MODERATE,
             "Shared inflammatory burden and endothelial dysfunction",
-            [Citation("J Clin Periodontol", "10.1111/jcpe.12064",
-                      "Periodontitis and chronic kidney disease",
-                      True, 0.78, EvidenceLevel.SYSTEMATIC_REVIEW, 2013)],
+            [
+                Citation(
+                    "J Clin Periodontol",
+                    "10.1111/jcpe.12064",
+                    "Periodontitis and chronic kidney disease",
+                    True,
+                    0.78,
+                    EvidenceLevel.SYSTEMATIC_REVIEW,
+                    2013,
+                )
+            ],
             bidirectional=True,
         ),
         GraphEdge(
-            "periodontal", "crp", "elevates",
+            "periodontal",
+            "crp",
+            "elevates",
             RelationshipStrength.ESTABLISHED,
             "Periodontal inflammation drives systemic CRP elevation",
-            [Citation("J Dent Res", "10.1177/0022034510375830",
-                      "CRP levels after periodontal therapy", True, 0.90,
-                      EvidenceLevel.RCT, 2010)],
+            [
+                Citation(
+                    "J Dent Res",
+                    "10.1177/0022034510375830",
+                    "CRP levels after periodontal therapy",
+                    True,
+                    0.90,
+                    EvidenceLevel.RCT,
+                    2010,
+                )
+            ],
         ),
         GraphEdge(
-            "oral_microbiome", "periodontal", "contributes_to",
+            "oral_microbiome",
+            "periodontal",
+            "contributes_to",
             RelationshipStrength.ESTABLISHED,
             "Dysbiotic shift in subgingival microbiome initiates periodontitis",
-            [Citation("Periodontol 2000", "10.1111/prd.12153",
-                      "Role of the oral microbiome in periodontitis",
-                      True, 0.93, EvidenceLevel.SYSTEMATIC_REVIEW, 2017)],
+            [
+                Citation(
+                    "Periodontol 2000",
+                    "10.1111/prd.12153",
+                    "Role of the oral microbiome in periodontitis",
+                    True,
+                    0.93,
+                    EvidenceLevel.SYSTEMATIC_REVIEW,
+                    2017,
+                )
+            ],
         ),
     ]
     for e in edges:
@@ -256,19 +359,30 @@ class ClaimVerifier:
 
     # Simple keyword-to-node-id mapping for claim extraction
     _KEYWORD_MAP: Dict[str, str] = {
-        "periodontal": "periodontal", "periodontitis": "periodontal",
-        "gum disease": "periodontal", "gingivitis": "periodontal",
-        "cardiovascular": "cardiovascular", "heart disease": "cardiovascular",
-        "cvd": "cardiovascular", "atherosclerosis": "cardiovascular",
-        "diabetes": "diabetes_t2", "t2dm": "diabetes_t2",
-        "pregnancy": "pregnancy_complications", "preterm": "pregnancy_complications",
+        "periodontal": "periodontal",
+        "periodontitis": "periodontal",
+        "gum disease": "periodontal",
+        "gingivitis": "periodontal",
+        "cardiovascular": "cardiovascular",
+        "heart disease": "cardiovascular",
+        "cvd": "cardiovascular",
+        "atherosclerosis": "cardiovascular",
+        "diabetes": "diabetes_t2",
+        "t2dm": "diabetes_t2",
+        "pregnancy": "pregnancy_complications",
+        "preterm": "pregnancy_complications",
         "preeclampsia": "pregnancy_complications",
-        "alzheimer": "neurodegenerative", "dementia": "neurodegenerative",
-        "neurodegenerative": "neurodegenerative", "cognitive decline": "neurodegenerative",
-        "kidney": "kidney_disease", "ckd": "kidney_disease",
+        "alzheimer": "neurodegenerative",
+        "dementia": "neurodegenerative",
+        "neurodegenerative": "neurodegenerative",
+        "cognitive decline": "neurodegenerative",
+        "kidney": "kidney_disease",
+        "ckd": "kidney_disease",
         "renal": "kidney_disease",
-        "crp": "crp", "c-reactive protein": "crp",
-        "microbiome": "oral_microbiome", "oral bacteria": "oral_microbiome",
+        "crp": "crp",
+        "c-reactive protein": "crp",
+        "microbiome": "oral_microbiome",
+        "oral bacteria": "oral_microbiome",
     }
 
     def __init__(self, graph: Optional[KnowledgeGraph] = None):
@@ -332,17 +446,18 @@ class ClaimVerifier:
                 edge = self._graph.relationship_exists(target_id, source_id)
 
             if edge:
-                matching_edges.append({
-                    "source": edge.source_id,
-                    "target": edge.target_id,
-                    "relationship": edge.relationship,
-                    "strength": edge.strength.value,
-                    "mechanism": edge.mechanism,
-                    "citation_count": len(edge.citations),
-                })
+                matching_edges.append(
+                    {
+                        "source": edge.source_id,
+                        "target": edge.target_id,
+                        "relationship": edge.relationship,
+                        "strength": edge.strength.value,
+                        "mechanism": edge.mechanism,
+                        "citation_count": len(edge.citations),
+                    }
+                )
                 avg_conf = (
-                    sum(c.confidence_score for c in edge.citations) / len(edge.citations)
-                    if edge.citations else 0.0
+                    sum(c.confidence_score for c in edge.citations) / len(edge.citations) if edge.citations else 0.0
                 )
                 total_confidence += avg_conf
             else:
@@ -380,20 +495,16 @@ class ClaimVerifier:
         result = self.verify_against_graph(claim_text, citations)
         verified_cites = [c for c in citations if c.verified and c.confidence_score >= min_confidence]
 
-        passes = (
-            result.supported
-            and len(verified_cites) >= result.required_citations
-        )
+        passes = result.supported and len(verified_cites) >= result.required_citations
 
         return {
             "passes": passes,
             "verification": asdict(result) if hasattr(result, "__dataclass_fields__") else result.__dict__,
             "verified_citations": [c.to_dict() for c in verified_cites],
-            "rejected_citations": [
-                c.to_dict() for c in citations if c not in verified_cites
-            ],
+            "rejected_citations": [c.to_dict() for c in citations if c not in verified_cites],
             "recommendation": (
-                "Claim is adequately supported." if passes
+                "Claim is adequately supported."
+                if passes
                 else "Additional verified citations required before publication."
             ),
         }

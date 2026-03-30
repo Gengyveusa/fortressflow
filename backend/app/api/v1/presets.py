@@ -53,7 +53,7 @@ async def deploy_preset(
     if preset_index < 0 or preset_index >= len(SEQUENCE_PRESETS):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Preset index {preset_index} not found. Valid range: 0-{len(SEQUENCE_PRESETS)-1}",
+            detail=f"Preset index {preset_index} not found. Valid range: 0-{len(SEQUENCE_PRESETS) - 1}",
         )
 
     preset = SEQUENCE_PRESETS[preset_index]
@@ -83,9 +83,8 @@ async def deploy_preset(
                 html_body=t_def.get("html_body"),
                 plain_body=t_def["plain_body"],
                 linkedin_action=t_def.get("linkedin_action"),
-                variables=t_def.get("variables") or extract_variables(
-                    t_def["plain_body"] + (t_def.get("subject") or "")
-                ),
+                variables=t_def.get("variables")
+                or extract_variables(t_def["plain_body"] + (t_def.get("subject") or "")),
                 is_system=True,
                 is_active=True,
             )

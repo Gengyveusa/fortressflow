@@ -111,12 +111,8 @@ async def send_email(
     # Add List-Unsubscribe header for RFC 8058 compliance
     headers = []
     if unsubscribe_url:
-        headers.append(
-            {"Name": "List-Unsubscribe", "Value": f"<{unsubscribe_url}>"}
-        )
-        headers.append(
-            {"Name": "List-Unsubscribe-Post", "Value": "List-Unsubscribe=One-Click"}
-        )
+        headers.append({"Name": "List-Unsubscribe", "Value": f"<{unsubscribe_url}>"})
+        headers.append({"Name": "List-Unsubscribe-Post", "Value": "List-Unsubscribe=One-Click"})
 
     # Build tags for SES
     ses_tags = []

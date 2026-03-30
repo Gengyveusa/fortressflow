@@ -67,7 +67,7 @@ _TRANSITIONS: dict[str, set[str]] = {
         EnrollmentState.escalated,
     },
     EnrollmentState.sent: {
-        EnrollmentState.active,      # Timer elapsed, ready for next step
+        EnrollmentState.active,  # Timer elapsed, ready for next step
         EnrollmentState.opened,
         EnrollmentState.replied,
         EnrollmentState.paused,
@@ -77,32 +77,32 @@ _TRANSITIONS: dict[str, set[str]] = {
         EnrollmentState.escalated,
     },
     EnrollmentState.opened: {
-        EnrollmentState.active,      # Continue sequence
+        EnrollmentState.active,  # Continue sequence
         EnrollmentState.replied,
         EnrollmentState.paused,
         EnrollmentState.completed,
         EnrollmentState.escalated,
     },
     EnrollmentState.replied: {
-        EnrollmentState.paused,      # Auto-pause on reply
+        EnrollmentState.paused,  # Auto-pause on reply
         EnrollmentState.completed,
         EnrollmentState.escalated,
     },
     EnrollmentState.paused: {
-        EnrollmentState.active,      # Resume
+        EnrollmentState.active,  # Resume
         EnrollmentState.completed,
         EnrollmentState.failed,
     },
     EnrollmentState.escalated: {
-        EnrollmentState.active,      # Back to main flow
+        EnrollmentState.active,  # Back to main flow
         EnrollmentState.sent,
         EnrollmentState.paused,
         EnrollmentState.completed,
         EnrollmentState.failed,
     },
-    EnrollmentState.completed: set(),   # Terminal
-    EnrollmentState.failed: set(),      # Terminal
-    EnrollmentState.bounced: set(),     # Terminal (legacy)
+    EnrollmentState.completed: set(),  # Terminal
+    EnrollmentState.failed: set(),  # Terminal
+    EnrollmentState.bounced: set(),  # Terminal (legacy)
     EnrollmentState.unsubscribed: set(),  # Terminal (legacy)
 }
 
@@ -177,6 +177,7 @@ def get_available_transitions(state: str) -> set[str]:
 
 # ── Engagement Signal Handlers ─────────────────────────────────────────
 
+
 def handle_open_signal(current: str) -> str:
     """Handle an open event — transitions sent→opened or stays if already past."""
     if current == EnrollmentState.sent:
@@ -209,6 +210,7 @@ def handle_complaint_signal(current: str) -> str:
 
 
 # ── Condition Evaluator ────────────────────────────────────────────────
+
 
 def evaluate_condition(
     condition: dict[str, Any],
@@ -248,14 +250,10 @@ def evaluate_condition(
         )
 
     elif cond_type == "replied":
-        return enrollment_state == EnrollmentState.replied or any(
-            t.get("action") == "replied" for t in relevant
-        )
+        return enrollment_state == EnrollmentState.replied or any(t.get("action") == "replied" for t in relevant)
 
     elif cond_type == "not_replied":
-        return enrollment_state != EnrollmentState.replied and not any(
-            t.get("action") == "replied" for t in relevant
-        )
+        return enrollment_state != EnrollmentState.replied and not any(t.get("action") == "replied" for t in relevant)
 
     elif cond_type == "clicked":
         return any(t.get("action") == "clicked" for t in relevant)

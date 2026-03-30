@@ -41,7 +41,9 @@ router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 
 def _validate_hubspot_signature(
-    request: Request, body: bytes, timestamp: str,
+    request: Request,
+    body: bytes,
+    timestamp: str,
 ) -> bool:
     """
     Validate HubSpot webhook signature (v3) using HMAC-SHA256.
@@ -70,7 +72,9 @@ def _validate_hubspot_signature(
 
     source_string = f"POST{request.url}{body.decode()}{timestamp}"
     expected = hmac.new(
-        client_secret.encode(), source_string.encode(), hashlib.sha256,
+        client_secret.encode(),
+        source_string.encode(),
+        hashlib.sha256,
     ).hexdigest()
     return hmac.compare_digest(signature, expected)
 
@@ -117,9 +121,7 @@ async def hubspot_webhook(
         # Look up lead by HubSpot-synced email if property is email change
         property_value = event.get("propertyValue", "")
         if property_name == "email" and property_value:
-            result = await db.execute(
-                select(Lead).where(func.lower(Lead.email) == property_value.lower())
-            )
+            result = await db.execute(select(Lead).where(func.lower(Lead.email) == property_value.lower()))
             lead = result.scalar_one_or_none()
             if lead:
                 # Reset last_enriched_at to trigger re-enrichment
@@ -156,9 +158,7 @@ def _validate_twilio_signature(request_url: str, params: dict, signature: str) -
         return validator.validate(request_url, params, signature)
     except ImportError:
         # Fallback manual validation if twilio library unavailable
-        sorted_params = "".join(
-            f"{k}{v}" for k, v in sorted(params.items())
-        )
+        sorted_params = "".join(f"{k}{v}" for k, v in sorted(params.items()))
         s = request_url + sorted_params
         mac = hmac.new(
             settings.TWILIO_AUTH_TOKEN.encode("utf-8"),
@@ -233,9 +233,7 @@ async def twilio_sms_webhook(
         # Look up lead by phone number for logging
         lead_id_for_log = None
         if from_number:
-            lead_result = await db.execute(
-                select(Lead).where(Lead.phone == from_number).limit(1)
-            )
+            lead_result = await db.execute(select(Lead).where(Lead.phone == from_number).limit(1))
             lead_for_log = lead_result.scalar_one_or_none()
             if lead_for_log:
                 lead_id_for_log = lead_for_log.id
@@ -375,24 +373,11 @@ async def email_reply_webhook(
         # Build ReplySignal from Parsio / generic payload
         # Parsio fields: from_email, subject, body_text, headers, message_id
         # Generic fields: from, subject, body, thread_id
-        sender_email = (
-            payload.get("from_email")
-            or payload.get("from")
-            or payload.get("sender_email")
-            or ""
-        )
+        sender_email = payload.get("from_email") or payload.get("from") or payload.get("sender_email") or ""
         subject = payload.get("subject", "")
-        body = (
-            payload.get("body_text")
-            or payload.get("body")
-            or payload.get("text")
-            or payload.get("html_body")
-            or ""
-        )
+        body = payload.get("body_text") or payload.get("body") or payload.get("text") or payload.get("html_body") or ""
         thread_id = (
-            payload.get("thread_id")
-            or payload.get("in_reply_to")
-            or payload.get("references", "").split()[-1]
+            payload.get("thread_id") or payload.get("in_reply_to") or payload.get("references", "").split()[-1]
             if payload.get("references")
             else None
         )
@@ -471,7 +456,8 @@ def _validate_sns_message(sns_payload: dict[str, Any]) -> bool:
         hostname = parsed.hostname or ""
         if not hostname.endswith(".amazonaws.com"):
             logger.warning(
-                "SES events webhook: SigningCertURL from non-AWS domain: %s", hostname,
+                "SES events webhook: SigningCertURL from non-AWS domain: %s",
+                hostname,
             )
             return False
         if parsed.scheme != "https":
@@ -552,9 +538,7 @@ async def ses_events_webhook(
                             resp.status_code,
                         )
             except Exception as exc:
-                logger.error(
-                    "SES events webhook: SNS confirmation request failed: %s", exc
-                )
+                logger.error("SES events webhook: SNS confirmation request failed: %s", exc)
                 sentry_sdk.capture_exception(exc)
         return {"status": "subscription_confirmed"}
 
@@ -608,11 +592,7 @@ async def ses_events_webhook(
 
                     lead_id_resolved = _uuid.UUID(lead_id_str)
                 else:
-                    lr = await db.execute(
-                        select(Lead).where(
-                            func.lower(Lead.email) == recipient_email.lower()
-                        )
-                    )
+                    lr = await db.execute(select(Lead).where(func.lower(Lead.email) == recipient_email.lower()))
                     lead_obj = lr.scalar_one_or_none()
                     if lead_obj:
                         lead_id_resolved = lead_obj.id
@@ -636,9 +616,7 @@ async def ses_events_webhook(
 
                 # Handle Bounce and Complaint → update enrollment FSM + DNC
                 if event_type == "Bounce":
-                    bounce_type = (
-                        ses_event.get("bounce", {}).get("bounceType", "")
-                    )
+                    bounce_type = ses_event.get("bounce", {}).get("bounceType", "")
                     is_hard_bounce = bounce_type == "Permanent"
 
                     if lead_id_resolved:
@@ -754,12 +732,14 @@ async def _handle_ses_bounce(
             enr_result = await db.execute(
                 select(SequenceEnrollment).where(
                     SequenceEnrollment.lead_id == lead_id,
-                    SequenceEnrollment.status.in_([
-                        EnrollmentStatus.active,
-                        EnrollmentStatus.pending,
-                        EnrollmentStatus.sent,
-                        EnrollmentStatus.opened,
-                    ]),
+                    SequenceEnrollment.status.in_(
+                        [
+                            EnrollmentStatus.active,
+                            EnrollmentStatus.pending,
+                            EnrollmentStatus.sent,
+                            EnrollmentStatus.opened,
+                        ]
+                    ),
                 )
             )
             for enrollment in enr_result.scalars().all():
@@ -806,9 +786,7 @@ async def _handle_ses_bounce(
             # Pause only the specific enrollment (if any) on soft bounce
             if enrollment_id_str:
                 enr_result = await db.execute(
-                    select(SequenceEnrollment).where(
-                        SequenceEnrollment.id == _uuid.UUID(enrollment_id_str)
-                    )
+                    select(SequenceEnrollment).where(SequenceEnrollment.id == _uuid.UUID(enrollment_id_str))
                 )
                 enrollment = enr_result.scalar_one_or_none()
                 if enrollment and enrollment.status not in (
@@ -884,13 +862,15 @@ async def _handle_ses_complaint(
         enr_result = await db.execute(
             select(SequenceEnrollment).where(
                 SequenceEnrollment.lead_id == lead_id,
-                SequenceEnrollment.status.in_([
-                    EnrollmentStatus.active,
-                    EnrollmentStatus.pending,
-                    EnrollmentStatus.sent,
-                    EnrollmentStatus.opened,
-                    EnrollmentStatus.paused,
-                ]),
+                SequenceEnrollment.status.in_(
+                    [
+                        EnrollmentStatus.active,
+                        EnrollmentStatus.pending,
+                        EnrollmentStatus.sent,
+                        EnrollmentStatus.opened,
+                        EnrollmentStatus.paused,
+                    ]
+                ),
             )
         )
         for enrollment in enr_result.scalars().all():
@@ -913,9 +893,7 @@ async def _handle_ses_open(
 
     try:
         enr_result = await db.execute(
-            select(SequenceEnrollment).where(
-                SequenceEnrollment.id == _uuid.UUID(enrollment_id_str)
-            )
+            select(SequenceEnrollment).where(SequenceEnrollment.id == _uuid.UUID(enrollment_id_str))
         )
         enrollment = enr_result.scalar_one_or_none()
         if not enrollment:
@@ -925,9 +903,7 @@ async def _handle_ses_open(
         if can_transition(current, EnrollmentState.opened):
             enrollment.status = EnrollmentStatus.opened
             enrollment.last_state_change_at = datetime.now(UTC)
-            logger.info(
-                "SES open: enrollment %s → opened", enrollment_id_str
-            )
+            logger.info("SES open: enrollment %s → opened", enrollment_id_str)
     except Exception as exc:
         logger.warning("SES open handler error: %s", exc)
         raise
@@ -973,10 +949,7 @@ async def apollo_phone_webhook(
 
     # Prefer sanitized phones, fall back to raw phone_numbers
     phones = sanitized_phones if sanitized_phones else phone_numbers
-    mobile_phones = [
-        p for p in phones
-        if p.get("type", "").lower() in ("mobile", "cell", "personal")
-    ]
+    mobile_phones = [p for p in phones if p.get("type", "").lower() in ("mobile", "cell", "personal")]
     # If no mobile-specific, use all phones
     target_phones = mobile_phones if mobile_phones else phones
 
@@ -984,11 +957,7 @@ async def apollo_phone_webhook(
     lead_updated = False
     if email:
         try:
-            result = await db.execute(
-                select(Lead).where(
-                    func.lower(Lead.email) == email.lower()
-                )
-            )
+            result = await db.execute(select(Lead).where(func.lower(Lead.email) == email.lower()))
             lead = result.scalar_one_or_none()
             if lead:
                 # Store the first mobile number as primary phone
@@ -1003,7 +972,9 @@ async def apollo_phone_webhook(
                 lead_updated = True
                 logger.info(
                     "Apollo webhook: updated lead %s (%s) with phone %s",
-                    lead.id, email, primary_phone,
+                    lead.id,
+                    email,
+                    primary_phone,
                 )
         except Exception as exc:
             logger.error("Apollo webhook: DB update error: %s", exc)
@@ -1012,7 +983,10 @@ async def apollo_phone_webhook(
     # Log the webhook event
     logger.info(
         "Apollo phone webhook processed: person=%s, email=%s, phones=%d, lead_updated=%s",
-        person_id, email, len(target_phones), lead_updated,
+        person_id,
+        email,
+        len(target_phones),
+        lead_updated,
     )
 
     return {

@@ -132,13 +132,13 @@ class ChannelOrchestrator:
             }
 
         # Compliance gate
-        can_send, compliance_reason = await compliance_svc.can_send_to_lead(
-            lead.id, channel, self.db
-        )
+        can_send, compliance_reason = await compliance_svc.can_send_to_lead(lead.id, channel, self.db)
         if not can_send:
             logger.info(
                 "Compliance gate blocked %s for lead %s: %s",
-                channel, lead.id, compliance_reason,
+                channel,
+                lead.id,
+                compliance_reason,
             )
             return {
                 "success": False,
@@ -171,7 +171,9 @@ class ChannelOrchestrator:
             if not self._is_hard_failure(error):
                 logger.info(
                     "Soft failure on %s for lead %s (%s) — attempting failover",
-                    channel, lead.id, error,
+                    channel,
+                    lead.id,
+                    error,
                 )
                 failover_result = await self.attempt_failover(
                     enrollment=enrollment,
@@ -200,7 +202,10 @@ class ChannelOrchestrator:
         except Exception as exc:
             logger.error(
                 "Dispatch exception for enrollment %s channel %s: %s",
-                enrollment.id, channel, exc, exc_info=True,
+                enrollment.id,
+                channel,
+                exc,
+                exc_info=True,
             )
             return {
                 "success": False,
@@ -398,9 +403,7 @@ class ChannelOrchestrator:
         Returns (under_limit, remaining_today).
         """
         limit = CHANNEL_DAILY_LIMITS.get(channel, 100)
-        today_start = datetime.now(UTC).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
+        today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
 
         try:
             result = await self.db.execute(
@@ -422,7 +425,10 @@ class ChannelOrchestrator:
 
         logger.debug(
             "Global limit check: channel=%s today=%d limit=%d remaining=%d",
-            channel, today_count, limit, remaining,
+            channel,
+            today_count,
+            limit,
+            remaining,
         )
 
         return under_limit, remaining
@@ -450,22 +456,16 @@ class ChannelOrchestrator:
         """
         if original_channel == "email":
             # Try LinkedIn first
-            li_can, li_reason = await compliance_svc.can_send_to_lead(
-                lead.id, "linkedin", self.db
-            )
+            li_can, li_reason = await compliance_svc.can_send_to_lead(lead.id, "linkedin", self.db)
             if li_can:
                 li_under, _ = await self.check_global_limits("linkedin")
                 if li_under:
-                    logger.info(
-                        "Failover: email→linkedin for lead %s", lead.id
-                    )
+                    logger.info("Failover: email→linkedin for lead %s", lead.id)
                     try:
                         from app.services.linkedin_service import LinkedInService
 
                         li_svc = LinkedInService(self.db)
-                        li_result = await li_svc.queue_connection_request(
-                            lead=lead, enrollment_id=enrollment.id
-                        )
+                        li_result = await li_svc.queue_connection_request(lead=lead, enrollment_id=enrollment.id)
                         if li_result.success:
                             return {
                                 "success": True,
@@ -477,15 +477,11 @@ class ChannelOrchestrator:
                         logger.warning("LinkedIn failover error: %s", exc)
 
             # Try SMS
-            sms_can, sms_reason = await compliance_svc.can_send_to_lead(
-                lead.id, "sms", self.db
-            )
+            sms_can, sms_reason = await compliance_svc.can_send_to_lead(lead.id, "sms", self.db)
             if sms_can and lead.phone:
                 sms_under, _ = await self.check_global_limits("sms")
                 if sms_under:
-                    logger.info(
-                        "Failover: email→sms for lead %s", lead.id
-                    )
+                    logger.info("Failover: email→sms for lead %s", lead.id)
                     try:
                         from app.services.sms_service import send_sms
 
@@ -510,15 +506,11 @@ class ChannelOrchestrator:
 
         elif original_channel in ("sms", "linkedin"):
             # Fallback to email
-            email_can, email_reason = await compliance_svc.can_send_to_lead(
-                lead.id, "email", self.db
-            )
+            email_can, email_reason = await compliance_svc.can_send_to_lead(lead.id, "email", self.db)
             if email_can:
                 email_under, _ = await self.check_global_limits("email")
                 if email_under:
-                    logger.info(
-                        "Failover: %s→email for lead %s", original_channel, lead.id
-                    )
+                    logger.info("Failover: %s→email for lead %s", original_channel, lead.id)
                     # Email failover handled by the sequence engine on next cycle
                     return {
                         "success": True,
@@ -527,9 +519,7 @@ class ChannelOrchestrator:
                         "failover_reason": error,
                     }
 
-        logger.info(
-            "No failover available for lead %s (original: %s)", lead.id, original_channel
-        )
+        logger.info("No failover available for lead %s (original: %s)", lead.id, original_channel)
         return None
 
     # ── Hole-Filler Escalation ─────────────────────────────────────────────
@@ -552,9 +542,7 @@ class ChannelOrchestrator:
         Returns escalation result or None if no escalation possible.
         """
         if enrollment.hole_filler_triggered:
-            logger.debug(
-                "Hole filler already triggered for enrollment %s", enrollment.id
-            )
+            logger.debug("Hole filler already triggered for enrollment %s", enrollment.id)
             return None
 
         # Count unanswered email sends (sent but no reply/open follow-up)
@@ -563,21 +551,21 @@ class ChannelOrchestrator:
         if unanswered_count < 2:
             logger.debug(
                 "Enrollment %s: only %d unanswered emails — hole filler not triggered",
-                enrollment.id, unanswered_count,
+                enrollment.id,
+                unanswered_count,
             )
             return None
 
         logger.info(
             "Hole filler triggered for enrollment %s (%d unanswered emails)",
-            enrollment.id, unanswered_count,
+            enrollment.id,
+            unanswered_count,
         )
 
         result: dict[str, Any] | None = None
 
         # 1. Try LinkedIn escalation
-        li_can, _ = await compliance_svc.can_send_to_lead(
-            lead.id, "linkedin", self.db
-        )
+        li_can, _ = await compliance_svc.can_send_to_lead(lead.id, "linkedin", self.db)
         li_under, _ = await self.check_global_limits("linkedin")
 
         if li_can and li_under:
@@ -597,17 +585,13 @@ class ChannelOrchestrator:
                         "unanswered_emails": unanswered_count,
                     }
                     enrollment.escalation_channel = "linkedin"
-                    logger.info(
-                        "Hole filler: queued LinkedIn for enrollment %s", enrollment.id
-                    )
+                    logger.info("Hole filler: queued LinkedIn for enrollment %s", enrollment.id)
             except Exception as exc:
                 logger.warning("Hole filler LinkedIn error: %s", exc)
 
         # 2. Fallback to SMS if no LinkedIn
         if not result:
-            sms_can, _ = await compliance_svc.can_send_to_lead(
-                lead.id, "sms", self.db
-            )
+            sms_can, _ = await compliance_svc.can_send_to_lead(lead.id, "sms", self.db)
             sms_under, _ = await self.check_global_limits("sms")
 
             if sms_can and sms_under and lead.phone:
@@ -634,9 +618,7 @@ class ChannelOrchestrator:
                             "unanswered_emails": unanswered_count,
                         }
                         enrollment.escalation_channel = "sms"
-                        logger.info(
-                            "Hole filler: SMS nudge sent for enrollment %s", enrollment.id
-                        )
+                        logger.info("Hole filler: SMS nudge sent for enrollment %s", enrollment.id)
                 except Exception as exc:
                     logger.warning("Hole filler SMS error: %s", exc)
 
@@ -645,24 +627,21 @@ class ChannelOrchestrator:
 
             # Transition enrollment to escalated state
             try:
-                new_state = transition(
-                    str(enrollment.status.value), EnrollmentState.escalated
-                )
+                new_state = transition(str(enrollment.status.value), EnrollmentState.escalated)
                 enrollment.status = EnrollmentStatus(new_state)
                 enrollment.last_state_change_at = datetime.now(UTC)
             except Exception as exc:
                 logger.warning(
                     "Could not transition enrollment %s to escalated: %s",
-                    enrollment.id, exc,
+                    enrollment.id,
+                    exc,
                 )
 
             await self.db.commit()
 
         return result
 
-    async def _count_unanswered_emails(
-        self, enrollment: SequenceEnrollment
-    ) -> int:
+    async def _count_unanswered_emails(self, enrollment: SequenceEnrollment) -> int:
         """
         Count email touches for this enrollment that had no reply.
 
@@ -699,7 +678,8 @@ class ChannelOrchestrator:
         except Exception as exc:
             logger.warning(
                 "Could not count unanswered emails for enrollment %s: %s",
-                enrollment.id, exc,
+                enrollment.id,
+                exc,
             )
             return 0
 
@@ -720,11 +700,7 @@ class ChannelOrchestrator:
         Returns retry result dict.
         """
         # Load enrollment
-        enr_result = await self.db.execute(
-            select(SequenceEnrollment).where(
-                SequenceEnrollment.id == enrollment_id
-            )
-        )
+        enr_result = await self.db.execute(select(SequenceEnrollment).where(SequenceEnrollment.id == enrollment_id))
         enrollment = enr_result.scalar_one_or_none()
 
         if not enrollment:
@@ -736,7 +712,10 @@ class ChannelOrchestrator:
         if retry_count >= MAX_RETRIES:
             logger.info(
                 "Max retries (%d) reached for enrollment %s step %d channel %s",
-                MAX_RETRIES, enrollment_id, step_position, channel,
+                MAX_RETRIES,
+                enrollment_id,
+                step_position,
+                channel,
             )
             return {
                 "success": False,
@@ -745,12 +724,11 @@ class ChannelOrchestrator:
             }
 
         # Compute backoff wait
-        backoff_minutes = RETRY_BACKOFF_MINUTES * (2 ** retry_count)
+        backoff_minutes = RETRY_BACKOFF_MINUTES * (2**retry_count)
         next_attempt_at = datetime.now(UTC) + timedelta(minutes=backoff_minutes)
 
         logger.info(
-            "Scheduling retry %d for enrollment %s step %d channel %s "
-            "(backoff: %d mins, next at %s)",
+            "Scheduling retry %d for enrollment %s step %d channel %s (backoff: %d mins, next at %s)",
             retry_count + 1,
             enrollment_id,
             step_position,
@@ -881,18 +859,14 @@ class ChannelOrchestrator:
                     "daily_limit": daily_limit,
                     "remaining_today": max(
                         0,
-                        daily_limit - (await self.check_global_limits(channel))[1]
+                        daily_limit - (await self.check_global_limits(channel))[1],
                         # Note: remaining from check_global_limits
                     ),
-                    "healthy": (
-                        (bounced / sent < 0.05) if sent > 0 else True
-                    ),
+                    "healthy": ((bounced / sent < 0.05) if sent > 0 else True),
                 }
 
             except Exception as exc:
-                logger.error(
-                    "Channel health check error for %s: %s", channel, exc
-                )
+                logger.error("Channel health check error for %s: %s", channel, exc)
                 health[channel] = {
                     "error": str(exc),
                     "healthy": False,

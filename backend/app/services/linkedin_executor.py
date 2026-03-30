@@ -44,15 +44,11 @@ class LinkedInExecutor(abc.ABC):
     """Abstract base class for LinkedIn action execution."""
 
     @abc.abstractmethod
-    async def send_connection_request(
-        self, profile_url: str, note: str
-    ) -> ExecutionResult:
+    async def send_connection_request(self, profile_url: str, note: str) -> ExecutionResult:
         """Send a LinkedIn connection request."""
 
     @abc.abstractmethod
-    async def send_message(
-        self, profile_url: str, message: str
-    ) -> ExecutionResult:
+    async def send_message(self, profile_url: str, message: str) -> ExecutionResult:
         """Send a LinkedIn direct message to an existing connection."""
 
     @abc.abstractmethod
@@ -87,9 +83,7 @@ class PhantombusterExecutor(LinkedInExecutor):
             timeout=30,
         )
 
-    async def send_connection_request(
-        self, profile_url: str, note: str
-    ) -> ExecutionResult:
+    async def send_connection_request(self, profile_url: str, note: str) -> ExecutionResult:
         if not self._connect_agent_id:
             return ExecutionResult(
                 status=ExecutionStatus.failed,
@@ -100,9 +94,7 @@ class PhantombusterExecutor(LinkedInExecutor):
             {"profileUrl": profile_url, "message": note},
         )
 
-    async def send_message(
-        self, profile_url: str, message: str
-    ) -> ExecutionResult:
+    async def send_message(self, profile_url: str, message: str) -> ExecutionResult:
         if not self._message_agent_id:
             return ExecutionResult(
                 status=ExecutionStatus.failed,
@@ -129,9 +121,7 @@ class PhantombusterExecutor(LinkedInExecutor):
     def is_automated(self) -> bool:
         return True
 
-    async def _launch_agent(
-        self, agent_id: str, argument: dict
-    ) -> ExecutionResult:
+    async def _launch_agent(self, agent_id: str, argument: dict) -> ExecutionResult:
         """Launch a Phantombuster agent with the given argument payload."""
         try:
             resp = await self._client.post(
@@ -141,9 +131,7 @@ class PhantombusterExecutor(LinkedInExecutor):
 
             if resp.status_code == 429:
                 retry_after = resp.headers.get("Retry-After", "60")
-                logger.warning(
-                    "Phantombuster rate limited, retry after %ss", retry_after
-                )
+                logger.warning("Phantombuster rate limited, retry after %ss", retry_after)
                 return ExecutionResult(
                     status=ExecutionStatus.rate_limited,
                     message=f"Phantombuster rate limited. Retry after {retry_after}s.",
@@ -168,17 +156,13 @@ class PhantombusterExecutor(LinkedInExecutor):
             )
 
         except httpx.HTTPStatusError as exc:
-            logger.error(
-                "Phantombuster HTTP error for agent %s: %s", agent_id, exc
-            )
+            logger.error("Phantombuster HTTP error for agent %s: %s", agent_id, exc)
             return ExecutionResult(
                 status=ExecutionStatus.failed,
                 message=f"Phantombuster HTTP {exc.response.status_code}",
             )
         except Exception as exc:
-            logger.error(
-                "Phantombuster execution error for agent %s: %s", agent_id, exc
-            )
+            logger.error("Phantombuster execution error for agent %s: %s", agent_id, exc)
             return ExecutionResult(
                 status=ExecutionStatus.failed,
                 message=str(exc),
@@ -193,17 +177,13 @@ class ManualExecutor(LinkedInExecutor):
     via browser extension tools (Expandi, Dux-Soup, etc.).
     """
 
-    async def send_connection_request(
-        self, profile_url: str, note: str
-    ) -> ExecutionResult:
+    async def send_connection_request(self, profile_url: str, note: str) -> ExecutionResult:
         return ExecutionResult(
             status=ExecutionStatus.manual,
             message="Queued for CSV export — no automation configured",
         )
 
-    async def send_message(
-        self, profile_url: str, message: str
-    ) -> ExecutionResult:
+    async def send_message(self, profile_url: str, message: str) -> ExecutionResult:
         return ExecutionResult(
             status=ExecutionStatus.manual,
             message="Queued for CSV export — no automation configured",

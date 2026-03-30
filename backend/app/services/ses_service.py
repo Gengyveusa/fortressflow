@@ -136,9 +136,7 @@ class SESInfrastructureService:
                 return await self.get_domain_status(domain)
 
             logger.error("Failed to verify domain %s: %s", domain, exc)
-            return DomainVerificationResult(
-                success=False, domain=domain, error=str(exc)
-            )
+            return DomainVerificationResult(success=False, domain=domain, error=str(exc))
 
     async def get_domain_status(self, domain: str) -> DomainVerificationResult:
         """Check current verification and DKIM status for a domain."""
@@ -159,9 +157,7 @@ class SESInfrastructureService:
             )
         except Exception as exc:
             logger.error("Failed to get domain status for %s: %s", domain, exc)
-            return DomainVerificationResult(
-                success=False, domain=domain, error=str(exc)
-            )
+            return DomainVerificationResult(success=False, domain=domain, error=str(exc))
 
     # ── Email Identity Verification ────────────────────────────────────
 
@@ -196,9 +192,7 @@ class SESInfrastructureService:
                 return IdentityVerificationResult(success=True, email=email)
 
             logger.error("Failed to verify email identity %s: %s", email, exc)
-            return IdentityVerificationResult(
-                success=False, email=email, error=str(exc)
-            )
+            return IdentityVerificationResult(success=False, email=email, error=str(exc))
 
     async def check_identity_verified(self, identity: str) -> bool:
         """Check if an identity (domain or email) is verified for sending."""
@@ -328,9 +322,7 @@ class SESInfrastructureService:
             logger.error("Failed to get account reputation: %s", exc)
             return ReputationMetrics()
 
-    async def get_domain_reputation(
-        self, domain: str
-    ) -> dict[str, Any]:
+    async def get_domain_reputation(self, domain: str) -> dict[str, Any]:
         """Get reputation metrics for a specific domain identity."""
         try:
             response = await asyncio.to_thread(
@@ -344,9 +336,7 @@ class SESInfrastructureService:
                 "verified": response.get("VerifiedForSendingStatus", False),
                 "dkim_status": dkim.get("Status", "NOT_STARTED"),
                 "dkim_signing_enabled": dkim.get("SigningEnabled", False),
-                "mail_from_status": response.get(
-                    "MailFromAttributes", {}
-                ).get("MailFromDomainStatus", ""),
+                "mail_from_status": response.get("MailFromAttributes", {}).get("MailFromDomainStatus", ""),
             }
 
         except Exception as exc:
@@ -406,9 +396,7 @@ class SESInfrastructureService:
 
     # ── DNS Setup Instructions ─────────────────────────────────────────
 
-    async def get_dns_setup_instructions(
-        self, domain: str
-    ) -> dict[str, Any]:
+    async def get_dns_setup_instructions(self, domain: str) -> dict[str, Any]:
         """
         Generate complete DNS record setup instructions for a domain.
         Returns all required DNS records for SPF, DKIM, DMARC, and BIMI.
@@ -423,62 +411,72 @@ class SESInfrastructureService:
         }
 
         # SPF
-        instructions["records"].append({
-            "type": "TXT",
-            "name": domain,
-            "value": self.generate_spf_record(),
-            "purpose": "SPF - Authorize SES to send on behalf of this domain",
-        })
+        instructions["records"].append(
+            {
+                "type": "TXT",
+                "name": domain,
+                "value": self.generate_spf_record(),
+                "purpose": "SPF - Authorize SES to send on behalf of this domain",
+            }
+        )
 
         # DKIM CNAMEs
         for token in dkim_tokens:
-            instructions["records"].append({
-                "type": "CNAME",
-                "name": f"{token}._domainkey.{domain}",
-                "value": f"{token}.dkim.amazonses.com",
-                "purpose": f"DKIM - Signing key #{dkim_tokens.index(token) + 1}",
-            })
+            instructions["records"].append(
+                {
+                    "type": "CNAME",
+                    "name": f"{token}._domainkey.{domain}",
+                    "value": f"{token}.dkim.amazonses.com",
+                    "purpose": f"DKIM - Signing key #{dkim_tokens.index(token) + 1}",
+                }
+            )
 
         # DMARC
-        instructions["records"].append({
-            "type": "TXT",
-            "name": f"_dmarc.{domain}",
-            "value": self.generate_dmarc_record(
-                policy="quarantine",
-                rua_email=settings.SES_FEEDBACK_FORWARDING_EMAIL or f"dmarc@{domain}",
-            ),
-            "purpose": "DMARC - Policy for unauthenticated messages",
-        })
+        instructions["records"].append(
+            {
+                "type": "TXT",
+                "name": f"_dmarc.{domain}",
+                "value": self.generate_dmarc_record(
+                    policy="quarantine",
+                    rua_email=settings.SES_FEEDBACK_FORWARDING_EMAIL or f"dmarc@{domain}",
+                ),
+                "purpose": "DMARC - Policy for unauthenticated messages",
+            }
+        )
 
         # BIMI (placeholder)
-        instructions["records"].append({
-            "type": "TXT",
-            "name": f"default._bimi.{domain}",
-            "value": "v=BIMI1; l=https://gengyveusa.com/assets/bimi-logo.svg",
-            "purpose": "BIMI - Brand logo in email clients (requires SVG Tiny PS logo)",
-        })
+        instructions["records"].append(
+            {
+                "type": "TXT",
+                "name": f"default._bimi.{domain}",
+                "value": "v=BIMI1; l=https://gengyveusa.com/assets/bimi-logo.svg",
+                "purpose": "BIMI - Brand logo in email clients (requires SVG Tiny PS logo)",
+            }
+        )
 
         # Custom MAIL FROM
-        instructions["records"].append({
-            "type": "MX",
-            "name": f"mail.{domain}",
-            "value": f"10 feedback-smtp.{settings.AWS_REGION}.amazonses.com",
-            "purpose": "Custom MAIL FROM - Bounce handling via SES",
-        })
-        instructions["records"].append({
-            "type": "TXT",
-            "name": f"mail.{domain}",
-            "value": self.generate_spf_record(),
-            "purpose": "Custom MAIL FROM SPF - Authorize SES for return-path",
-        })
+        instructions["records"].append(
+            {
+                "type": "MX",
+                "name": f"mail.{domain}",
+                "value": f"10 feedback-smtp.{settings.AWS_REGION}.amazonses.com",
+                "purpose": "Custom MAIL FROM - Bounce handling via SES",
+            }
+        )
+        instructions["records"].append(
+            {
+                "type": "TXT",
+                "name": f"mail.{domain}",
+                "value": self.generate_spf_record(),
+                "purpose": "Custom MAIL FROM SPF - Authorize SES for return-path",
+            }
+        )
 
         return instructions
 
     # ── Suppression List ───────────────────────────────────────────────
 
-    async def add_to_suppression_list(
-        self, email: str, reason: str = "COMPLAINT"
-    ) -> bool:
+    async def add_to_suppression_list(self, email: str, reason: str = "COMPLAINT") -> bool:
         """Add an email to the SES account-level suppression list."""
         try:
             await asyncio.to_thread(

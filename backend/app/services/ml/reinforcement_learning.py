@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 # Data classes
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class RewardMetrics:
     """Observed performance metrics for a single campaign variant."""
@@ -86,6 +87,7 @@ class Strategy(str, Enum):
 # Sampling helpers (pure Python replacements for scipy/numpy)
 # ---------------------------------------------------------------------------
 
+
 def _beta_sample(alpha: float, beta_val: float) -> float:
     """Draw a single sample from Beta(alpha, beta) using the Johnk algorithm.
 
@@ -132,6 +134,7 @@ def _gamma_sample(shape: float, scale: float = 1.0) -> float:
 # Strategy implementations
 # ---------------------------------------------------------------------------
 
+
 class ThompsonSampling:
     """Thompson Sampling: sample from each arm's posterior Beta distribution
     and pick the arm with the highest sample."""
@@ -148,7 +151,10 @@ class ThompsonSampling:
             sample = _beta_sample(v.alpha, v.beta_param)
             logger.debug(
                 "Thompson sample for %s: %.4f (alpha=%.2f, beta=%.2f)",
-                v.variant_id, sample, v.alpha, v.beta_param,
+                v.variant_id,
+                sample,
+                v.alpha,
+                v.beta_param,
             )
             if sample > best_sample:
                 best_sample = sample
@@ -161,7 +167,7 @@ class ThompsonSampling:
         """Update Beta posterior. Reward is clamped to [0, 1]."""
         clamped = max(0.0, min(1.0, reward))
         variant.alpha += clamped
-        variant.beta_param += (1.0 - clamped)
+        variant.beta_param += 1.0 - clamped
 
 
 class EpsilonGreedy:
@@ -181,8 +187,7 @@ class EpsilonGreedy:
             return chosen
 
         best = max(variants, key=lambda v: v.average_reward)
-        logger.debug("Epsilon-greedy exploiting: chose %s (avg_reward=%.4f)",
-                      best.variant_id, best.average_reward)
+        logger.debug("Epsilon-greedy exploiting: chose %s (avg_reward=%.4f)", best.variant_id, best.average_reward)
         return best
 
     @staticmethod
@@ -195,6 +200,7 @@ class EpsilonGreedy:
 # ---------------------------------------------------------------------------
 # Experiment logging
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class ExperimentDecision:
@@ -265,6 +271,7 @@ class ExperimentLog:
 # Main bandit orchestrator
 # ---------------------------------------------------------------------------
 
+
 class MultiArmedBandit:
     """Orchestrates multi-armed bandit experiments for campaign optimization.
 
@@ -297,7 +304,9 @@ class MultiArmedBandit:
 
         logger.info(
             "MultiArmedBandit initialised with strategy=%s, epsilon=%.2f, exploration_bonus=%.2f",
-            self.strategy_name.value, self.epsilon, self.exploration_bonus,
+            self.strategy_name.value,
+            self.epsilon,
+            self.exploration_bonus,
         )
 
     # -- Variant management --------------------------------------------------
@@ -329,9 +338,7 @@ class MultiArmedBandit:
         if total_pulls > 0 and self.exploration_bonus > 0:
             for v in pool:
                 if v.pull_count < self.LOW_PULL_MINIMUM:
-                    bonus = self.exploration_bonus * math.sqrt(
-                        math.log(total_pulls + 1) / (v.pull_count + 1)
-                    )
+                    bonus = self.exploration_bonus * math.sqrt(math.log(total_pulls + 1) / (v.pull_count + 1))
                     v.alpha += bonus  # temporarily inflate optimism
 
         chosen = self._strategy.select(pool)
@@ -340,9 +347,7 @@ class MultiArmedBandit:
         if total_pulls > 0 and self.exploration_bonus > 0:
             for v in pool:
                 if v.pull_count < self.LOW_PULL_MINIMUM:
-                    bonus = self.exploration_bonus * math.sqrt(
-                        math.log(total_pulls + 1) / (v.pull_count + 1)
-                    )
+                    bonus = self.exploration_bonus * math.sqrt(math.log(total_pulls + 1) / (v.pull_count + 1))
                     v.alpha = max(1.0, v.alpha - bonus)
 
         chosen.pull_count += 1
@@ -353,7 +358,9 @@ class MultiArmedBandit:
 
         logger.info(
             "Selected variant %s (pull #%d) | decision_idx=%d",
-            chosen.variant_id, chosen.pull_count, decision_idx,
+            chosen.variant_id,
+            chosen.pull_count,
+            decision_idx,
         )
         return chosen
 
@@ -396,7 +403,10 @@ class MultiArmedBandit:
 
         logger.info(
             "Updated reward for %s: reward=%.4f, total=%.4f, pulls=%d",
-            variant_id, reward, variant.total_reward, variant.pull_count,
+            variant_id,
+            reward,
+            variant.total_reward,
+            variant.pull_count,
         )
 
     # -- Reporting -----------------------------------------------------------
@@ -405,20 +415,22 @@ class MultiArmedBandit:
         """Return a comprehensive summary of the running experiment."""
         variant_stats = []
         for v in self._variants.values():
-            variant_stats.append({
-                "variant_id": v.variant_id,
-                "pull_count": v.pull_count,
-                "total_reward": round(v.total_reward, 4),
-                "average_reward": round(v.average_reward, 4),
-                "alpha": round(v.alpha, 4),
-                "beta": round(v.beta_param, 4),
-                "metrics": {
-                    "open_rate": v.metrics.open_rate,
-                    "click_through_rate": v.metrics.click_through_rate,
-                    "conversion_rate": v.metrics.conversion_rate,
-                    "revenue_per_lead": v.metrics.revenue_per_lead,
-                },
-            })
+            variant_stats.append(
+                {
+                    "variant_id": v.variant_id,
+                    "pull_count": v.pull_count,
+                    "total_reward": round(v.total_reward, 4),
+                    "average_reward": round(v.average_reward, 4),
+                    "alpha": round(v.alpha, 4),
+                    "beta": round(v.beta_param, 4),
+                    "metrics": {
+                        "open_rate": v.metrics.open_rate,
+                        "click_through_rate": v.metrics.click_through_rate,
+                        "conversion_rate": v.metrics.conversion_rate,
+                        "revenue_per_lead": v.metrics.revenue_per_lead,
+                    },
+                }
+            )
 
         # Sort by average reward descending
         variant_stats.sort(key=lambda s: s["average_reward"], reverse=True)
@@ -444,10 +456,7 @@ class MultiArmedBandit:
         reasons: List[str] = []
 
         # 1. Too-good-to-be-true with small sample
-        if (
-            variant.average_reward > self.HIGH_REWARD_THRESHOLD
-            and variant.pull_count < self.LOW_PULL_MINIMUM * 3
-        ):
+        if variant.average_reward > self.HIGH_REWARD_THRESHOLD and variant.pull_count < self.LOW_PULL_MINIMUM * 3:
             reasons.append(
                 f"Average reward ({variant.average_reward:.2f}) is unusually high "
                 f"with only {variant.pull_count} observations -- possible noise."
@@ -478,7 +487,8 @@ class MultiArmedBandit:
         if not is_safe:
             logger.warning(
                 "Safety check FAILED for variant %s: %s",
-                variant.variant_id, "; ".join(reasons),
+                variant.variant_id,
+                "; ".join(reasons),
             )
         else:
             logger.debug("Safety check passed for variant %s", variant.variant_id)

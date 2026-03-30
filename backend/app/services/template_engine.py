@@ -42,6 +42,7 @@ def render_template(template_text: str, context: dict[str, Any]) -> str:
 
     Missing variables are replaced with empty string to avoid broken output.
     """
+
     def replacer(match: re.Match) -> str:
         key = match.group(1)
         value = context.get(key, "")
@@ -75,13 +76,15 @@ def build_lead_context(
     }
 
     if sender:
-        ctx.update({
-            "sender_name": sender.get("name", ""),
-            "sender_title": sender.get("title", ""),
-            "sender_company": sender.get("company", "Gengyve USA"),
-            "sender_email": sender.get("email", ""),
-            "sender_phone": sender.get("phone", ""),
-        })
+        ctx.update(
+            {
+                "sender_name": sender.get("name", ""),
+                "sender_title": sender.get("title", ""),
+                "sender_company": sender.get("company", "Gengyve USA"),
+                "sender_email": sender.get("email", ""),
+                "sender_phone": sender.get("phone", ""),
+            }
+        )
 
     if unsubscribe_url:
         ctx["unsubscribe_url"] = unsubscribe_url

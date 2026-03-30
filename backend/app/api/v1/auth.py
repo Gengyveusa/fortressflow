@@ -230,9 +230,7 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
     # Issue new refresh token in the same family (rotation)
     new_family_id = old_family_id or generate_family_id()
     new_jti = generate_jti()
-    new_refresh_token = create_refresh_token(
-        str(user.id), jti=new_jti, family_id=new_family_id
-    )
+    new_refresh_token = create_refresh_token(str(user.id), jti=new_jti, family_id=new_family_id)
     await register_token(new_jti, new_family_id, str(user.id))
 
     return TokenResponse(access_token=access_token, refresh_token=new_refresh_token)

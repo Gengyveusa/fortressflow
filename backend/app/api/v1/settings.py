@@ -91,21 +91,31 @@ async def get_integration_status(
     pb_connect = getattr(app_settings, "PHANTOMBUSTER_CONNECT_AGENT_ID", "")
     pb_message = getattr(app_settings, "PHANTOMBUSTER_MESSAGE_AGENT_ID", "")
     if pb_key and (pb_connect or pb_message):
-        integrations.append(IntegrationStatusEntry(
-            name="linkedin", configured=True, mode="active",
-        ))
+        integrations.append(
+            IntegrationStatusEntry(
+                name="linkedin",
+                configured=True,
+                mode="active",
+            )
+        )
     else:
-        integrations.append(IntegrationStatusEntry(
-            name="linkedin", configured=False, mode="manual",
-        ))
+        integrations.append(
+            IntegrationStatusEntry(
+                name="linkedin",
+                configured=False,
+                mode="manual",
+            )
+        )
 
     # HubSpot
     hs_key = app_settings.HUBSPOT_API_KEY
-    integrations.append(IntegrationStatusEntry(
-        name="hubspot",
-        configured=bool(hs_key),
-        mode="active" if hs_key else "not_configured",
-    ))
+    integrations.append(
+        IntegrationStatusEntry(
+            name="hubspot",
+            configured=bool(hs_key),
+            mode="active" if hs_key else "not_configured",
+        )
+    )
 
     # ZoomInfo — configured if API key, or client_id + private key are set
     zi_configured = bool(
@@ -113,34 +123,42 @@ async def get_integration_status(
         or (app_settings.ZOOMINFO_CLIENT_ID and app_settings.ZOOMINFO_PRIVATE_KEY)
         or (app_settings.ZOOMINFO_CLIENT_ID and app_settings.ZOOMINFO_CLIENT_SECRET)
     )
-    integrations.append(IntegrationStatusEntry(
-        name="zoominfo",
-        configured=zi_configured,
-        mode="active" if zi_configured else "not_configured",
-    ))
+    integrations.append(
+        IntegrationStatusEntry(
+            name="zoominfo",
+            configured=zi_configured,
+            mode="active" if zi_configured else "not_configured",
+        )
+    )
 
     # Apollo
     ap_key = app_settings.APOLLO_API_KEY
-    integrations.append(IntegrationStatusEntry(
-        name="apollo",
-        configured=bool(ap_key),
-        mode="active" if ap_key else "not_configured",
-    ))
+    integrations.append(
+        IntegrationStatusEntry(
+            name="apollo",
+            configured=bool(ap_key),
+            mode="active" if ap_key else "not_configured",
+        )
+    )
 
     # Twilio SMS
     tw_sid = app_settings.TWILIO_ACCOUNT_SID
-    integrations.append(IntegrationStatusEntry(
-        name="twilio",
-        configured=bool(tw_sid),
-        mode="active" if tw_sid else "not_configured",
-    ))
+    integrations.append(
+        IntegrationStatusEntry(
+            name="twilio",
+            configured=bool(tw_sid),
+            mode="active" if tw_sid else "not_configured",
+        )
+    )
 
     # AWS SES
     ses_key = app_settings.AWS_ACCESS_KEY_ID
-    integrations.append(IntegrationStatusEntry(
-        name="aws_ses",
-        configured=bool(ses_key),
-        mode="active" if ses_key else "not_configured",
-    ))
+    integrations.append(
+        IntegrationStatusEntry(
+            name="aws_ses",
+            configured=bool(ses_key),
+            mode="active" if ses_key else "not_configured",
+        )
+    )
 
     return IntegrationStatusResponse(integrations=integrations)

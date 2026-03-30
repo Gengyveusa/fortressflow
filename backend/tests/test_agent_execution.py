@@ -33,7 +33,18 @@ class TestAgentRegistration:
         assert "taplio" in _AGENT_REGISTRY
 
     def test_all_agents_registered(self):
-        expected = {"groq", "openai", "hubspot", "zoominfo", "twilio", "apollo", "taplio", "marketing", "sales", "testing"}
+        expected = {
+            "groq",
+            "openai",
+            "hubspot",
+            "zoominfo",
+            "twilio",
+            "apollo",
+            "taplio",
+            "marketing",
+            "sales",
+            "testing",
+        }
         assert set(_AGENT_REGISTRY.keys()) == expected
 
     def test_apollo_has_allowed_actions(self):
@@ -48,6 +59,7 @@ class TestAgentRegistration:
     def test_router_valid_agents_includes_apollo_taplio(self):
         """The execute endpoint in agents.py should accept apollo and taplio."""
         from app.api.v1.agents import execute_agent
+
         # Read the source to verify the valid_agents set
         source = inspect.getsource(execute_agent)
         assert '"apollo"' in source or "'apollo'" in source or "apollo" in source
@@ -163,8 +175,11 @@ class TestDispatchParamFiltering:
     async def test_dispatch_unknown_agent_returns_error(self):
         mock_db = AsyncMock()
         result = await AgentOrchestrator.dispatch(
-            db=mock_db, agent_name="nonexistent",
-            action="foo", params={}, user_id=uuid.uuid4(),
+            db=mock_db,
+            agent_name="nonexistent",
+            action="foo",
+            params={},
+            user_id=uuid.uuid4(),
         )
         assert result["status"] == "error"
         assert "Unknown agent" in result["error"]
@@ -173,8 +188,11 @@ class TestDispatchParamFiltering:
     async def test_dispatch_invalid_action_returns_error(self):
         mock_db = AsyncMock()
         result = await AgentOrchestrator.dispatch(
-            db=mock_db, agent_name="groq",
-            action="nonexistent_action", params={}, user_id=uuid.uuid4(),
+            db=mock_db,
+            agent_name="groq",
+            action="nonexistent_action",
+            params={},
+            user_id=uuid.uuid4(),
         )
         assert result["status"] == "error"
         assert "not available" in result["error"]
@@ -186,10 +204,7 @@ class TestDispatchParamFiltering:
         method = getattr(instance, "get_deals")
         sig = inspect.signature(method)
         accepted = set(sig.parameters.keys())
-        has_kwargs = any(
-            p.kind == inspect.Parameter.VAR_KEYWORD
-            for p in sig.parameters.values()
-        )
+        has_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
 
         # Simulate what dispatch does: offer db/user_id, then filter
         call_params = {"filters": []}
@@ -215,7 +230,8 @@ class TestDispatchParamFiltering:
         with patch("app.services.agents.groq_agent.GroqAgent.classify_reply") as mock_method:
             mock_method.return_value = {"category": "positive", "confidence": 0.9}
             result = await AgentOrchestrator.dispatch(
-                db=mock_db, agent_name="groq",
+                db=mock_db,
+                agent_name="groq",
                 action="classify_reply",
                 params={"email_text": "Sounds great, let's schedule a call!"},
                 user_id=user_id,
@@ -268,6 +284,7 @@ class TestChatCommandEngineIntegration:
             with patch.object(svc, "_gather_context", return_value={}):
                 with patch.object(svc, "_route_to_ai_platforms", return_value={}):
                     with patch.object(svc, "_stream_llm") as mock_llm:
+
                         async def fake_stream(*a, **kw):
                             yield "Hello from LLM"
 

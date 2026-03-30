@@ -10,7 +10,6 @@ All templates use {{variable}} interpolation.
 """
 
 
-
 # ─────────────────────────────────────────────────────────────
 # SEQUENCE 1: COLD OUTREACH
 # Target: Dental office managers, practice owners, DSO procurement

@@ -106,9 +106,7 @@ async def list_sequences(
     total = total_result.scalar_one()
 
     offset = (page - 1) * page_size
-    result = await db.execute(
-        select(Sequence).order_by(Sequence.created_at.desc()).offset(offset).limit(page_size)
-    )
+    result = await db.execute(select(Sequence).order_by(Sequence.created_at.desc()).offset(offset).limit(page_size))
     sequences = result.scalars().unique().all()
 
     return SequenceListResponse(
@@ -281,12 +279,14 @@ async def enroll_leads(
             select(SequenceEnrollment).where(
                 SequenceEnrollment.sequence_id == sequence_id,
                 SequenceEnrollment.lead_id == lead_id,
-                SequenceEnrollment.status.in_([
-                    EnrollmentStatus.active,
-                    EnrollmentStatus.pending,
-                    EnrollmentStatus.sent,
-                    EnrollmentStatus.opened,
-                ]),
+                SequenceEnrollment.status.in_(
+                    [
+                        EnrollmentStatus.active,
+                        EnrollmentStatus.pending,
+                        EnrollmentStatus.sent,
+                        EnrollmentStatus.opened,
+                    ]
+                ),
             )
         )
         if existing.scalar_one_or_none() is not None:
@@ -338,6 +338,7 @@ async def pause_enrollment(
 
     enrollment.status = EnrollmentStatus.paused
     from datetime import UTC, datetime
+
     enrollment.last_state_change_at = datetime.now(UTC)
     await db.flush()
     return {"status": "paused", "enrollment_id": str(enrollment_id)}
@@ -371,6 +372,7 @@ async def resume_enrollment(
 
     enrollment.status = EnrollmentStatus.active
     from datetime import UTC, datetime
+
     enrollment.last_state_change_at = datetime.now(UTC)
     await db.flush()
     return {"status": "resumed", "enrollment_id": str(enrollment_id)}
@@ -500,9 +502,7 @@ async def save_visual_config(
     # If steps provided, sync them (replace all)
     if body.steps is not None:
         # Delete existing steps
-        existing_steps = await db.execute(
-            select(SequenceStep).where(SequenceStep.sequence_id == sequence_id)
-        )
+        existing_steps = await db.execute(select(SequenceStep).where(SequenceStep.sequence_id == sequence_id))
         for old_step in existing_steps.scalars().all():
             await db.delete(old_step)
         await db.flush()
@@ -551,21 +551,21 @@ async def get_sequence_analytics(
 
     # Enrollment stats
     total_enrolled_r = await db.execute(
-        select(func.count(SequenceEnrollment.id)).where(
-            SequenceEnrollment.sequence_id == sequence_id
-        )
+        select(func.count(SequenceEnrollment.id)).where(SequenceEnrollment.sequence_id == sequence_id)
     )
     total_enrolled = total_enrolled_r.scalar_one()
 
     active_r = await db.execute(
         select(func.count(SequenceEnrollment.id)).where(
             SequenceEnrollment.sequence_id == sequence_id,
-            SequenceEnrollment.status.in_([
-                EnrollmentStatus.active,
-                EnrollmentStatus.pending,
-                EnrollmentStatus.sent,
-                EnrollmentStatus.opened,
-            ]),
+            SequenceEnrollment.status.in_(
+                [
+                    EnrollmentStatus.active,
+                    EnrollmentStatus.pending,
+                    EnrollmentStatus.sent,
+                    EnrollmentStatus.opened,
+                ]
+            ),
         )
     )
     active_count = active_r.scalar_one()
@@ -585,25 +585,15 @@ async def get_sequence_analytics(
             TouchLog.sequence_id == sequence_id,
             TouchLog.step_number == step.position,
         ]
-        sent_r = await db.execute(
-            select(func.count(TouchLog.id)).where(*base_filter, TouchLog.action == "sent")
-        )
-        opened_r = await db.execute(
-            select(func.count(TouchLog.id)).where(*base_filter, TouchLog.action == "opened")
-        )
-        replied_r = await db.execute(
-            select(func.count(TouchLog.id)).where(*base_filter, TouchLog.action == "replied")
-        )
-        bounced_r = await db.execute(
-            select(func.count(TouchLog.id)).where(*base_filter, TouchLog.action == "bounced")
-        )
+        sent_r = await db.execute(select(func.count(TouchLog.id)).where(*base_filter, TouchLog.action == "sent"))
+        opened_r = await db.execute(select(func.count(TouchLog.id)).where(*base_filter, TouchLog.action == "opened"))
+        replied_r = await db.execute(select(func.count(TouchLog.id)).where(*base_filter, TouchLog.action == "replied"))
+        bounced_r = await db.execute(select(func.count(TouchLog.id)).where(*base_filter, TouchLog.action == "bounced"))
 
         step_analytics.append(
             StepAnalytics(
                 step_position=step.position,
-                step_type=step.step_type.value
-                if isinstance(step.step_type, StepType)
-                else step.step_type,
+                step_type=step.step_type.value if isinstance(step.step_type, StepType) else step.step_type,
                 sent=sent_r.scalar_one(),
                 opened=opened_r.scalar_one(),
                 replied=replied_r.scalar_one(),
@@ -642,10 +632,7 @@ async def get_sequence_analytics(
                 continue
 
             # Get touch logs for variant enrollments
-            variant_lead_ids = [
-                e.lead_id for e in all_enrollments
-                if e.id in variant_enrollment_ids
-            ]
+            variant_lead_ids = [e.lead_id for e in all_enrollments if e.id in variant_enrollment_ids]
 
             v_base = [
                 TouchLog.sequence_id == sequence_id,
@@ -654,32 +641,16 @@ async def get_sequence_analytics(
             ]
 
             v_sent = (
-                await db.execute(
-                    select(func.count(TouchLog.id)).where(
-                        *v_base, TouchLog.action == "sent"
-                    )
-                )
+                await db.execute(select(func.count(TouchLog.id)).where(*v_base, TouchLog.action == "sent"))
             ).scalar_one()
             v_opened = (
-                await db.execute(
-                    select(func.count(TouchLog.id)).where(
-                        *v_base, TouchLog.action == "opened"
-                    )
-                )
+                await db.execute(select(func.count(TouchLog.id)).where(*v_base, TouchLog.action == "opened"))
             ).scalar_one()
             v_replied = (
-                await db.execute(
-                    select(func.count(TouchLog.id)).where(
-                        *v_base, TouchLog.action == "replied"
-                    )
-                )
+                await db.execute(select(func.count(TouchLog.id)).where(*v_base, TouchLog.action == "replied"))
             ).scalar_one()
             v_bounced = (
-                await db.execute(
-                    select(func.count(TouchLog.id)).where(
-                        *v_base, TouchLog.action == "bounced"
-                    )
-                )
+                await db.execute(select(func.count(TouchLog.id)).where(*v_base, TouchLog.action == "bounced"))
             ).scalar_one()
 
             ab_results.append(
@@ -748,9 +719,7 @@ async def get_reply_inbox(
     where_clause = "WHERE " + " AND ".join(filters) if filters else ""
 
     # Count total
-    count_sql = text(
-        f"SELECT COUNT(*) FROM reply_logs rl {where_clause}"
-    )
+    count_sql = text(f"SELECT COUNT(*) FROM reply_logs rl {where_clause}")
     total_result = await db.execute(count_sql, bind_params)
     total = total_result.scalar_one() or 0
 
@@ -789,6 +758,7 @@ async def get_reply_inbox(
         rows = rows_result.mappings().all()
     except Exception as exc:
         import logging as _log
+
         _log.getLogger(__name__).warning(
             "reply_inbox: reply_logs table query failed (table may not exist yet): %s", exc
         )
@@ -850,9 +820,7 @@ async def get_sequence_monitor(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sequence not found")
 
     # Load enrollments with lead data
-    enr_result = await db.execute(
-        select(SequenceEnrollment).where(SequenceEnrollment.sequence_id == sequence_id)
-    )
+    enr_result = await db.execute(select(SequenceEnrollment).where(SequenceEnrollment.sequence_id == sequence_id))
     enrollments = enr_result.scalars().unique().all()
 
     total_steps = len(seq.steps)
@@ -867,9 +835,15 @@ async def get_sequence_monitor(
     active_count = sum(1 for e in enrollments if e.status in active_statuses)
     completed_count = sum(1 for e in enrollments if e.status == EnrollmentStatus.completed)
     replied_count = sum(1 for e in enrollments if e.status == EnrollmentStatus.replied)
-    failed_count = sum(1 for e in enrollments if e.status in (
-        EnrollmentStatus.failed, EnrollmentStatus.bounced,
-    ))
+    failed_count = sum(
+        1
+        for e in enrollments
+        if e.status
+        in (
+            EnrollmentStatus.failed,
+            EnrollmentStatus.bounced,
+        )
+    )
 
     # Channel breakdown from touch_logs for this sequence
     channel_breakdown: dict[str, int] = {}
@@ -888,6 +862,7 @@ async def get_sequence_monitor(
             channel_breakdown[ch] = cnt
     except Exception as exc:
         import logging as _log
+
         _log.getLogger(__name__).warning("monitor: channel breakdown query failed: %s", exc)
 
     # Daily send count for the last 7 days
@@ -914,6 +889,7 @@ async def get_sequence_monitor(
             daily_send_count[str(send_date)] = send_count
     except Exception as exc:
         import logging as _log
+
         _log.getLogger(__name__).warning("monitor: daily send count query failed: %s", exc)
 
     # Build per-enrollment monitor responses
@@ -952,18 +928,15 @@ async def get_sequence_monitor(
                     {
                         "id": str(tl.id),
                         "channel": tl.channel,
-                        "action": tl.action.value
-                        if hasattr(tl.action, "value")
-                        else str(tl.action),
+                        "action": tl.action.value if hasattr(tl.action, "value") else str(tl.action),
                         "step_number": tl.step_number,
                         "created_at": tl.created_at.isoformat(),
                     }
                 )
         except Exception as exc:
             import logging as _log
-            _log.getLogger(__name__).warning(
-                "monitor: touch history query failed for enr %s: %s", enr.id, exc
-            )
+
+            _log.getLogger(__name__).warning("monitor: touch history query failed for enr %s: %s", enr.id, exc)
 
         # Reply snippets from reply_logs
         reply_snippets: list[dict] = []
@@ -989,17 +962,14 @@ async def get_sequence_monitor(
                         "subject": rs_row.get("subject"),
                         "body_snippet": rs_row.get("body_snippet"),
                         "sentiment": rs_row.get("sentiment"),
-                        "received_at": rs_row["received_at"].isoformat()
-                        if rs_row.get("received_at")
-                        else None,
+                        "received_at": rs_row["received_at"].isoformat() if rs_row.get("received_at") else None,
                         "ai_suggested_action": rs_row.get("ai_suggested_action"),
                     }
                 )
         except Exception as exc:
             import logging as _log
-            _log.getLogger(__name__).warning(
-                "monitor: reply snippets query failed for enr %s: %s", enr.id, exc
-            )
+
+            _log.getLogger(__name__).warning("monitor: reply snippets query failed for enr %s: %s", enr.id, exc)
 
         enrollment_responses.append(
             EnrollmentMonitorResponse(
@@ -1010,9 +980,7 @@ async def get_sequence_monitor(
                 lead_company=lead_company,
                 current_step=enr.current_step,
                 total_steps=total_steps,
-                status=enr.status.value
-                if hasattr(enr.status, "value")
-                else str(enr.status),
+                status=enr.status.value if hasattr(enr.status, "value") else str(enr.status),
                 enrolled_at=enr.enrolled_at,
                 last_touch_at=enr.last_touch_at,
                 last_state_change_at=enr.last_state_change_at,
@@ -1065,6 +1033,7 @@ async def get_channel_health(
         global_health = await orchestrator.get_channel_health()
     except Exception as exc:
         import logging as _log
+
         _log.getLogger(__name__).error("channel_health: orchestrator failed: %s", exc)
         global_health = {}
 
@@ -1072,8 +1041,7 @@ async def get_channel_health(
     sequence_channels = {
         step.step_type.value
         for step in seq.steps
-        if hasattr(step.step_type, "value")
-        and step.step_type.value in ("email", "sms", "linkedin")
+        if hasattr(step.step_type, "value") and step.step_type.value in ("email", "sms", "linkedin")
     }
     if not sequence_channels:
         sequence_channels = {"email"}  # Default fallback
@@ -1096,6 +1064,7 @@ async def get_channel_health(
             last_failure_by_channel[ch] = lf_result.scalar_one_or_none()
     except Exception as exc:
         import logging as _log
+
         _log.getLogger(__name__).warning("channel_health: last failure query failed: %s", exc)
 
     health_responses: list[ChannelHealthResponse] = []

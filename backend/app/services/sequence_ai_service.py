@@ -126,23 +126,15 @@ class SequenceAIService:
             context_tasks = []
 
             if settings.ZOOMINFO_COPILOT_ENABLED:
-                context_tasks.append(
-                    self._get_zoominfo_context(target_industry)
-                )
+                context_tasks.append(self._get_zoominfo_context(target_industry))
 
             if settings.APOLLO_AI_ENABLED:
-                context_tasks.append(
-                    self._get_apollo_sequence_recommendation(prompt, channels)
-                )
+                context_tasks.append(self._get_apollo_sequence_recommendation(prompt, channels))
 
             if settings.HUBSPOT_BREEZE_ENABLED:
-                context_tasks.append(
-                    self._get_breeze_content_suggestions(prompt)
-                )
+                context_tasks.append(self._get_breeze_content_suggestions(prompt))
 
-            platform_results = await asyncio.gather(
-                *context_tasks, return_exceptions=True
-            )
+            platform_results = await asyncio.gather(*context_tasks, return_exceptions=True)
 
             # Parse results
             zi_context: dict[str, Any] = {}
@@ -177,15 +169,16 @@ class SequenceAIService:
             )
 
             # 3. Generate visual builder config (React Flow nodes/edges)
-            visual_config = self._build_visual_config(
-                sequence_config["steps"]
-            )
+            visual_config = self._build_visual_config(sequence_config["steps"])
 
             ai_metadata["generation_completed_at"] = datetime.now(UTC).isoformat()
             ai_metadata["steps_generated"] = len(sequence_config["steps"])
             ai_metadata["channels_used"] = list(
-                {s["step_type"] for s in sequence_config["steps"]
-                 if s["step_type"] not in ("wait", "conditional", "ab_split", "end")}
+                {
+                    s["step_type"]
+                    for s in sequence_config["steps"]
+                    if s["step_type"] not in ("wait", "conditional", "ab_split", "end")
+                }
             )
 
             return SequenceGenerationResult(
@@ -205,9 +198,7 @@ class SequenceAIService:
 
     # ── Platform Intelligence Gathering ───────────────────────────────
 
-    async def _get_zoominfo_context(
-        self, industry: str
-    ) -> dict[str, Any]:
+    async def _get_zoominfo_context(self, industry: str) -> dict[str, Any]:
         """
         Query ZoomInfo Copilot GTM Context Graph for industry intelligence.
 
@@ -216,9 +207,7 @@ class SequenceAIService:
         """
         try:
             # Use GTM Workspace for industry-level insights
-            insights = await self._platform_ai.copilot_gtm_workspace_insights(
-                domain="gengyveusa.com"
-            )
+            insights = await self._platform_ai.copilot_gtm_workspace_insights(domain="gengyveusa.com")
 
             return {
                 "source": "zoominfo",
@@ -241,9 +230,7 @@ class SequenceAIService:
             logger.error("ZoomInfo context error: %s", exc)
             return {"source": "zoominfo", "error": str(exc)}
 
-    async def _get_apollo_sequence_recommendation(
-        self, prompt: str, channels: list[str]
-    ) -> dict[str, Any]:
+    async def _get_apollo_sequence_recommendation(self, prompt: str, channels: list[str]) -> dict[str, Any]:
         """
         Use Apollo AI's 2026 agentic workflow to recommend sequence structure.
 
@@ -279,9 +266,7 @@ class SequenceAIService:
 
         return {"source": "apollo"}
 
-    async def _get_breeze_content_suggestions(
-        self, prompt: str
-    ) -> list[AIContentDraft]:
+    async def _get_breeze_content_suggestions(self, prompt: str) -> list[AIContentDraft]:
         """
         Use HubSpot Breeze Content Agent to generate email copy drafts.
         """
@@ -315,9 +300,7 @@ class SequenceAIService:
                         body=suggestion.body_preview or "",
                         platform="hubspot_breeze_content",
                         confidence=suggestion.confidence,
-                        personalization_tokens=list(
-                            suggestion.personalization_tokens.keys()
-                        ),
+                        personalization_tokens=list(suggestion.personalization_tokens.keys()),
                     )
                 )
 
@@ -386,205 +369,233 @@ class SequenceAIService:
 
         # Step 1: Initial email (with optional A/B test)
         if include_ab_test and "email" in channels:
-            steps.append({
-                "step_type": "ab_split",
-                "position": position,
-                "delay_hours": 0,
-                "is_ab_test": True,
-                "node_id": f"ab_{position}",
-                "ab_variants": {
-                    "A": {
-                        "template_id": None,  # Filled by user or content agent
-                        "weight": 50,
-                        "channel": "email",
+            steps.append(
+                {
+                    "step_type": "ab_split",
+                    "position": position,
+                    "delay_hours": 0,
+                    "is_ab_test": True,
+                    "node_id": f"ab_{position}",
+                    "ab_variants": {
+                        "A": {
+                            "template_id": None,  # Filled by user or content agent
+                            "weight": 50,
+                            "channel": "email",
+                            "subject_hint": breeze_content[0].subject
+                            if breeze_content
+                            else "Quick question about your mouthwash protocol",
+                        },
+                        "B": {
+                            "template_id": None,
+                            "weight": 50,
+                            "channel": "email",
+                            "subject_hint": "Natural chlorhexidine alternative for your practice",
+                        },
+                    },
+                    "config": {
+                        "description": "A/B test initial outreach subject line",
+                    },
+                }
+            )
+        else:
+            steps.append(
+                {
+                    "step_type": "email",
+                    "position": position,
+                    "delay_hours": 0,
+                    "node_id": f"email_{position}",
+                    "config": {
+                        "template_id": None,
                         "subject_hint": breeze_content[0].subject
                         if breeze_content
                         else "Quick question about your mouthwash protocol",
+                        "body_hint": breeze_content[0].body if breeze_content else "",
                     },
-                    "B": {
-                        "template_id": None,
-                        "weight": 50,
-                        "channel": "email",
-                        "subject_hint": "Natural chlorhexidine alternative for your practice",
-                    },
-                },
-                "config": {
-                    "description": "A/B test initial outreach subject line",
-                },
-            })
-        else:
-            steps.append({
-                "step_type": "email",
-                "position": position,
-                "delay_hours": 0,
-                "node_id": f"email_{position}",
-                "config": {
-                    "template_id": None,
-                    "subject_hint": breeze_content[0].subject
-                    if breeze_content
-                    else "Quick question about your mouthwash protocol",
-                    "body_hint": breeze_content[0].body if breeze_content else "",
-                },
-            })
+                }
+            )
         position += 1
 
         # Step 2: Wait 2 days
-        steps.append({
-            "step_type": "wait",
-            "position": position,
-            "delay_hours": 48,
-            "node_id": f"wait_{position}",
-            "config": {"description": "Wait 2 days for engagement"},
-        })
-        position += 1
-
-        # Step 3: Conditional — did they open?
-        if include_conditionals:
-            steps.append({
-                "step_type": "conditional",
-                "position": position,
-                "delay_hours": 0,
-                "node_id": f"cond_{position}",
-                "condition": {"type": "opened", "within_hours": 48},
-                "true_next_position": position + 1,   # Opened → follow up
-                "false_next_position": position + 2,   # Not opened → different approach
-                "config": {"description": "Check if lead opened initial email"},
-            })
-            position += 1
-
-            # Step 4a: Follow-up for openers
-            steps.append({
-                "step_type": "email",
-                "position": position,
-                "delay_hours": 0,
-                "node_id": f"email_{position}",
-                "config": {
-                    "template_id": None,
-                    "subject_hint": breeze_content[1].subject
-                    if len(breeze_content) > 1
-                    else "Re: Natural chlorhexidine alternative",
-                    "body_hint": "Personalized follow-up for engaged leads",
-                    "branch": "opened",
-                },
-            })
-            position += 1
-
-            # Step 4b: Re-engage for non-openers (different subject)
-            steps.append({
-                "step_type": "email",
-                "position": position,
-                "delay_hours": 0,
-                "node_id": f"email_{position}",
-                "config": {
-                    "template_id": None,
-                    "subject_hint": "Did you see this? (no staining mouthwash)",
-                    "body_hint": "Re-engagement email with different angle",
-                    "branch": "not_opened",
-                },
-            })
-            position += 1
-        else:
-            # Simple follow-up without conditional
-            steps.append({
-                "step_type": "email",
-                "position": position,
-                "delay_hours": 0,
-                "node_id": f"email_{position}",
-                "config": {
-                    "template_id": None,
-                    "subject_hint": "Following up — natural chlorhexidine alternative",
-                },
-            })
-            position += 1
-
-        # Step 5: Wait 3 days
-        steps.append({
-            "step_type": "wait",
-            "position": position,
-            "delay_hours": 72,
-            "node_id": f"wait_{position}",
-            "config": {"description": "Wait 3 days"},
-        })
-        position += 1
-
-        # Step 6: LinkedIn connection request (if available)
-        if "linkedin" in channels:
-            steps.append({
-                "step_type": "linkedin",
-                "position": position,
-                "delay_hours": 0,
-                "node_id": f"linkedin_{position}",
-                "config": {
-                    "template_id": None,
-                    "action": "connection_request",
-                    "note_hint": (
-                        "Hi {{first_name}}, I'm Dr. Thad from Gengyve USA. "
-                        "We make a natural mouthwash that replaces chlorhexidine. "
-                        "Would love to connect."
-                    ),
-                },
-            })
-            position += 1
-
-        # Step 7: Wait 4 days
-        steps.append({
-            "step_type": "wait",
-            "position": position,
-            "delay_hours": 96,
-            "node_id": f"wait_{position}",
-            "config": {"description": "Wait 4 days"},
-        })
-        position += 1
-
-        # Step 8: Final email (value-add / case study)
-        steps.append({
-            "step_type": "email",
-            "position": position,
-            "delay_hours": 0,
-            "node_id": f"email_{position}",
-            "config": {
-                "template_id": None,
-                "subject_hint": "Case study: How practices are replacing chlorhexidine",
-                "body_hint": "Final touch with social proof and case study",
-            },
-        })
-        position += 1
-
-        # Step 9: SMS follow-up (if available)
-        if "sms" in channels:
-            steps.append({
+        steps.append(
+            {
                 "step_type": "wait",
                 "position": position,
                 "delay_hours": 48,
                 "node_id": f"wait_{position}",
-                "config": {"description": "Wait 2 days before SMS"},
-            })
+                "config": {"description": "Wait 2 days for engagement"},
+            }
+        )
+        position += 1
+
+        # Step 3: Conditional — did they open?
+        if include_conditionals:
+            steps.append(
+                {
+                    "step_type": "conditional",
+                    "position": position,
+                    "delay_hours": 0,
+                    "node_id": f"cond_{position}",
+                    "condition": {"type": "opened", "within_hours": 48},
+                    "true_next_position": position + 1,  # Opened → follow up
+                    "false_next_position": position + 2,  # Not opened → different approach
+                    "config": {"description": "Check if lead opened initial email"},
+                }
+            )
             position += 1
 
-            steps.append({
-                "step_type": "sms",
+            # Step 4a: Follow-up for openers
+            steps.append(
+                {
+                    "step_type": "email",
+                    "position": position,
+                    "delay_hours": 0,
+                    "node_id": f"email_{position}",
+                    "config": {
+                        "template_id": None,
+                        "subject_hint": breeze_content[1].subject
+                        if len(breeze_content) > 1
+                        else "Re: Natural chlorhexidine alternative",
+                        "body_hint": "Personalized follow-up for engaged leads",
+                        "branch": "opened",
+                    },
+                }
+            )
+            position += 1
+
+            # Step 4b: Re-engage for non-openers (different subject)
+            steps.append(
+                {
+                    "step_type": "email",
+                    "position": position,
+                    "delay_hours": 0,
+                    "node_id": f"email_{position}",
+                    "config": {
+                        "template_id": None,
+                        "subject_hint": "Did you see this? (no staining mouthwash)",
+                        "body_hint": "Re-engagement email with different angle",
+                        "branch": "not_opened",
+                    },
+                }
+            )
+            position += 1
+        else:
+            # Simple follow-up without conditional
+            steps.append(
+                {
+                    "step_type": "email",
+                    "position": position,
+                    "delay_hours": 0,
+                    "node_id": f"email_{position}",
+                    "config": {
+                        "template_id": None,
+                        "subject_hint": "Following up — natural chlorhexidine alternative",
+                    },
+                }
+            )
+            position += 1
+
+        # Step 5: Wait 3 days
+        steps.append(
+            {
+                "step_type": "wait",
+                "position": position,
+                "delay_hours": 72,
+                "node_id": f"wait_{position}",
+                "config": {"description": "Wait 3 days"},
+            }
+        )
+        position += 1
+
+        # Step 6: LinkedIn connection request (if available)
+        if "linkedin" in channels:
+            steps.append(
+                {
+                    "step_type": "linkedin",
+                    "position": position,
+                    "delay_hours": 0,
+                    "node_id": f"linkedin_{position}",
+                    "config": {
+                        "template_id": None,
+                        "action": "connection_request",
+                        "note_hint": (
+                            "Hi {{first_name}}, I'm Dr. Thad from Gengyve USA. "
+                            "We make a natural mouthwash that replaces chlorhexidine. "
+                            "Would love to connect."
+                        ),
+                    },
+                }
+            )
+            position += 1
+
+        # Step 7: Wait 4 days
+        steps.append(
+            {
+                "step_type": "wait",
+                "position": position,
+                "delay_hours": 96,
+                "node_id": f"wait_{position}",
+                "config": {"description": "Wait 4 days"},
+            }
+        )
+        position += 1
+
+        # Step 8: Final email (value-add / case study)
+        steps.append(
+            {
+                "step_type": "email",
                 "position": position,
                 "delay_hours": 0,
-                "node_id": f"sms_{position}",
+                "node_id": f"email_{position}",
                 "config": {
                     "template_id": None,
-                    "body_hint": (
-                        "Hi {{first_name}}, Dr. Thad from Gengyve. "
-                        "Would you be open to trying a sample of our natural "
-                        "mouthwash? Reply YES and I'll send one over."
-                    ),
+                    "subject_hint": "Case study: How practices are replacing chlorhexidine",
+                    "body_hint": "Final touch with social proof and case study",
                 },
-            })
+            }
+        )
+        position += 1
+
+        # Step 9: SMS follow-up (if available)
+        if "sms" in channels:
+            steps.append(
+                {
+                    "step_type": "wait",
+                    "position": position,
+                    "delay_hours": 48,
+                    "node_id": f"wait_{position}",
+                    "config": {"description": "Wait 2 days before SMS"},
+                }
+            )
+            position += 1
+
+            steps.append(
+                {
+                    "step_type": "sms",
+                    "position": position,
+                    "delay_hours": 0,
+                    "node_id": f"sms_{position}",
+                    "config": {
+                        "template_id": None,
+                        "body_hint": (
+                            "Hi {{first_name}}, Dr. Thad from Gengyve. "
+                            "Would you be open to trying a sample of our natural "
+                            "mouthwash? Reply YES and I'll send one over."
+                        ),
+                    },
+                }
+            )
             position += 1
 
         # Step 10: End node
-        steps.append({
-            "step_type": "end",
-            "position": position,
-            "delay_hours": 0,
-            "node_id": f"end_{position}",
-            "config": {"description": "Sequence complete"},
-        })
+        steps.append(
+            {
+                "step_type": "end",
+                "position": position,
+                "delay_hours": 0,
+                "node_id": f"end_{position}",
+                "config": {"description": "Sequence complete"},
+            }
+        )
 
         return {
             "name": name,
@@ -614,9 +625,7 @@ class SequenceAIService:
 
     # ── Visual Builder Config ─────────────────────────────────────────
 
-    def _build_visual_config(
-        self, steps: list[dict[str, Any]]
-    ) -> dict[str, Any]:
+    def _build_visual_config(self, steps: list[dict[str, Any]]) -> dict[str, Any]:
         """
         Convert step list into React Flow nodes and edges for the visual builder.
 
@@ -633,12 +642,14 @@ class SequenceAIService:
         branch_x_offset = 250
 
         # Start node
-        nodes.append({
-            "id": "start",
-            "type": "start",
-            "position": {"x": x_center, "y": 0},
-            "data": {"label": "Start"},
-        })
+        nodes.append(
+            {
+                "id": "start",
+                "type": "start",
+                "position": {"x": x_center, "y": 0},
+                "data": {"label": "Start"},
+            }
+        )
 
         y_pos = y_spacing
 
@@ -671,21 +682,25 @@ class SequenceAIService:
             if step.get("config"):
                 node_data["config"] = step["config"]
 
-            nodes.append({
-                "id": node_id,
-                "type": node_type,
-                "position": {"x": x, "y": y_pos},
-                "data": node_data,
-            })
+            nodes.append(
+                {
+                    "id": node_id,
+                    "type": node_type,
+                    "position": {"x": x, "y": y_pos},
+                    "data": node_data,
+                }
+            )
 
             # Build edges
             if i == 0:
-                edges.append({
-                    "id": f"e_start_{node_id}",
-                    "source": "start",
-                    "target": node_id,
-                    "animated": True,
-                })
+                edges.append(
+                    {
+                        "id": f"e_start_{node_id}",
+                        "source": "start",
+                        "target": node_id,
+                        "animated": True,
+                    }
+                )
             else:
                 prev_step = steps[i - 1]
                 prev_id = prev_step.get("node_id", f"step_{prev_step['position']}")
@@ -693,35 +708,43 @@ class SequenceAIService:
                 # Conditional nodes have branching edges
                 if prev_step["step_type"] == "conditional":
                     if step.get("config", {}).get("branch") == "opened":
-                        edges.append({
-                            "id": f"e_{prev_id}_{node_id}_true",
-                            "source": prev_id,
-                            "target": node_id,
-                            "sourceHandle": "true",
-                            "label": "Opened",
-                            "style": {"stroke": "#22c55e"},
-                        })
+                        edges.append(
+                            {
+                                "id": f"e_{prev_id}_{node_id}_true",
+                                "source": prev_id,
+                                "target": node_id,
+                                "sourceHandle": "true",
+                                "label": "Opened",
+                                "style": {"stroke": "#22c55e"},
+                            }
+                        )
                     elif step.get("config", {}).get("branch") == "not_opened":
-                        edges.append({
-                            "id": f"e_{prev_id}_{node_id}_false",
-                            "source": prev_id,
-                            "target": node_id,
-                            "sourceHandle": "false",
-                            "label": "Not Opened",
-                            "style": {"stroke": "#ef4444"},
-                        })
+                        edges.append(
+                            {
+                                "id": f"e_{prev_id}_{node_id}_false",
+                                "source": prev_id,
+                                "target": node_id,
+                                "sourceHandle": "false",
+                                "label": "Not Opened",
+                                "style": {"stroke": "#ef4444"},
+                            }
+                        )
                     else:
-                        edges.append({
+                        edges.append(
+                            {
+                                "id": f"e_{prev_id}_{node_id}",
+                                "source": prev_id,
+                                "target": node_id,
+                            }
+                        )
+                else:
+                    edges.append(
+                        {
                             "id": f"e_{prev_id}_{node_id}",
                             "source": prev_id,
                             "target": node_id,
-                        })
-                else:
-                    edges.append({
-                        "id": f"e_{prev_id}_{node_id}",
-                        "source": prev_id,
-                        "target": node_id,
-                    })
+                        }
+                    )
 
             y_pos += y_spacing
 

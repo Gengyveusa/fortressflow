@@ -1,4 +1,5 @@
 """Plugin framework for extending FortressFlow with third-party integrations."""
+
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, UTC
@@ -8,6 +9,7 @@ from uuid import uuid4
 
 logger = logging.getLogger(__name__)
 
+
 class PluginType(str, Enum):
     AGENT = "agent"
     DATA_SOURCE = "data_source"
@@ -15,6 +17,7 @@ class PluginType(str, Enum):
     WORKFLOW = "workflow"
     ANALYTICS = "analytics"
     INTEGRATION = "integration"
+
 
 class PluginStatus(str, Enum):
     DRAFT = "draft"
@@ -24,15 +27,19 @@ class PluginStatus(str, Enum):
     DEPRECATED = "deprecated"
     SUSPENDED = "suspended"
 
+
 class PluginInterface(Protocol):
     """Protocol that all plugins must implement."""
+
     name: str
     version: str
     plugin_type: PluginType
+
     def initialize(self, config: dict) -> bool: ...
     def execute(self, action: str, params: dict) -> dict: ...
     def get_capabilities(self) -> list[str]: ...
     def shutdown(self) -> None: ...
+
 
 @dataclass
 class PluginManifest:
@@ -52,6 +59,7 @@ class PluginManifest:
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
+
 @dataclass
 class PluginInstance:
     plugin_id: str
@@ -61,14 +69,17 @@ class PluginInstance:
     installed_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     instance: Optional[Any] = None
 
+
 @dataclass
 class ContextMessage:
     """Message for inter-plugin communication."""
+
     source_plugin: str
     target_plugin: Optional[str] = None  # None = broadcast
     action: str = ""
     data: dict = field(default_factory=dict)
     timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+
 
 class PluginRegistry:
     """Central registry and marketplace for plugins."""
@@ -82,11 +93,51 @@ class PluginRegistry:
     def _seed_marketplace(self):
         """Seed with example plugins."""
         examples = [
-            PluginManifest(name="Slack Notifier", author="FortressFlow", description="Send notifications to Slack channels on key events", plugin_type=PluginType.INTEGRATION, status=PluginStatus.PUBLISHED, rating=4.5, install_count=234),
-            PluginManifest(name="Custom Dashboard Widgets", author="FortressFlow", description="Create custom visualization widgets for the super-dashboard", plugin_type=PluginType.VISUALIZATION, status=PluginStatus.PUBLISHED, rating=4.2, install_count=156),
-            PluginManifest(name="Salesforce Sync", author="Community", description="Bi-directional sync with Salesforce CRM", plugin_type=PluginType.DATA_SOURCE, status=PluginStatus.PUBLISHED, rating=4.7, install_count=412),
-            PluginManifest(name="AI Content Reviewer", author="Community", description="Automated content quality and compliance review", plugin_type=PluginType.WORKFLOW, status=PluginStatus.PUBLISHED, rating=4.0, install_count=89),
-            PluginManifest(name="Predictive Lead Scoring", author="FortressFlow", description="ML-powered lead scoring with custom models", plugin_type=PluginType.ANALYTICS, status=PluginStatus.PUBLISHED, rating=4.8, install_count=567),
+            PluginManifest(
+                name="Slack Notifier",
+                author="FortressFlow",
+                description="Send notifications to Slack channels on key events",
+                plugin_type=PluginType.INTEGRATION,
+                status=PluginStatus.PUBLISHED,
+                rating=4.5,
+                install_count=234,
+            ),
+            PluginManifest(
+                name="Custom Dashboard Widgets",
+                author="FortressFlow",
+                description="Create custom visualization widgets for the super-dashboard",
+                plugin_type=PluginType.VISUALIZATION,
+                status=PluginStatus.PUBLISHED,
+                rating=4.2,
+                install_count=156,
+            ),
+            PluginManifest(
+                name="Salesforce Sync",
+                author="Community",
+                description="Bi-directional sync with Salesforce CRM",
+                plugin_type=PluginType.DATA_SOURCE,
+                status=PluginStatus.PUBLISHED,
+                rating=4.7,
+                install_count=412,
+            ),
+            PluginManifest(
+                name="AI Content Reviewer",
+                author="Community",
+                description="Automated content quality and compliance review",
+                plugin_type=PluginType.WORKFLOW,
+                status=PluginStatus.PUBLISHED,
+                rating=4.0,
+                install_count=89,
+            ),
+            PluginManifest(
+                name="Predictive Lead Scoring",
+                author="FortressFlow",
+                description="ML-powered lead scoring with custom models",
+                plugin_type=PluginType.ANALYTICS,
+                status=PluginStatus.PUBLISHED,
+                rating=4.8,
+                install_count=567,
+            ),
         ]
         for p in examples:
             self._manifests[p.id] = p
@@ -99,7 +150,9 @@ class PluginRegistry:
         logger.info("Plugin registered: %s v%s by %s", manifest.name, manifest.version, manifest.author)
         return manifest
 
-    def get_marketplace(self, plugin_type: Optional[PluginType] = None, search: Optional[str] = None) -> list[PluginManifest]:
+    def get_marketplace(
+        self, plugin_type: Optional[PluginType] = None, search: Optional[str] = None
+    ) -> list[PluginManifest]:
         """Browse the plugin marketplace."""
         plugins = [p for p in self._manifests.values() if p.status == PluginStatus.PUBLISHED]
         if plugin_type:
@@ -126,7 +179,7 @@ class PluginRegistry:
         """Remove a plugin installation."""
         if user_id in self._instances and plugin_id in self._instances[user_id]:
             inst = self._instances[user_id].pop(plugin_id)
-            if inst.instance and hasattr(inst.instance, 'shutdown'):
+            if inst.instance and hasattr(inst.instance, "shutdown"):
                 inst.instance.shutdown()
             return True
         return False

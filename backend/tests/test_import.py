@@ -68,10 +68,12 @@ def _csv_content(rows: list[dict]) -> bytes:
 @pytest.mark.asyncio
 async def test_csv_import_valid():
     """CSV import with valid data creates leads and returns summary."""
-    csv_data = _csv_content([
-        {"email": "alice@example.com", "first_name": "Alice", "last_name": "Smith"},
-        {"email": "bob@example.com", "first_name": "Bob", "last_name": "Jones"},
-    ])
+    csv_data = _csv_content(
+        [
+            {"email": "alice@example.com", "first_name": "Alice", "last_name": "Smith"},
+            {"email": "bob@example.com", "first_name": "Bob", "last_name": "Jones"},
+        ]
+    )
 
     async def override_db():
         db = AsyncMock()
@@ -89,7 +91,11 @@ async def test_csv_import_valid():
     app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[get_current_user] = lambda: _mock_current_user()
     try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers={"Authorization": "Bearer test-csrf-bypass"}) as ac:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+            headers={"Authorization": "Bearer test-csrf-bypass"},
+        ) as ac:
             resp = await ac.post(
                 "/api/v1/leads/import/csv",
                 files={"file": ("leads.csv", io.BytesIO(csv_data), "text/csv")},
@@ -107,10 +113,12 @@ async def test_csv_import_valid():
 @pytest.mark.asyncio
 async def test_csv_import_duplicate_handling():
     """CSV import skips existing leads (duplicate by email)."""
-    csv_data = _csv_content([
-        {"email": "existing@example.com", "first_name": "Existing", "last_name": "User"},
-        {"email": "new@example.com", "first_name": "New", "last_name": "User"},
-    ])
+    csv_data = _csv_content(
+        [
+            {"email": "existing@example.com", "first_name": "Existing", "last_name": "User"},
+            {"email": "new@example.com", "first_name": "New", "last_name": "User"},
+        ]
+    )
 
     existing_lead = _make_lead(email="existing@example.com")
     call_count = 0
@@ -141,7 +149,11 @@ async def test_csv_import_duplicate_handling():
     app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[get_current_user] = lambda: _mock_current_user()
     try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers={"Authorization": "Bearer test-csrf-bypass"}) as ac:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+            headers={"Authorization": "Bearer test-csrf-bypass"},
+        ) as ac:
             resp = await ac.post(
                 "/api/v1/leads/import/csv",
                 files={"file": ("leads.csv", io.BytesIO(csv_data), "text/csv")},
@@ -158,6 +170,7 @@ async def test_csv_import_duplicate_handling():
 @pytest.mark.asyncio
 async def test_csv_import_invalid_format():
     """CSV import rejects non-CSV files."""
+
     async def override_db():
         db = AsyncMock()
         db.rollback = AsyncMock()
@@ -167,7 +180,11 @@ async def test_csv_import_invalid_format():
     app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[get_current_user] = lambda: _mock_current_user()
     try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers={"Authorization": "Bearer test-csrf-bypass"}) as ac:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+            headers={"Authorization": "Bearer test-csrf-bypass"},
+        ) as ac:
             resp = await ac.post(
                 "/api/v1/leads/import/csv",
                 files={"file": ("leads.txt", io.BytesIO(b"not csv"), "text/plain")},
@@ -192,7 +209,11 @@ async def test_csv_import_missing_required_columns():
     app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[get_current_user] = lambda: _mock_current_user()
     try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers={"Authorization": "Bearer test-csrf-bypass"}) as ac:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+            headers={"Authorization": "Bearer test-csrf-bypass"},
+        ) as ac:
             resp = await ac.post(
                 "/api/v1/leads/import/csv",
                 files={"file": ("leads.csv", io.BytesIO(csv_data), "text/csv")},
@@ -239,7 +260,11 @@ async def test_hubspot_sync_import():
             instance = MockHS.return_value
             instance.pull_contacts_from_hubspot = AsyncMock(return_value=mock_contacts)
 
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers={"Authorization": "Bearer test-csrf-bypass"}) as ac:
+            async with AsyncClient(
+                transport=ASGITransport(app=app),
+                base_url="http://test",
+                headers={"Authorization": "Bearer test-csrf-bypass"},
+            ) as ac:
                 resp = await ac.post("/api/v1/leads/import/hubspot")
             assert resp.status_code == 200
             body = resp.json()

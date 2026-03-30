@@ -26,6 +26,7 @@ class ExpertLevel(str, Enum):
 @dataclass
 class ExpertCredential:
     """Verified credentials for a domain expert."""
+
     author_id: str
     display_name: str
     level: ExpertLevel
@@ -54,6 +55,7 @@ class ProvenanceManifest:
     C2PA-inspired manifest that records who created/edited content,
     when, and how it links to prior versions.
     """
+
     content_hash: str
     author_id: str
     timestamp: float
@@ -69,8 +71,7 @@ class ProvenanceManifest:
 
     def _compute_id(self) -> str:
         payload = (
-            f"{self.content_hash}:{self.author_id}:{self.timestamp}"
-            f":{self.signature}:{','.join(self.parent_manifests)}"
+            f"{self.content_hash}:{self.author_id}:{self.timestamp}:{self.signature}:{','.join(self.parent_manifests)}"
         )
         return hashlib.sha256(payload.encode()).hexdigest()[:24]
 
@@ -185,9 +186,7 @@ class ContentSigner:
 
     def verify_signature(self, manifest: ProvenanceManifest) -> bool:
         """Verify that the manifest's signature is authentic."""
-        expected = self._create_signature(
-            manifest.content_hash, manifest.author_id, manifest.timestamp
-        )
+        expected = self._create_signature(manifest.content_hash, manifest.author_id, manifest.timestamp)
         sig_valid = hmac.compare_digest(expected, manifest.signature)
         author_valid = self._registry.verify_author(manifest.author_id)
         return sig_valid and author_valid
@@ -206,9 +205,7 @@ class ContentSigner:
         for i, (content, author_id) in enumerate(content_versions):
             parent_ids = [chain[-1].manifest_id] if chain else []
             act = "created" if i == 0 else action
-            manifest = self.sign_content(
-                content, author_id, parent_manifest_ids=parent_ids, action=act
-            )
+            manifest = self.sign_content(content, author_id, parent_manifest_ids=parent_ids, action=act)
             chain.append(manifest)
         return chain
 

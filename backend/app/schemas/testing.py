@@ -1,4 +1,5 @@
 """Pydantic schemas for the Testing Agent API."""
+
 from typing import Any, Optional
 from pydantic import BaseModel, Field
 
@@ -25,7 +26,9 @@ class ValidateFixRequest(BaseModel):
 
 
 class IntegrationTestRequest(BaseModel):
-    workflow_name: str = Field("intelligence", description="Predefined workflow: intelligence, content_pipeline, sales_analysis")
+    workflow_name: str = Field(
+        "intelligence", description="Predefined workflow: intelligence, content_pipeline, sales_analysis"
+    )
 
 
 class GenerateTestCasesRequest(BaseModel):

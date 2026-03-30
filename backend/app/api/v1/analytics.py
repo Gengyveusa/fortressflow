@@ -37,19 +37,13 @@ async def dashboard_stats(
     total_leads_r = await db.execute(select(func.count(Lead.id)))
     total_leads = total_leads_r.scalar_one()
 
-    active_consents_r = await db.execute(
-        select(func.count(Consent.id)).where(Consent.revoked_at.is_(None))
-    )
+    active_consents_r = await db.execute(select(func.count(Consent.id)).where(Consent.revoked_at.is_(None)))
     active_consents = active_consents_r.scalar_one()
 
-    touches_sent_r = await db.execute(
-        select(func.count(TouchLog.id)).where(TouchLog.action == "sent")
-    )
+    touches_sent_r = await db.execute(select(func.count(TouchLog.id)).where(TouchLog.action == "sent"))
     touches_sent = touches_sent_r.scalar_one()
 
-    replies_r = await db.execute(
-        select(func.count(TouchLog.id)).where(TouchLog.action == "replied")
-    )
+    replies_r = await db.execute(select(func.count(TouchLog.id)).where(TouchLog.action == "replied"))
     replies = replies_r.scalar_one()
 
     response_rate = (replies / touches_sent * 100) if touches_sent > 0 else 0.0
@@ -69,33 +63,23 @@ async def deliverability_stats(
 ) -> DeliverabilityStats:
     """Bounce rates, spam complaints, warmup progress."""
     total_sent_r = await db.execute(
-        select(func.count(TouchLog.id)).where(
-            and_(TouchLog.action == "sent", TouchLog.channel == "email")
-        )
+        select(func.count(TouchLog.id)).where(and_(TouchLog.action == "sent", TouchLog.channel == "email"))
     )
     total_sent = total_sent_r.scalar_one()
 
-    total_bounced_r = await db.execute(
-        select(func.count(TouchLog.id)).where(TouchLog.action == "bounced")
-    )
+    total_bounced_r = await db.execute(select(func.count(TouchLog.id)).where(TouchLog.action == "bounced"))
     total_bounced = total_bounced_r.scalar_one()
 
-    spam_r = await db.execute(
-        select(func.count(TouchLog.id)).where(TouchLog.action == "complained")
-    )
+    spam_r = await db.execute(select(func.count(TouchLog.id)).where(TouchLog.action == "complained"))
     spam_complaints = spam_r.scalar_one()
 
     bounce_rate = (total_bounced / total_sent * 100) if total_sent > 0 else 0.0
     spam_rate = (spam_complaints / total_sent * 100) if total_sent > 0 else 0.0
 
-    warmup_active_r = await db.execute(
-        select(func.count(WarmupQueue.id)).where(WarmupQueue.status == "pending")
-    )
+    warmup_active_r = await db.execute(select(func.count(WarmupQueue.id)).where(WarmupQueue.status == "pending"))
     warmup_active = warmup_active_r.scalar_one()
 
-    warmup_completed_r = await db.execute(
-        select(func.count(WarmupQueue.id)).where(WarmupQueue.status == "completed")
-    )
+    warmup_completed_r = await db.execute(select(func.count(WarmupQueue.id)).where(WarmupQueue.status == "completed"))
     warmup_completed = warmup_completed_r.scalar_one()
 
     return DeliverabilityStats(
@@ -116,18 +100,14 @@ async def sequences_analytics(
 ) -> AnalyticsSequencesResponse:
     """Per-sequence performance metrics."""
     result = await db.execute(
-        select(Sequence).where(
-            Sequence.status.in_([SequenceStatus.active, SequenceStatus.paused])
-        )
+        select(Sequence).where(Sequence.status.in_([SequenceStatus.active, SequenceStatus.paused]))
     )
     sequences = result.scalars().unique().all()
 
     performances = []
     for seq in sequences:
         enrolled_r = await db.execute(
-            select(func.count(SequenceEnrollment.id)).where(
-                SequenceEnrollment.sequence_id == seq.id
-            )
+            select(func.count(SequenceEnrollment.id)).where(SequenceEnrollment.sequence_id == seq.id)
         )
         enrolled = enrolled_r.scalar_one()
 
@@ -227,10 +207,7 @@ async def outreach_daily(
     )
     rows = result.all()
 
-    items = [
-        {"date": str(row.day), "channel": row.channel, "count": row.count}
-        for row in rows
-    ]
+    items = [{"date": str(row.day), "channel": row.channel, "count": row.count} for row in rows]
     return {"items": items}
 
 
@@ -298,9 +275,7 @@ async def sequence_performance(
         import uuid
 
         seq_uuids = [uuid.UUID(s) for s in seq_ids]
-        name_result = await db.execute(
-            select(Sequence.id, Sequence.name).where(Sequence.id.in_(seq_uuids))
-        )
+        name_result = await db.execute(select(Sequence.id, Sequence.name).where(Sequence.id.in_(seq_uuids)))
         for row in name_result.all():
             name_map[str(row.id)] = row.name
 
@@ -429,37 +404,34 @@ async def audit_trail(
 
     # Recent consent grants/revocations
     consent_result = await db.execute(
-        select(Consent, Lead.email)
-        .join(Lead, Consent.lead_id == Lead.id)
-        .order_by(Consent.created_at.desc())
-        .limit(20)
+        select(Consent, Lead.email).join(Lead, Consent.lead_id == Lead.id).order_by(Consent.created_at.desc()).limit(20)
     )
     for row in consent_result.all():
         c = row.Consent
-        items.append({
-            "id": str(c.id),
-            "who": row.email,
-            "when": c.granted_at.isoformat() if c.granted_at else c.created_at.isoformat(),
-            "channel": c.channel.value if hasattr(c.channel, "value") else str(c.channel),
-            "method": c.method.value if hasattr(c.method, "value") else str(c.method),
-            "proof": "Consent revoked" if c.revoked_at else "Consent granted",
-        })
+        items.append(
+            {
+                "id": str(c.id),
+                "who": row.email,
+                "when": c.granted_at.isoformat() if c.granted_at else c.created_at.isoformat(),
+                "channel": c.channel.value if hasattr(c.channel, "value") else str(c.channel),
+                "method": c.method.value if hasattr(c.method, "value") else str(c.method),
+                "proof": "Consent revoked" if c.revoked_at else "Consent granted",
+            }
+        )
 
     # Recent DNC additions
-    dnc_result = await db.execute(
-        select(DNCBlock)
-        .order_by(DNCBlock.created_at.desc())
-        .limit(20)
-    )
+    dnc_result = await db.execute(select(DNCBlock).order_by(DNCBlock.created_at.desc()).limit(20))
     for d in dnc_result.scalars().all():
-        items.append({
-            "id": str(d.id),
-            "who": d.identifier,
-            "when": d.blocked_at.isoformat(),
-            "channel": d.channel,
-            "method": f"DNC: {d.source}",
-            "proof": d.reason,
-        })
+        items.append(
+            {
+                "id": str(d.id),
+                "who": d.identifier,
+                "when": d.blocked_at.isoformat(),
+                "channel": d.channel,
+                "method": f"DNC: {d.source}",
+                "proof": d.reason,
+            }
+        )
 
     # Sort by when descending and limit to 30
     items.sort(key=lambda x: x["when"], reverse=True)

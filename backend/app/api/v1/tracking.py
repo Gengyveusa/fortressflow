@@ -28,9 +28,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tracking", tags=["tracking"])
 
 # 1x1 transparent GIF (43 bytes)
-_TRANSPARENT_GIF = base64.b64decode(
-    "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
-)
+_TRANSPARENT_GIF = base64.b64decode("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")
 
 # Deduplication window: ignore duplicate opens within this period
 _DEDUP_WINDOW = timedelta(minutes=30)
@@ -51,9 +49,7 @@ def generate_open_tracking_token(lead_id: UUID, sequence_id: UUID | None = None)
         payload.encode(),
         hashlib.sha256,
     ).hexdigest()
-    token_data = base64.urlsafe_b64encode(
-        json.dumps({"p": payload, "s": sig}).encode()
-    ).decode()
+    token_data = base64.urlsafe_b64encode(json.dumps({"p": payload, "s": sig}).encode()).decode()
     return token_data
 
 
@@ -130,14 +126,16 @@ async def track_open(
     # Deduplication: check for recent open from this lead
     dedup_cutoff = datetime.now(UTC) - _DEDUP_WINDOW
     existing_open = await db.execute(
-        select(TouchLog).where(
+        select(TouchLog)
+        .where(
             and_(
                 TouchLog.lead_id == lead_id,
                 TouchLog.channel == "email",
                 TouchLog.action == TouchAction.opened,
                 TouchLog.created_at >= dedup_cutoff,
             )
-        ).limit(1)
+        )
+        .limit(1)
     )
     if existing_open.scalar_one_or_none() is not None:
         logger.debug("Tracking pixel: deduplicated open for lead %s (within %s window)", lead_id, _DEDUP_WINDOW)

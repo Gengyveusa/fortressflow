@@ -44,9 +44,7 @@ async def get_agent_status(
 ):
     """Return which agents are configured (have API keys) for the current user."""
     statuses = await AgentOrchestrator.get_agent_status(db, current_user.id)
-    return AgentStatusResponse(
-        agents=[AgentStatusEntry(**s) for s in statuses]
-    )
+    return AgentStatusResponse(agents=[AgentStatusEntry(**s) for s in statuses])
 
 
 @router.post("/{agent_name}/execute", response_model=AgentExecuteResponse)
@@ -165,9 +163,7 @@ async def list_training_configs(
     """List all training configs for the current user. Seeds defaults if none exist."""
     # Check if user has any configs
     count_result = await db.execute(
-        select(func.count(AgentTrainingConfig.id)).where(
-            AgentTrainingConfig.user_id == current_user.id
-        )
+        select(func.count(AgentTrainingConfig.id)).where(AgentTrainingConfig.user_id == current_user.id)
     )
     if (count_result.scalar() or 0) == 0:
         await seed_default_training(db, current_user.id)
@@ -307,9 +303,7 @@ async def execute_plan(
 ):
     """Execute a confirmed plan."""
     planner = WorkflowPlanner()
-    result = await planner.execute_plan(
-        db, current_user.id, body.plan_id, body.selected_option
-    )
+    result = await planner.execute_plan(db, current_user.id, body.plan_id, body.selected_option)
 
     if result.get("status") == "error":
         raise HTTPException(

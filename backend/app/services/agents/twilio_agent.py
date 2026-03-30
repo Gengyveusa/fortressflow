@@ -51,17 +51,12 @@ class TwilioAgent:
             return settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN
 
         raise ValueError(
-            "Twilio credentials not configured — set via Settings or "
-            "TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN env vars"
+            "Twilio credentials not configured — set via Settings or TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN env vars"
         )
 
     def _get_client(self, account_sid: str, auth_token: str):
         """Get or create the Twilio REST client (synchronous SDK)."""
-        if (
-            self._client is None
-            or self._account_sid != account_sid
-            or self._auth_token != auth_token
-        ):
+        if self._client is None or self._account_sid != account_sid or self._auth_token != auth_token:
             from twilio.rest import Client
 
             self._client = Client(account_sid, auth_token)
@@ -107,9 +102,7 @@ class TwilioAgent:
             logger.error("Twilio send_sms error: %s", exc)
             return {"success": False, "error": str(exc)}
 
-    async def bulk_send_sms(
-        self, messages: list[dict], user_id: UUID | None = None
-    ) -> list[dict]:
+    async def bulk_send_sms(self, messages: list[dict], user_id: UUID | None = None) -> list[dict]:
         """Send multiple SMS messages. Each dict: {to, body, from_(optional), media_url(optional)}."""
         results = []
         for msg in messages:
@@ -123,9 +116,7 @@ class TwilioAgent:
             results.append(result)
         return results
 
-    async def get_message(
-        self, sid: str, user_id: UUID | None = None
-    ) -> dict:
+    async def get_message(self, sid: str, user_id: UUID | None = None) -> dict:
         """Get details of a specific message by SID."""
         client = await self._get_twilio(user_id)
         try:
@@ -211,9 +202,7 @@ class TwilioAgent:
             logger.error("Twilio make_call error: %s", exc)
             return {"success": False, "error": str(exc)}
 
-    async def get_call(
-        self, sid: str, user_id: UUID | None = None
-    ) -> dict:
+    async def get_call(self, sid: str, user_id: UUID | None = None) -> dict:
         """Get details of a specific call."""
         client = await self._get_twilio(user_id)
         try:
@@ -266,9 +255,7 @@ class TwilioAgent:
 
     # ── Verify (OTP) ───────────────────────────────────────────────────────
 
-    async def send_verification(
-        self, to: str, channel: str = "sms", user_id: UUID | None = None
-    ) -> dict:
+    async def send_verification(self, to: str, channel: str = "sms", user_id: UUID | None = None) -> dict:
         """Send a verification code via SMS, call, or email."""
         client = await self._get_twilio(user_id)
 
@@ -293,9 +280,7 @@ class TwilioAgent:
             logger.error("Twilio send_verification error: %s", exc)
             return {"success": False, "error": str(exc)}
 
-    async def check_verification(
-        self, to: str, code: str, user_id: UUID | None = None
-    ) -> dict:
+    async def check_verification(self, to: str, code: str, user_id: UUID | None = None) -> dict:
         """Check a verification code."""
         client = await self._get_twilio(user_id)
 
@@ -320,9 +305,7 @@ class TwilioAgent:
 
     # ── Lookup ─────────────────────────────────────────────────────────────
 
-    async def lookup_phone(
-        self, phone_number: str, user_id: UUID | None = None
-    ) -> dict:
+    async def lookup_phone(self, phone_number: str, user_id: UUID | None = None) -> dict:
         """Lookup phone number info: carrier, type, caller name."""
         client = await self._get_twilio(user_id)
         try:
@@ -340,9 +323,7 @@ class TwilioAgent:
             logger.error("Twilio lookup_phone error: %s", exc)
             return {"error": str(exc)}
 
-    async def validate_phone(
-        self, phone_number: str, user_id: UUID | None = None
-    ) -> dict:
+    async def validate_phone(self, phone_number: str, user_id: UUID | None = None) -> dict:
         """Validate a phone number and return formatting details."""
         client = await self._get_twilio(user_id)
         try:
@@ -361,15 +342,11 @@ class TwilioAgent:
 
     # ── Number Management ──────────────────────────────────────────────────
 
-    async def list_phone_numbers(
-        self, user_id: UUID | None = None
-    ) -> list[dict]:
+    async def list_phone_numbers(self, user_id: UUID | None = None) -> list[dict]:
         """List all phone numbers on the account."""
         client = await self._get_twilio(user_id)
         try:
-            numbers = await asyncio.to_thread(
-                client.incoming_phone_numbers.list
-            )
+            numbers = await asyncio.to_thread(client.incoming_phone_numbers.list)
             return [
                 {
                     "sid": n.sid,
@@ -457,9 +434,7 @@ class TwilioAgent:
             logger.error("Twilio configure_number error: %s", exc)
             return {"error": str(exc)}
 
-    async def release_number(
-        self, sid: str, user_id: UUID | None = None
-    ) -> bool:
+    async def release_number(self, sid: str, user_id: UUID | None = None) -> bool:
         """Release (delete) a phone number."""
         client = await self._get_twilio(user_id)
         try:
@@ -473,9 +448,7 @@ class TwilioAgent:
 
     # ── Messaging Services ─────────────────────────────────────────────────
 
-    async def create_messaging_service(
-        self, name: str, user_id: UUID | None = None
-    ) -> dict:
+    async def create_messaging_service(self, name: str, user_id: UUID | None = None) -> dict:
         """Create a new messaging service."""
         client = await self._get_twilio(user_id)
         try:
@@ -492,9 +465,7 @@ class TwilioAgent:
             logger.error("Twilio create_messaging_service error: %s", exc)
             return {"error": str(exc)}
 
-    async def add_sender_to_service(
-        self, service_sid: str, phone_sid: str, user_id: UUID | None = None
-    ) -> bool:
+    async def add_sender_to_service(self, service_sid: str, phone_sid: str, user_id: UUID | None = None) -> bool:
         """Add a phone number sender to a messaging service."""
         client = await self._get_twilio(user_id)
         try:
@@ -547,12 +518,12 @@ class TwilioAgent:
             logger.error("Twilio get_usage error: %s", exc)
             return []
 
-    async def get_delivery_stats(
-        self, start_date: str, end_date: str, user_id: UUID | None = None
-    ) -> dict:
+    async def get_delivery_stats(self, start_date: str, end_date: str, user_id: UUID | None = None) -> dict:
         """Get SMS delivery statistics for a date range."""
         messages = await self.list_messages(
-            date_sent_after=start_date, limit=1000, user_id=user_id,
+            date_sent_after=start_date,
+            limit=1000,
+            user_id=user_id,
         )
 
         total = len(messages)
@@ -611,7 +582,6 @@ class TwilioAgent:
             logger.error("Twilio send_mms error: %s", exc)
             return {"success": False, "error": str(exc)}
 
-
     async def send_whatsapp(
         self,
         to: str,
@@ -654,7 +624,6 @@ class TwilioAgent:
             logger.error("Twilio send_whatsapp error: %s", exc)
             return {"success": False, "error": str(exc)}
 
-
     async def schedule_message(
         self,
         to: str,
@@ -693,7 +662,6 @@ class TwilioAgent:
             logger.error("Twilio schedule_message error: %s", exc)
             return {"success": False, "error": str(exc)}
 
-
     async def create_content_template(
         self,
         name: str,
@@ -720,9 +688,9 @@ class TwilioAgent:
             logger.error("Twilio create_content_template error: %s", exc)
             return {"error": str(exc)}
 
-
     async def list_content_templates(
-        self, user_id: UUID | None = None,
+        self,
+        user_id: UUID | None = None,
     ) -> list[dict]:
         """List approved content templates."""
         client = await self._get_twilio(user_id)
@@ -741,7 +709,6 @@ class TwilioAgent:
         except Exception as exc:
             logger.error("Twilio list_content_templates error: %s", exc)
             return []
-
 
     # ── Opt-out Management ────────────────────────────────────────────────────
 
@@ -772,7 +739,6 @@ class TwilioAgent:
             logger.error("Twilio check_opt_out_status error: %s", exc)
             return {"phone_number": phone_number, "opted_out": True, "error": str(exc)}
 
-
     async def process_opt_out(
         self,
         phone_number: str,
@@ -801,7 +767,6 @@ class TwilioAgent:
             logger.error("Twilio process_opt_out error: %s", exc)
             return {"success": False, "error": str(exc)}
 
-
     async def process_opt_in(
         self,
         phone_number: str,
@@ -828,7 +793,6 @@ class TwilioAgent:
             logger.error("Twilio process_opt_in error: %s", exc)
             return {"success": False, "error": str(exc)}
 
-
     # ── Voice (expanded) ──────────────────────────────────────────────────────
 
     async def create_conference(
@@ -851,18 +815,22 @@ class TwilioAgent:
                     client.calls.create,
                     to=participant_number,
                     from_=from_number,
-                    twiml=f'<Response><Dial><Conference>{friendly_name}</Conference></Dial></Response>',
+                    twiml=f"<Response><Dial><Conference>{friendly_name}</Conference></Dial></Response>",
                 )
-                results.append({
-                    "participant": participant_number,
-                    "call_sid": call.sid,
-                    "status": call.status,
-                })
+                results.append(
+                    {
+                        "participant": participant_number,
+                        "call_sid": call.sid,
+                        "status": call.status,
+                    }
+                )
             except Exception as exc:
-                results.append({
-                    "participant": participant_number,
-                    "error": str(exc),
-                })
+                results.append(
+                    {
+                        "participant": participant_number,
+                        "error": str(exc),
+                    }
+                )
 
         return {
             "success": True,
@@ -870,9 +838,10 @@ class TwilioAgent:
             "participants": results,
         }
 
-
     async def record_call(
-        self, call_sid: str, user_id: UUID | None = None,
+        self,
+        call_sid: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Start recording an active call."""
         client = await self._get_twilio(user_id)
@@ -891,9 +860,10 @@ class TwilioAgent:
             logger.error("Twilio record_call error: %s", exc)
             return {"success": False, "error": str(exc)}
 
-
     async def get_recording(
-        self, recording_sid: str, user_id: UUID | None = None,
+        self,
+        recording_sid: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Get recording details and URL."""
         client = await self._get_twilio(user_id)
@@ -914,9 +884,10 @@ class TwilioAgent:
             logger.error("Twilio get_recording error: %s", exc)
             return {"error": str(exc)}
 
-
     async def get_transcription(
-        self, recording_sid: str, user_id: UUID | None = None,
+        self,
+        recording_sid: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Get transcription for a recording."""
         client = await self._get_twilio(user_id)
@@ -940,11 +911,12 @@ class TwilioAgent:
             logger.error("Twilio get_transcription error: %s", exc)
             return {"error": str(exc)}
 
-
     # ── Lookup (expanded) ─────────────────────────────────────────────────────
 
     async def get_line_type(
-        self, phone_number: str, user_id: UUID | None = None,
+        self,
+        phone_number: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Get line type intelligence (mobile/landline/VoIP)."""
         client = await self._get_twilio(user_id)
@@ -966,9 +938,10 @@ class TwilioAgent:
             logger.error("Twilio get_line_type error: %s", exc)
             return {"phone_number": phone_number, "error": str(exc)}
 
-
     async def get_sim_swap(
-        self, phone_number: str, user_id: UUID | None = None,
+        self,
+        phone_number: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """SIM swap detection for fraud prevention."""
         client = await self._get_twilio(user_id)
@@ -989,9 +962,10 @@ class TwilioAgent:
             logger.error("Twilio get_sim_swap error: %s", exc)
             return {"phone_number": phone_number, "error": str(exc)}
 
-
     async def get_caller_name(
-        self, phone_number: str, user_id: UUID | None = None,
+        self,
+        phone_number: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """CNAM lookup — get caller name for a phone number."""
         client = await self._get_twilio(user_id)
@@ -1011,11 +985,12 @@ class TwilioAgent:
             logger.error("Twilio get_caller_name error: %s", exc)
             return {"phone_number": phone_number, "error": str(exc)}
 
-
     # ── Conversations ─────────────────────────────────────────────────────────
 
     async def create_conversation(
-        self, friendly_name: str, user_id: UUID | None = None,
+        self,
+        friendly_name: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Create a multi-party conversation."""
         client = await self._get_twilio(user_id)
@@ -1034,7 +1009,6 @@ class TwilioAgent:
         except Exception as exc:
             logger.error("Twilio create_conversation error: %s", exc)
             return {"error": str(exc)}
-
 
     async def add_participant(
         self,
@@ -1071,7 +1045,6 @@ class TwilioAgent:
             logger.error("Twilio add_participant error: %s", exc)
             return {"error": str(exc)}
 
-
     async def send_conversation_message(
         self,
         conversation_sid: str,
@@ -1102,11 +1075,12 @@ class TwilioAgent:
             logger.error("Twilio send_conversation_message error: %s", exc)
             return {"error": str(exc)}
 
-
     # ── A2P Compliance ────────────────────────────────────────────────────────
 
     async def get_brand_registration_status(
-        self, brand_sid: str, user_id: UUID | None = None,
+        self,
+        brand_sid: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Check A2P brand registration status."""
         client = await self._get_twilio(user_id)
@@ -1127,9 +1101,10 @@ class TwilioAgent:
             logger.error("Twilio get_brand_registration_status error: %s", exc)
             return {"brand_sid": brand_sid, "error": str(exc)}
 
-
     async def get_campaign_status(
-        self, campaign_sid: str, user_id: UUID | None = None,
+        self,
+        campaign_sid: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Check A2P messaging campaign status."""
         client = await self._get_twilio(user_id)
@@ -1154,9 +1129,10 @@ class TwilioAgent:
             logger.error("Twilio get_campaign_status error: %s", exc)
             return {"campaign_sid": campaign_sid, "error": str(exc)}
 
-
     async def get_toll_free_verification_status(
-        self, phone_number: str, user_id: UUID | None = None,
+        self,
+        phone_number: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Check toll-free number verification status."""
         client = await self._get_twilio(user_id)
@@ -1186,4 +1162,3 @@ class TwilioAgent:
         except Exception as exc:
             logger.error("Twilio get_toll_free_verification_status error: %s", exc)
             return {"phone_number": phone_number, "error": str(exc)}
-

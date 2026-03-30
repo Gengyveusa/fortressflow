@@ -25,13 +25,9 @@ class TemplateCategory(str, enum.Enum):
 class Template(Base):
     __tablename__ = "templates"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    channel: Mapped[TemplateChannel] = mapped_column(
-        Enum(TemplateChannel, name="template_channel"), nullable=False
-    )
+    channel: Mapped[TemplateChannel] = mapped_column(Enum(TemplateChannel, name="template_channel"), nullable=False)
     category: Mapped[TemplateCategory] = mapped_column(
         Enum(TemplateCategory, name="template_category"),
         nullable=False,
@@ -55,9 +51,7 @@ class Template(Base):
     is_system: Mapped[bool] = mapped_column(default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

@@ -143,9 +143,7 @@ class ChatService:
                 yield slash_result[i : i + chunk_size]
                 await asyncio.sleep(0.01)
             latency = int((time.time() - start) * 1000)
-            await self._log_chat(
-                user_id, session_id, message, slash_result, "system", ["slash_command"], latency
-            )
+            await self._log_chat(user_id, session_id, message, slash_result, "system", ["slash_command"], latency)
             return
 
         # ── Command Engine: intercept actionable intents ──
@@ -156,13 +154,16 @@ class ChatService:
 
             # For structured responses, wrap in JSON envelope
             if response_type != "text":
-                envelope = json.dumps({
-                    "type": response_type,
-                    "content": content,
-                    "options": command_result.get("options", []),
-                    "data": command_result.get("data", {}),
-                    "campaign_params": command_result.get("campaign_params", {}),
-                }, default=str)
+                envelope = json.dumps(
+                    {
+                        "type": response_type,
+                        "content": content,
+                        "options": command_result.get("options", []),
+                        "data": command_result.get("data", {}),
+                        "campaign_params": command_result.get("campaign_params", {}),
+                    },
+                    default=str,
+                )
                 # Yield as a single structured chunk prefixed with marker
                 yield f"[CMD]{envelope}"
             else:
@@ -174,8 +175,13 @@ class ChatService:
 
             latency = int((time.time() - start) * 1000)
             await self._log_chat(
-                user_id, session_id, message, content,
-                "command_engine", [response_type], latency,
+                user_id,
+                session_id,
+                message,
+                content,
+                "command_engine",
+                [response_type],
+                latency,
                 session_state=command_result.get("session_state"),
                 response_type=response_type,
                 response_metadata=command_result.get("data"),
@@ -200,9 +206,7 @@ class ChatService:
 
         latency = int((time.time() - start) * 1000)
         sources = list(insights.keys()) if insights else ["llm"]
-        await self._log_chat(
-            user_id, session_id, message, full_response, "groq", sources, latency
-        )
+        await self._log_chat(user_id, session_id, message, full_response, "groq", sources, latency)
 
     async def handle_message_sync(
         self,
@@ -263,9 +267,7 @@ class ChatService:
             session_state = await self._load_session_state(user_id, session_id)
 
             if session_state and session_state.get("active_intent"):
-                return await self._continue_command_flow(
-                    message, user_id, session_id, session_state
-                )
+                return await self._continue_command_flow(message, user_id, session_id, session_state)
 
             # Classify intent
             from app.services.command_engine import CommandEngine
@@ -281,22 +283,16 @@ class ChatService:
             from app.database import AsyncSessionLocal
 
             async with AsyncSessionLocal() as db:
-                response = await engine.route_intent(
-                    result, message, user_id, session_id, session_state, db=db
-                )
+                response = await engine.route_intent(result, message, user_id, session_id, session_state, db=db)
 
             # If the router returned a "ready_to_execute" from the questioner,
             # we need to actually execute the intent now
             if response.get("type") == "ready_to_execute":
-                response = await self._execute_ready_intent(
-                    response, user_id, session_id
-                )
+                response = await self._execute_ready_intent(response, user_id, session_id)
 
             # Save session state if provided
             if "session_state" in response:
-                await self._save_session_state(
-                    user_id, session_id, response["session_state"]
-                )
+                await self._save_session_state(user_id, session_id, response["session_state"])
 
             # If command engine returns empty content, fall through to LLM
             if not response.get("content"):
@@ -320,9 +316,7 @@ class ChatService:
 
         # Handle campaign confirmation flow
         if active_intent == "confirm_campaign":
-            return await self._handle_campaign_confirmation(
-                message, user_id, session_id, session_state
-            )
+            return await self._handle_campaign_confirmation(message, user_id, session_id, session_state)
 
         # Handle smart questioner flow
         from app.services.smart_questioner import SmartQuestioner
@@ -334,9 +328,7 @@ class ChatService:
             response = await self._execute_ready_intent(response, user_id, session_id)
 
         if "session_state" in response:
-            await self._save_session_state(
-                user_id, session_id, response["session_state"]
-            )
+            await self._save_session_state(user_id, session_id, response["session_state"])
 
         return response
 
@@ -365,11 +357,15 @@ class ChatService:
             return result
 
         if msg_lower in ("cancel", "no", "n", "nevermind", "stop"):
-            await self._save_session_state(user_id, session_id, {
-                "active_intent": None,
-                "gathered_params": {},
-                "pending_questions": [],
-            })
+            await self._save_session_state(
+                user_id,
+                session_id,
+                {
+                    "active_intent": None,
+                    "gathered_params": {},
+                    "pending_questions": [],
+                },
+            )
             return {
                 "type": "text",
                 "content": "Campaign cancelled. Let me know if you want to try something else!",
@@ -378,7 +374,7 @@ class ChatService:
         if msg_lower.startswith("modify") or msg_lower.startswith("change"):
             return {
                 "type": "question",
-                "content": "What would you like to change? (e.g., \"fewer steps\", \"add LinkedIn\", \"change location\")",
+                "content": 'What would you like to change? (e.g., "fewer steps", "add LinkedIn", "change location")',
                 "options": ["Fewer steps", "More steps", "Add LinkedIn", "Add SMS", "Change location"],
                 "session_state": session_state,
             }
@@ -415,9 +411,7 @@ class ChatService:
             missing_required=[],
         )
 
-        executed = await engine.route_intent(
-            result, "", user_id, session_id, None
-        )
+        executed = await engine.route_intent(result, "", user_id, session_id, None)
 
         # Merge session state
         if "session_state" in response:
@@ -486,7 +480,7 @@ class ChatService:
             for command, desc in SLASH_COMMANDS.items():
                 lines.append(f"• `{command}` — {desc}")
             lines.append("\nYou can also ask me anything in plain English!")
-            lines.append("Try: \"Find periodontists in Texas\" or \"How are we doing?\"")
+            lines.append('Try: "Find periodontists in Texas" or "How are we doing?"')
             return "\n".join(lines)
 
         if cmd == "/status":
@@ -543,9 +537,7 @@ class ChatService:
                 status = s.get("status", "unknown")
                 enrolled = s.get("enrolled", 0)
                 reply_rate = s.get("reply_rate", "N/A")
-                lines.append(
-                    f"• **{name}** — {status.title()} | {enrolled} enrolled | {reply_rate} reply rate"
-                )
+                lines.append(f"• **{name}** — {status.title()} | {enrolled} enrolled | {reply_rate} reply rate")
             return "\n".join(lines)
 
         if cmd == "/compliance":
@@ -631,9 +623,7 @@ class ChatService:
                     row = result.one()
                     active_count = int(row[1] or 0)
 
-                    enrolled_result = await db.execute(
-                        select(func.count(SequenceEnrollment.id))
-                    )
+                    enrolled_result = await db.execute(select(func.count(SequenceEnrollment.id)))
                     total_enrolled = enrolled_result.scalar_one() or 0
 
                     context["sequences"] = {
@@ -665,11 +655,7 @@ class ChatService:
                     row = result.one()
                     total_sent = int(row[0])
                     total_bounced = int(row[1])
-                    bounce_rate = (
-                        f"{(total_bounced / total_sent * 100):.2f}%"
-                        if total_sent > 0
-                        else "0.00%"
-                    )
+                    bounce_rate = f"{(total_bounced / total_sent * 100):.2f}%" if total_sent > 0 else "0.00%"
                     context["deliverability"] = {
                         "total_sent": total_sent,
                         "bounce_rate": bounce_rate,
@@ -688,9 +674,7 @@ class ChatService:
 
                 # Leads
                 try:
-                    result = await db.execute(
-                        select(func.count(Lead.id))
-                    )
+                    result = await db.execute(select(func.count(Lead.id)))
                     count = result.scalar_one() or 0
                     context["leads"] = {"total": int(count)}
                 except Exception:
@@ -718,8 +702,7 @@ class ChatService:
             seq = context.get("sequences", {})
             if seq:
                 ctx_lines.append(
-                    f"Sequences: {seq.get('active_count', 0)} active, "
-                    f"{seq.get('total_enrolled', 0)} enrolled"
+                    f"Sequences: {seq.get('active_count', 0)} active, {seq.get('total_enrolled', 0)} enrolled"
                 )
             deliv = context.get("deliverability", {})
             if deliv:
@@ -741,10 +724,12 @@ class ChatService:
                 "zoominfo_copilot": "ZoomInfo Copilot",
                 "apollo_ai": "Apollo AI",
             }.get(platform, platform)
-            messages.append({
-                "role": "system",
-                "content": f"[{platform_label} Insight]\n{insight}",
-            })
+            messages.append(
+                {
+                    "role": "system",
+                    "content": f"[{platform_label} Insight]\n{insight}",
+                }
+            )
 
         # User message
         messages.append({"role": "user", "content": message})
@@ -805,10 +790,7 @@ class ChatService:
             lines = ["HubSpot Breeze AI Insights:"]
             for r in results[:5]:
                 action = r.recommended_action or "monitor"
-                lines.append(
-                    f"- Score: {r.score:.0f}/100 (confidence: {r.confidence:.0%}), "
-                    f"action: {action}"
-                )
+                lines.append(f"- Score: {r.score:.0f}/100 (confidence: {r.confidence:.0%}), action: {action}")
                 if r.signals.get("open_rate"):
                     lines.append(f"  Open rate: {r.signals['open_rate']:.1%}")
             return "\n".join(lines)
@@ -830,8 +812,7 @@ class ChatService:
             for r in results[:5]:
                 action = r.recommended_action or "standard"
                 lines.append(
-                    f"- Intent score: {r.score:.0f}/100 (confidence: {r.confidence:.0%}), "
-                    f"recommendation: {action}"
+                    f"- Intent score: {r.score:.0f}/100 (confidence: {r.confidence:.0%}), recommendation: {action}"
                 )
                 if r.signals.get("tech_stack"):
                     lines.append(f"  Tech stack: {', '.join(r.signals['tech_stack'][:3])}")
@@ -853,10 +834,7 @@ class ChatService:
             lines = ["Apollo AI Lead Scoring:"]
             for r in results[:5]:
                 action = r.recommended_action or "standard"
-                lines.append(
-                    f"- AI score: {r.score:.0f}/100 (confidence: {r.confidence:.0%}), "
-                    f"action: {action}"
-                )
+                lines.append(f"- AI score: {r.score:.0f}/100 (confidence: {r.confidence:.0%}), action: {action}")
                 if r.signals.get("organization"):
                     lines.append(f"  Org: {r.signals['organization']}")
             return "\n".join(lines)

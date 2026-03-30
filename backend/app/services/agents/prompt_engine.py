@@ -288,9 +288,7 @@ designed for dental offices and DSOs (Dental Service Organizations).
         parts: list[str] = [self.FORTRESSFLOW_CONTEXT]
 
         # Layer 2: Agent default prompt
-        agent_default = await self._load_config_value(
-            db, user_id, agent_name, "system_prompt", "default"
-        )
+        agent_default = await self._load_config_value(db, user_id, agent_name, "system_prompt", "default")
         if not agent_default:
             agent_default = self._DEFAULT_PROMPTS.get(agent_name, {}).get("default", "")
         if agent_default:
@@ -298,9 +296,7 @@ designed for dental offices and DSOs (Dental Service Organizations).
 
         # Layer 3: Action-specific prompt (only if different from 'default')
         if action != "default":
-            action_prompt = await self._load_config_value(
-                db, user_id, agent_name, "system_prompt", action
-            )
+            action_prompt = await self._load_config_value(db, user_id, agent_name, "system_prompt", action)
             if not action_prompt:
                 action_prompt = self._DEFAULT_PROMPTS.get(agent_name, {}).get(action, "")
             if action_prompt:
@@ -326,14 +322,10 @@ designed for dental offices and DSOs (Dental Service Organizations).
         action: str,
     ) -> list[dict]:
         """Load few-shot examples for this agent+action from DB."""
-        value = await self._load_config_value(
-            db, user_id, agent_name, "few_shot", action
-        )
+        value = await self._load_config_value(db, user_id, agent_name, "few_shot", action)
         if not value:
             # Try the 'default' key as fallback
-            value = await self._load_config_value(
-                db, user_id, agent_name, "few_shot", "default"
-            )
+            value = await self._load_config_value(db, user_id, agent_name, "few_shot", "default")
         if not value or not isinstance(value, list):
             return []
 
@@ -351,9 +343,7 @@ designed for dental offices and DSOs (Dental Service Organizations).
         agent_name: str,
     ) -> dict:
         """Load custom field mappings (e.g., FortressFlow fields -> HubSpot properties)."""
-        value = await self._load_config_value(
-            db, user_id, agent_name, "field_mappings", "default"
-        )
+        value = await self._load_config_value(db, user_id, agent_name, "field_mappings", "default")
         if isinstance(value, dict):
             return value
         return {}
@@ -365,9 +355,7 @@ designed for dental offices and DSOs (Dental Service Organizations).
         agent_name: str,
     ) -> list[str]:
         """Load guardrails/restrictions for this agent."""
-        value = await self._load_config_value(
-            db, user_id, agent_name, "guardrails", "default"
-        )
+        value = await self._load_config_value(db, user_id, agent_name, "guardrails", "default")
         if isinstance(value, list):
             return [str(g) for g in value]
         return []
@@ -401,6 +389,9 @@ designed for dental offices and DSOs (Dental Service Organizations).
         except Exception as exc:
             logger.warning(
                 "Failed to load training config %s/%s/%s: %s",
-                agent_name, config_type, config_key, exc,
+                agent_name,
+                config_type,
+                config_key,
+                exc,
             )
             return None

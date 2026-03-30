@@ -38,10 +38,7 @@ def enum_exists(bind, enum_name: str) -> bool:
 
 def table_exists(bind, table_name: str) -> bool:
     result = bind.execute(
-        sa.text(
-            "SELECT 1 FROM information_schema.tables "
-            "WHERE table_schema = 'public' AND table_name = :name"
-        ),
+        sa.text("SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = :name"),
         {"name": table_name},
     )
     return result.scalar() is not None

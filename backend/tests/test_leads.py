@@ -3,6 +3,7 @@ Lead API unit tests.
 
 All tests use in-memory mocks — no real database required.
 """
+
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
@@ -70,6 +71,7 @@ async def test_create_lead_duplicate_email(mock_user):
     app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[get_current_user] = lambda: mock_user
     from httpx import AsyncClient, ASGITransport
+
     try:
         async with AsyncClient(
             transport=ASGITransport(app=app),
@@ -95,6 +97,7 @@ async def test_create_lead_duplicate_email(mock_user):
 @pytest.mark.asyncio
 async def test_get_lead_not_found(mock_user):
     """Getting a non-existent lead returns 404."""
+
     async def override_db():
         db = AsyncMock()
         result = MagicMock()
@@ -107,6 +110,7 @@ async def test_get_lead_not_found(mock_user):
     app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[get_current_user] = lambda: mock_user
     from httpx import AsyncClient, ASGITransport
+
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             resp = await ac.get(f"/api/v1/leads/{uuid.uuid4()}")
@@ -119,6 +123,7 @@ async def test_get_lead_not_found(mock_user):
 async def test_health_check():
     """Health endpoint returns 200."""
     from httpx import AsyncClient, ASGITransport
+
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.get("/health")
     assert resp.status_code == 200

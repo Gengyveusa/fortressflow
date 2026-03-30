@@ -86,6 +86,7 @@ class TemplatePreviewResponse(BaseModel):
 
 class SequencePreset(BaseModel):
     """A pre-built sequence with steps and templates."""
+
     name: str
     description: str
     category: str

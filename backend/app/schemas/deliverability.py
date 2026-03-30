@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 # ── Domain schemas ─────────────────────────────────────────────────────
 
+
 class DomainCreate(BaseModel):
     domain: str = Field(..., min_length=1, max_length=255)
 
@@ -33,6 +34,7 @@ class DomainDNSInstructions(BaseModel):
 
 
 # ── Inbox schemas ──────────────────────────────────────────────────────
+
 
 class InboxCreate(BaseModel):
     email_address: str = Field(..., min_length=1, max_length=255)
@@ -67,6 +69,7 @@ class InboxResponse(BaseModel):
 
 
 # ── Warmup schemas ─────────────────────────────────────────────────────
+
 
 class WarmupStatus(BaseModel):
     inbox_id: str
@@ -117,6 +120,7 @@ class RampScheduleEntry(BaseModel):
 
 
 # ── Dashboard schema ───────────────────────────────────────────────────
+
 
 class DeliverabilityDashboard(BaseModel):
     summary: dict

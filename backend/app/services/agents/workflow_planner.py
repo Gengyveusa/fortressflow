@@ -134,9 +134,7 @@ Output valid JSON:
         self.prompt_engine = PromptEngine()
         self.intelligence = AgentIntelligence()
 
-    async def plan(
-        self, db: AsyncSession, user_id: UUID, user_message: str, agent_statuses: list
-    ) -> dict:
+    async def plan(self, db: AsyncSession, user_id: UUID, user_message: str, agent_statuses: list) -> dict:
         """Parse a natural language request into a structured workflow plan.
 
         Uses the LLM to understand the request, then validates the plan against
@@ -144,7 +142,10 @@ Output valid JSON:
         """
         # Build the system prompt with domain context
         system_prompt = await self.prompt_engine.build_system_prompt(
-            db, user_id, "groq", "chat",
+            db,
+            user_id,
+            "groq",
+            "chat",
             extra_context=self.PLANNING_PROMPT,
         )
 
@@ -178,11 +179,15 @@ Output valid JSON:
         # Also build outreach options if the request seems to be asking for options
         lower_msg = user_message.lower()
         if any(kw in lower_msg for kw in ["option", "what can", "how can", "what are my"]):
-            options = await self.present_options(db, user_id, {
-                "target": plan.get("understanding", user_message),
-                "location": self._extract_location(user_message),
-                "count": self._extract_count(user_message),
-            })
+            options = await self.present_options(
+                db,
+                user_id,
+                {
+                    "target": plan.get("understanding", user_message),
+                    "location": self._extract_location(user_message),
+                    "count": self._extract_count(user_message),
+                },
+            )
             plan["outreach_options"] = options
 
         return plan
@@ -243,17 +248,13 @@ Output valid JSON:
 
         return {"status": overall_status, "steps": results}
 
-    async def present_options(
-        self, db: AsyncSession, user_id: UUID, params: dict
-    ) -> dict:
+    async def present_options(self, db: AsyncSession, user_id: UUID, params: dict) -> dict:
         """For requests like 'what are my options', build and present available approaches."""
         return await self.intelligence.build_outreach_options(db, user_id, params)
 
     # ── Internal helpers ─────────────────────────────────────────────────
 
-    async def _call_llm(
-        self, db: AsyncSession, user_id: UUID, messages: list[dict]
-    ) -> str:
+    async def _call_llm(self, db: AsyncSession, user_id: UUID, messages: list[dict]) -> str:
         """Call LLM with Groq primary / OpenAI fallback."""
         from app.config import settings
         from app.utils.sanitize import sanitize_error
@@ -263,6 +264,7 @@ Output valid JSON:
         if groq_key:
             try:
                 from groq import AsyncGroq
+
                 client = AsyncGroq(api_key=groq_key)
                 resp = await client.chat.completions.create(
                     model=settings.GROQ_MODEL,
@@ -278,9 +280,11 @@ Output valid JSON:
         # Try user's DB-stored Groq key
         try:
             from app.services import api_key_service
+
             user_groq_key = await api_key_service.get_api_key(db, "groq", user_id)
             if user_groq_key:
                 from groq import AsyncGroq
+
                 client = AsyncGroq(api_key=user_groq_key)
                 resp = await client.chat.completions.create(
                     model=settings.GROQ_MODEL,
@@ -298,6 +302,7 @@ Output valid JSON:
         if openai_key:
             try:
                 from openai import AsyncOpenAI
+
                 client = AsyncOpenAI(api_key=openai_key)
                 resp = await client.chat.completions.create(
                     model=settings.OPENAI_MODEL,
@@ -311,15 +316,17 @@ Output valid JSON:
                 logger.warning("OpenAI planning failed: %s", sanitize_error(exc))
 
         # No LLM available — return a basic plan structure
-        return json.dumps({
-            "understanding": "Unable to parse request — no LLM configured",
-            "plan_type": "unknown",
-            "steps": [],
-            "options": [],
-            "warnings": ["No LLM agent (Groq or OpenAI) is configured. Add an API key in Settings."],
-            "estimated_time": "N/A",
-            "confirmation_needed": False,
-        })
+        return json.dumps(
+            {
+                "understanding": "Unable to parse request — no LLM configured",
+                "plan_type": "unknown",
+                "steps": [],
+                "options": [],
+                "warnings": ["No LLM agent (Groq or OpenAI) is configured. Add an API key in Settings."],
+                "estimated_time": "N/A",
+                "confirmation_needed": False,
+            }
+        )
 
     def _parse_plan(self, raw: str, original_message: str) -> dict:
         """Parse LLM JSON response into a plan dict."""
@@ -370,13 +377,14 @@ Output valid JSON:
                 # Take until a common stop word
                 for stop in [" today", " this", " and", " what", " how", ",", "."]:
                     if stop in loc:
-                        loc = loc[:loc.index(stop)]
+                        loc = loc[: loc.index(stop)]
                 return loc.strip().title()
         return ""
 
     def _extract_count(self, message: str) -> int:
         """Simple count extraction from natural language."""
         import re
+
         match = re.search(r"(\d+)\s*(?:dentist|doctor|lead|contact|people|person)", message.lower())
         if match:
             return int(match.group(1))

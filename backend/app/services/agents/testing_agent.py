@@ -29,6 +29,7 @@ _request_timestamps: dict[str, list[float]] = {}
 _RATE_LIMIT = 10  # requests per minute
 _RATE_WINDOW = 60
 
+
 def _check_rate_limit(key: str) -> None:
     now = time.time()
     timestamps = _request_timestamps.setdefault(key, [])
@@ -36,6 +37,7 @@ def _check_rate_limit(key: str) -> None:
     if len(timestamps) >= _RATE_LIMIT:
         raise RuntimeError(f"Testing agent rate limit exceeded ({_RATE_LIMIT}/min)")
     timestamps.append(now)
+
 
 # ── Safe Test Parameters ─────────────────────────────────────────────────
 # Read-only params for each agent/action that won't mutate data
@@ -56,28 +58,73 @@ _TEST_PARAMS: dict[tuple[str, str], dict] = {
 
 # Actions that mutate data — skip during diagnostics
 _WRITE_ACTIONS = {
-    "create_contact", "update_contact", "delete_contact", "bulk_create_contacts", "merge_contacts",
-    "create_deal", "update_deal", "create_company", "update_company",
-    "create_list", "add_to_list", "remove_from_list",
-    "log_email", "log_call", "log_meeting", "create_task", "log_note",
-    "send_sms", "bulk_send_sms", "send_mms", "send_whatsapp", "make_call",
-    "schedule_message", "send_verification", "buy_phone_number", "release_number",
-    "create_contact", "update_contact", "bulk_create_contacts", "delete_contact",
-    "create_account", "update_account", "bulk_create_accounts",
-    "create_deal", "update_deal", "create_call_record",
-    "add_contacts_to_sequence", "schedule_post",
-    "create_pipeline", "update_pipeline", "delete_pipeline",
-    "create_association", "delete_association", "batch_create_associations",
-    "send_transactional_email", "create_campaign_marketing",
-    "trigger_workflow", "create_sequence_enrollment",
-    "send_message", "create_invoice", "create_payment", "create_subscription",
-    "create_webhook_subscription", "delete_webhook_subscription",
-    "add_opt_out", "remove_opt_out",
-    "submit_bulk_job", "cancel_bulk_job",
-    "create_connection_request", "trigger_zapier_action",
-    "process_opt_out", "process_opt_in",
-    "create_form", "create_property",
-    "create_conversation", "add_participant", "send_conversation_message",
+    "create_contact",
+    "update_contact",
+    "delete_contact",
+    "bulk_create_contacts",
+    "merge_contacts",
+    "create_deal",
+    "update_deal",
+    "create_company",
+    "update_company",
+    "create_list",
+    "add_to_list",
+    "remove_from_list",
+    "log_email",
+    "log_call",
+    "log_meeting",
+    "create_task",
+    "log_note",
+    "send_sms",
+    "bulk_send_sms",
+    "send_mms",
+    "send_whatsapp",
+    "make_call",
+    "schedule_message",
+    "send_verification",
+    "buy_phone_number",
+    "release_number",
+    "create_contact",
+    "update_contact",
+    "bulk_create_contacts",
+    "delete_contact",
+    "create_account",
+    "update_account",
+    "bulk_create_accounts",
+    "create_deal",
+    "update_deal",
+    "create_call_record",
+    "add_contacts_to_sequence",
+    "schedule_post",
+    "create_pipeline",
+    "update_pipeline",
+    "delete_pipeline",
+    "create_association",
+    "delete_association",
+    "batch_create_associations",
+    "send_transactional_email",
+    "create_campaign_marketing",
+    "trigger_workflow",
+    "create_sequence_enrollment",
+    "send_message",
+    "create_invoice",
+    "create_payment",
+    "create_subscription",
+    "create_webhook_subscription",
+    "delete_webhook_subscription",
+    "add_opt_out",
+    "remove_opt_out",
+    "submit_bulk_job",
+    "cancel_bulk_job",
+    "create_connection_request",
+    "trigger_zapier_action",
+    "process_opt_out",
+    "process_opt_in",
+    "create_form",
+    "create_property",
+    "create_conversation",
+    "add_participant",
+    "send_conversation_message",
     "create_content_template",
     "record_call",
 }
@@ -116,11 +163,13 @@ class TestingAgent:
                 pass
         if not key:
             from app.config import settings
+
             key = getattr(settings, "GROQ_API_KEY", "")
         if not key:
             raise RuntimeError("No Groq API key configured for testing agent")
         self._api_key = key
         from groq import AsyncGroq
+
         self._client = AsyncGroq(api_key=key)
 
     async def _llm_call(self, system_prompt: str, user_message: str, db=None, user_id=None, model=None) -> dict:
@@ -154,14 +203,16 @@ class TestingAgent:
         for status in agent_statuses:
             name = status["agent_name"]
             actions = _ALLOWED_ACTIONS.get(name, set())
-            results.append({
-                "agent_name": name,
-                "configured": status["configured"],
-                "has_db_key": status["has_db_key"],
-                "has_env_key": status["has_env_key"],
-                "total_actions": len(actions),
-                "status": "healthy" if status["configured"] else "unconfigured",
-            })
+            results.append(
+                {
+                    "agent_name": name,
+                    "configured": status["configured"],
+                    "has_db_key": status["has_db_key"],
+                    "has_env_key": status["has_env_key"],
+                    "total_actions": len(actions),
+                    "status": "healthy" if status["configured"] else "unconfigured",
+                }
+            )
 
         healthy = sum(1 for r in results if r["status"] == "healthy")
         return {
@@ -211,10 +262,24 @@ class TestingAgent:
                     result = await AgentOrchestrator.dispatch(db, agent_name, action, test_params, user_id)
                     if result["status"] == "success":
                         passed += 1
-                        results.append({"agent": agent_name, "action": action, "status": "passed", "latency_ms": result.get("latency_ms")})
+                        results.append(
+                            {
+                                "agent": agent_name,
+                                "action": action,
+                                "status": "passed",
+                                "latency_ms": result.get("latency_ms"),
+                            }
+                        )
                     else:
                         failed += 1
-                        results.append({"agent": agent_name, "action": action, "status": "failed", "error": result.get("error", "")[:200]})
+                        results.append(
+                            {
+                                "agent": agent_name,
+                                "action": action,
+                                "status": "failed",
+                                "error": result.get("error", "")[:200],
+                            }
+                        )
                 except Exception as e:
                     failed += 1
                     results.append({"agent": agent_name, "action": action, "status": "error", "error": str(e)[:200]})
@@ -275,13 +340,15 @@ class TestingAgent:
                     category = cat
                     break
 
-            by_agent[key].append({
-                "id": str(log.id),
-                "error": log.error_message[:200] if log.error_message else "",
-                "category": category,
-                "latency_ms": log.latency_ms,
-                "created_at": log.created_at.isoformat() if log.created_at else "",
-            })
+            by_agent[key].append(
+                {
+                    "id": str(log.id),
+                    "error": log.error_message[:200] if log.error_message else "",
+                    "category": category,
+                    "latency_ms": log.latency_ms,
+                    "created_at": log.created_at.isoformat() if log.created_at else "",
+                }
+            )
             by_category[category] += 1
 
         # Build summary
@@ -295,16 +362,15 @@ class TestingAgent:
                 {"action": k, "count": len(v), "latest_error": v[0]["error"], "category": v[0]["category"]}
                 for k, v in top_failures
             ],
-            "all_failures": [
-                {"action": k, "failures": v}
-                for k, v in by_agent.items()
-            ],
+            "all_failures": [{"action": k, "failures": v} for k, v in by_agent.items()],
             "timestamp": datetime.now(UTC).isoformat(),
         }
 
     # ── Skill 4: Diagnose Issue ───────────────────────────────────────────
 
-    async def diagnose_issue(self, db: AsyncSession, user_id: UUID, agent_name: str, action: str, error_message: str = None) -> dict:
+    async def diagnose_issue(
+        self, db: AsyncSession, user_id: UUID, agent_name: str, action: str, error_message: str = None
+    ) -> dict:
         """Use LLM to diagnose the root cause of a specific failure."""
         _check_rate_limit(str(user_id))
 
@@ -332,6 +398,7 @@ class TestingAgent:
         # Get method signature for context
         try:
             from app.services.agents.orchestrator import _get_agent_class
+
             cls = _get_agent_class(agent_name)
             method = getattr(cls, action, None)
             sig = str(inspect.signature(method)) if method else "unknown"
@@ -348,17 +415,14 @@ class TestingAgent:
                 '"suggested_fix": "what to change", '
                 '"fix_type": "config|code_patch|param_fix|api_key|dependency"}'
             ),
-            user_message=(
-                f"Agent: {agent_name}\n"
-                f"Action: {action}\n"
-                f"Method signature: {sig}\n"
-                f"Error: {error_message}\n"
-            ),
-            db=db, user_id=user_id,
+            user_message=(f"Agent: {agent_name}\nAction: {action}\nMethod signature: {sig}\nError: {error_message}\n"),
+            db=db,
+            user_id=user_id,
         )
 
         # Store as fix suggestion
         from app.models.fix_suggestion import FixSuggestion
+
         suggestion = FixSuggestion(
             user_id=user_id,
             agent_name=agent_name,
@@ -383,7 +447,9 @@ class TestingAgent:
 
     # ── Skill 5: Generate Fix ─────────────────────────────────────────────
 
-    async def generate_fix(self, db: AsyncSession, user_id: UUID, agent_name: str = None, action: str = None, error_message: str = None) -> dict:
+    async def generate_fix(
+        self, db: AsyncSession, user_id: UUID, agent_name: str = None, action: str = None, error_message: str = None
+    ) -> dict:
         """Generate a code patch for a diagnosed issue. NEVER auto-applied."""
         _check_rate_limit(str(user_id))
 
@@ -391,6 +457,7 @@ class TestingAgent:
         source_code = ""
         try:
             from app.services.agents.orchestrator import _get_agent_class
+
             cls = _get_agent_class(agent_name)
             method = getattr(cls, action, None)
             if method:
@@ -414,7 +481,9 @@ class TestingAgent:
                 f"Error: {error_message}\n\n"
                 f"Current source code:\n```python\n{source_code}\n```"
             ),
-            db=db, user_id=user_id, model=self.DEFAULT_MODEL,
+            db=db,
+            user_id=user_id,
+            model=self.DEFAULT_MODEL,
         )
 
         return {
@@ -455,10 +524,21 @@ class TestingAgent:
 
         workflows = {
             "intelligence": [
-                {"agent_name": "groq", "action": "chat", "params": {"messages": [{"role": "user", "content": "Summarize dental industry trends in 2 sentences"}], "stream": False}},
+                {
+                    "agent_name": "groq",
+                    "action": "chat",
+                    "params": {
+                        "messages": [{"role": "user", "content": "Summarize dental industry trends in 2 sentences"}],
+                        "stream": False,
+                    },
+                },
             ],
             "content_pipeline": [
-                {"agent_name": "marketing", "action": "create_social_post", "params": {"topic": "AI in dental practice management", "platform": "linkedin"}},
+                {
+                    "agent_name": "marketing",
+                    "action": "create_social_post",
+                    "params": {"topic": "AI in dental practice management", "platform": "linkedin"},
+                },
             ],
             "sales_analysis": [
                 {"agent_name": "sales", "action": "get_realtime_insights", "params": {"context": "Q1 pipeline"}},
@@ -491,6 +571,7 @@ class TestingAgent:
         docstring = ""
         try:
             from app.services.agents.orchestrator import _get_agent_class
+
             cls = _get_agent_class(agent_name)
             method = getattr(cls, action, None)
             if method:
@@ -509,14 +590,12 @@ class TestingAgent:
                 "    async def test_success_case(self):\n"
                 "        # Arrange, Act, Assert\n"
                 "        pass\n```\n\n"
-                "Return JSON: {\"test_code\": \"full pytest code\", \"test_count\": N, \"coverage_notes\": \"what's covered\"}"
+                'Return JSON: {"test_code": "full pytest code", "test_count": N, "coverage_notes": "what\'s covered"}'
             ),
-            user_message=(
-                f"Agent: {agent_name}\nAction: {action}\n"
-                f"Method signature: {sig}\n"
-                f"Docstring: {docstring}\n"
-            ),
-            db=db, user_id=user_id, model=self.DEFAULT_MODEL,
+            user_message=(f"Agent: {agent_name}\nAction: {action}\nMethod signature: {sig}\nDocstring: {docstring}\n"),
+            db=db,
+            user_id=user_id,
+            model=self.DEFAULT_MODEL,
         )
 
         return {

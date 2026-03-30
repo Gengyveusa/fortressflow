@@ -91,35 +91,100 @@ class ReplyAnalysisResult:
 # ── Keyword Lists ──────────────────────────────────────────────────────────
 
 _POSITIVE_KEYWORDS = {
-    "interested", "yes", "sure", "definitely", "absolutely", "love to",
-    "schedule", "meeting", "call", "demo", "chat", "connect", "tell me more",
-    "sounds good", "great", "happy to", "looking forward", "available",
-    "learn more", "curious", "perfect", "when", "how much", "pricing",
-    "can we", "would love", "thanks for reaching out", "appreciate",
-    "open to", "let's", "let us", "works for me",
+    "interested",
+    "yes",
+    "sure",
+    "definitely",
+    "absolutely",
+    "love to",
+    "schedule",
+    "meeting",
+    "call",
+    "demo",
+    "chat",
+    "connect",
+    "tell me more",
+    "sounds good",
+    "great",
+    "happy to",
+    "looking forward",
+    "available",
+    "learn more",
+    "curious",
+    "perfect",
+    "when",
+    "how much",
+    "pricing",
+    "can we",
+    "would love",
+    "thanks for reaching out",
+    "appreciate",
+    "open to",
+    "let's",
+    "let us",
+    "works for me",
 }
 
 _NEGATIVE_KEYWORDS = {
-    "not interested", "no thanks", "no thank you", "don't contact",
-    "do not contact", "not relevant", "wrong person", "wrong company",
-    "don't reach out", "not a fit", "already have", "using another",
-    "not the right time", "budget", "no budget", "remove me",
-    "please remove", "opt out", "unsubscribe", "stop emailing",
-    "stop contacting", "leave me alone", "never contact",
+    "not interested",
+    "no thanks",
+    "no thank you",
+    "don't contact",
+    "do not contact",
+    "not relevant",
+    "wrong person",
+    "wrong company",
+    "don't reach out",
+    "not a fit",
+    "already have",
+    "using another",
+    "not the right time",
+    "budget",
+    "no budget",
+    "remove me",
+    "please remove",
+    "opt out",
+    "unsubscribe",
+    "stop emailing",
+    "stop contacting",
+    "leave me alone",
+    "never contact",
 }
 
 _OOO_KEYWORDS = {
-    "out of office", "out of the office", "auto-reply", "automatic reply",
-    "autoreply", "away from", "on vacation", "on leave", "annual leave",
-    "maternity leave", "paternity leave", "currently unavailable",
-    "i am out", "i'm out", "will be back", "returning on", "back on",
-    "limited access", "limited availability",
+    "out of office",
+    "out of the office",
+    "auto-reply",
+    "automatic reply",
+    "autoreply",
+    "away from",
+    "on vacation",
+    "on leave",
+    "annual leave",
+    "maternity leave",
+    "paternity leave",
+    "currently unavailable",
+    "i am out",
+    "i'm out",
+    "will be back",
+    "returning on",
+    "back on",
+    "limited access",
+    "limited availability",
 }
 
 _UNSUBSCRIBE_KEYWORDS = {
-    "unsubscribe", "remove me from", "take me off", "opt out", "opt-out",
-    "do not email", "stop emailing me", "please stop", "cease and desist",
-    "no more emails", "remove from list",
+    "unsubscribe",
+    "remove me from",
+    "take me off",
+    "opt out",
+    "opt-out",
+    "do not email",
+    "stop emailing me",
+    "please stop",
+    "cease and desist",
+    "no more emails",
+    "remove from list",
 }
 
 
@@ -204,9 +269,7 @@ class ReplyService:
                     conn.store(msg_id_bytes, "+FLAGS", "\\Seen")
 
                 except Exception as exc:
-                    logger.warning(
-                        "Failed to parse IMAP message %s: %s", msg_id_bytes, exc
-                    )
+                    logger.warning("Failed to parse IMAP message %s: %s", msg_id_bytes, exc)
 
         return signals
 
@@ -352,11 +415,7 @@ class ReplyService:
     def _parse_generic_payload(self, payload: dict[str, Any]) -> ReplySignal:
         """Parse generic webhook payload."""
         channel = payload.get("channel", "email")
-        sender_email = (
-            payload.get("sender_email")
-            or payload.get("from_email")
-            or payload.get("sender")
-        )
+        sender_email = payload.get("sender_email") or payload.get("from_email") or payload.get("sender")
         sender_phone = payload.get("sender_phone") or payload.get("from_phone")
         body = payload.get("body") or payload.get("text") or payload.get("content", "")
         subject = payload.get("subject", "")
@@ -378,9 +437,7 @@ class ReplyService:
 
     # ── Enrollment Matching ────────────────────────────────────────────────
 
-    async def match_to_enrollment(
-        self, signal: ReplySignal
-    ) -> tuple[UUID | None, UUID | None]:
+    async def match_to_enrollment(self, signal: ReplySignal) -> tuple[UUID | None, UUID | None]:
         """
         Match a reply signal to a SequenceEnrollment.
 
@@ -417,9 +474,7 @@ class ReplyService:
         if signal.subject:
             result = await self._match_by_subject(signal.subject, signal.sender_email)
             if result[0]:
-                logger.debug(
-                    "Reply matched via subject pattern → enrollment %s", result[0]
-                )
+                logger.debug("Reply matched via subject pattern → enrollment %s", result[0])
                 return result
 
         logger.info(
@@ -429,17 +484,13 @@ class ReplyService:
         )
         return None, None
 
-    async def _match_by_thread_id(
-        self, thread_id: str
-    ) -> tuple[UUID | None, UUID | None]:
+    async def _match_by_thread_id(self, thread_id: str) -> tuple[UUID | None, UUID | None]:
         """Find enrollment via thread_id stored in touch_log metadata."""
         # Clean angle brackets from message IDs
         clean_thread = thread_id.strip("<>")
 
         result = await self.db.execute(
-            select(TouchLog).where(
-                TouchLog.extra_metadata["message_id"].astext == clean_thread
-            )
+            select(TouchLog).where(TouchLog.extra_metadata["message_id"].astext == clean_thread)
         )
         log = result.scalar_one_or_none()
 
@@ -451,8 +502,12 @@ class ReplyService:
                         SequenceEnrollment.lead_id == log.lead_id,
                         SequenceEnrollment.sequence_id == log.sequence_id,
                         SequenceEnrollment.status.not_in(
-                            [EnrollmentStatus.completed, EnrollmentStatus.failed,
-                             EnrollmentStatus.bounced, EnrollmentStatus.unsubscribed]
+                            [
+                                EnrollmentStatus.completed,
+                                EnrollmentStatus.failed,
+                                EnrollmentStatus.bounced,
+                                EnrollmentStatus.unsubscribed,
+                            ]
                         ),
                     )
                 )
@@ -463,15 +518,9 @@ class ReplyService:
 
         return None, None
 
-    async def _match_by_sender_email(
-        self, sender_email: str
-    ) -> tuple[UUID | None, UUID | None]:
+    async def _match_by_sender_email(self, sender_email: str) -> tuple[UUID | None, UUID | None]:
         """Match sender email to a lead's active enrollment."""
-        lead_result = await self.db.execute(
-            select(Lead).where(
-                Lead.email == sender_email.lower()
-            )
-        )
+        lead_result = await self.db.execute(select(Lead).where(Lead.email == sender_email.lower()))
         lead = lead_result.scalar_one_or_none()
         if not lead:
             return None, None
@@ -501,9 +550,7 @@ class ReplyService:
 
         return None, None
 
-    async def _match_by_subject(
-        self, subject: str, sender_email: str | None
-    ) -> tuple[UUID | None, UUID | None]:
+    async def _match_by_subject(self, subject: str, sender_email: str | None) -> tuple[UUID | None, UUID | None]:
         """
         Match via subject line pattern.
 
@@ -516,12 +563,15 @@ class ReplyService:
 
         # Search touch_log metadata for matching subject
         result = await self.db.execute(
-            select(TouchLog).where(
+            select(TouchLog)
+            .where(
                 and_(
                     TouchLog.channel == "email",
                     TouchLog.extra_metadata["subject"].astext.ilike(f"%{clean_subject}%"),
                 )
-            ).order_by(TouchLog.created_at.desc()).limit(1)
+            )
+            .order_by(TouchLog.created_at.desc())
+            .limit(1)
         )
         log = result.scalar_one_or_none()
 
@@ -532,8 +582,12 @@ class ReplyService:
                         SequenceEnrollment.lead_id == log.lead_id,
                         SequenceEnrollment.sequence_id == log.sequence_id,
                         SequenceEnrollment.status.not_in(
-                            [EnrollmentStatus.completed, EnrollmentStatus.failed,
-                             EnrollmentStatus.bounced, EnrollmentStatus.unsubscribed]
+                            [
+                                EnrollmentStatus.completed,
+                                EnrollmentStatus.failed,
+                                EnrollmentStatus.bounced,
+                                EnrollmentStatus.unsubscribed,
+                            ]
                         ),
                     )
                 )
@@ -546,9 +600,7 @@ class ReplyService:
 
     # ── Sentiment Analysis ─────────────────────────────────────────────────
 
-    async def analyze_sentiment(
-        self, body: str
-    ) -> tuple[ReplySentiment, float]:
+    async def analyze_sentiment(self, body: str) -> tuple[ReplySentiment, float]:
         """
         Keyword-based NLP sentiment analysis.
 
@@ -578,12 +630,8 @@ class ReplyService:
         set(re.findall(r"\b[\w\s']+\b", body_lower))
         body_text = body_lower
 
-        positive_hits = sum(
-            1 for kw in _POSITIVE_KEYWORDS if kw in body_text
-        )
-        negative_hits = sum(
-            1 for kw in _NEGATIVE_KEYWORDS if kw in body_text
-        )
+        positive_hits = sum(1 for kw in _POSITIVE_KEYWORDS if kw in body_text)
+        negative_hits = sum(1 for kw in _NEGATIVE_KEYWORDS if kw in body_text)
 
         total_hits = positive_hits + negative_hits
         if total_hits == 0:
@@ -668,9 +716,7 @@ class ReplyService:
 
         return results
 
-    async def _create_hubspot_engagement_note(
-        self, lead: Lead, signal: ReplySignal
-    ) -> dict[str, Any]:
+    async def _create_hubspot_engagement_note(self, lead: Lead, signal: ReplySignal) -> dict[str, Any]:
         """Create a HubSpot engagement note via Breeze Data Agent."""
         if not settings.HUBSPOT_BREEZE_ENABLED or not settings.HUBSPOT_API_KEY:
             return {}
@@ -743,9 +789,7 @@ class ReplyService:
             logger.error("HubSpot note creation failed for %s: %s", lead.email, exc)
             return {}
 
-    async def _apollo_log_reply(
-        self, lead: Lead, signal: ReplySignal
-    ) -> dict[str, Any]:
+    async def _apollo_log_reply(self, lead: Lead, signal: ReplySignal) -> dict[str, Any]:
         """Log reply engagement to Apollo AI and retrieve next-action suggestion."""
         if not settings.APOLLO_AI_ENABLED or not settings.APOLLO_API_KEY:
             return {}
@@ -782,9 +826,7 @@ class ReplyService:
             logger.error("Apollo reply log failed for %s: %s", lead.email, exc)
             return {}
 
-    async def _zoominfo_log_interaction(
-        self, lead: Lead, signal: ReplySignal
-    ) -> dict[str, Any]:
+    async def _zoominfo_log_interaction(self, lead: Lead, signal: ReplySignal) -> dict[str, Any]:
         """Log reply interaction to ZoomInfo Copilot for account update."""
         if not settings.ZOOMINFO_COPILOT_ENABLED:
             return {}
@@ -866,26 +908,14 @@ class ReplyService:
 
         if enrollment_id:
             # Load the enrollment and lead
-            enr_result = await self.db.execute(
-                select(SequenceEnrollment).where(
-                    SequenceEnrollment.id == enrollment_id
-                )
-            )
+            enr_result = await self.db.execute(select(SequenceEnrollment).where(SequenceEnrollment.id == enrollment_id))
             enrollment = enr_result.scalar_one_or_none()
 
             lead_result = (
-                await self.db.execute(
-                    select(Lead).where(Lead.id == enrollment.lead_id)
-                )
-                if enrollment
-                else None
+                await self.db.execute(select(Lead).where(Lead.id == enrollment.lead_id)) if enrollment else None
             )
 
-            lead: Lead | None = (
-                lead_result.scalar_one_or_none()
-                if lead_result
-                else None
-            )
+            lead: Lead | None = lead_result.scalar_one_or_none() if lead_result else None
 
             if enrollment and lead:
                 # AI analysis (non-blocking — log errors internally)
@@ -903,30 +933,30 @@ class ReplyService:
                         enrollment.last_state_change_at = datetime.now(UTC)
                         logger.info(
                             "Enrollment %s: %s → %s (reply detected)",
-                            enrollment_id, current_state, new_state,
+                            enrollment_id,
+                            current_state,
+                            new_state,
                         )
                 except Exception as exc:
-                    logger.warning(
-                        "FSM transition failed for enrollment %s: %s", enrollment_id, exc
-                    )
+                    logger.warning("FSM transition failed for enrollment %s: %s", enrollment_id, exc)
 
                 # Auto-pause after reply
                 replied_state = str(enrollment.status.value)
                 if replied_state == EnrollmentState.replied:
                     try:
-                        paused_state = transition(
-                            replied_state, EnrollmentState.paused
-                        )
+                        paused_state = transition(replied_state, EnrollmentState.paused)
                         enrollment.status = EnrollmentStatus(paused_state)
                         enrollment.last_state_change_at = datetime.now(UTC)
                         logger.info(
                             "Enrollment %s auto-paused after reply (sentiment: %s)",
-                            enrollment_id, sentiment.value,
+                            enrollment_id,
+                            sentiment.value,
                         )
                     except Exception as exc:
                         logger.warning(
                             "Auto-pause transition failed for enrollment %s: %s",
-                            enrollment_id, exc,
+                            enrollment_id,
+                            exc,
                         )
 
                 # Log touch
@@ -978,9 +1008,7 @@ class ReplyService:
 
         return result
 
-    async def log_reply(
-        self, signal: ReplySignal, result: ReplyAnalysisResult
-    ) -> None:
+    async def log_reply(self, signal: ReplySignal, result: ReplyAnalysisResult) -> None:
         """
         Insert a record into the reply_logs table.
 
@@ -1021,15 +1049,9 @@ class ReplyService:
                     "sentiment": result.sentiment.value,
                     "confidence": result.confidence,
                     "matched_enrollment_id": (
-                        str(result.matched_enrollment_id)
-                        if result.matched_enrollment_id
-                        else None
+                        str(result.matched_enrollment_id) if result.matched_enrollment_id else None
                     ),
-                    "matched_sequence_id": (
-                        str(result.matched_sequence_id)
-                        if result.matched_sequence_id
-                        else None
-                    ),
+                    "matched_sequence_id": (str(result.matched_sequence_id) if result.matched_sequence_id else None),
                     "hubspot_note_id": result.hubspot_note_id,
                     "apollo_action": result.apollo_action,
                     "ai_suggestions": __import__("json").dumps(result.ai_suggestions),

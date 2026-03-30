@@ -156,9 +156,7 @@ class AgentIntelligence:
     def __init__(self):
         self.prompt_engine = PromptEngine()
 
-    async def smart_search_leads(
-        self, db: AsyncSession, user_id: UUID, query_params: dict
-    ) -> dict:
+    async def smart_search_leads(self, db: AsyncSession, user_id: UUID, query_params: dict) -> dict:
         """Parse a natural language lead request into a multi-agent execution plan.
 
         Now considers Apollo as a primary search source alongside ZoomInfo,
@@ -195,47 +193,55 @@ class AgentIntelligence:
 
         # Step 1: Search for leads (ZoomInfo or Apollo based on preference/availability)
         if source in ("auto", "zoominfo"):
-            steps.append({
-                "step": step_num,
-                "agent": "zoominfo",
-                "action": "search_people",
-                "description": f"Search ZoomInfo for {specialty} in {location or 'all areas'}",
-                "params": zoominfo_params,
-                "depends_on": None,
-            })
+            steps.append(
+                {
+                    "step": step_num,
+                    "agent": "zoominfo",
+                    "action": "search_people",
+                    "description": f"Search ZoomInfo for {specialty} in {location or 'all areas'}",
+                    "params": zoominfo_params,
+                    "depends_on": None,
+                }
+            )
             step_num += 1
 
         if source in ("auto", "apollo"):
-            steps.append({
-                "step": step_num,
-                "agent": "apollo",
-                "action": "search_people",
-                "description": f"Search Apollo for {specialty} in {location or 'all areas'}",
-                "params": apollo_params,
-                "depends_on": None,
-            })
+            steps.append(
+                {
+                    "step": step_num,
+                    "agent": "apollo",
+                    "action": "search_people",
+                    "description": f"Search Apollo for {specialty} in {location or 'all areas'}",
+                    "params": apollo_params,
+                    "depends_on": None,
+                }
+            )
             step_num += 1
 
         # Step 2: Verify emails
-        steps.append({
-            "step": step_num,
-            "agent": "zoominfo",
-            "action": "verify_email",
-            "description": "Verify email addresses for found contacts",
-            "params": {},
-            "depends_on": 1,
-        })
+        steps.append(
+            {
+                "step": step_num,
+                "agent": "zoominfo",
+                "action": "verify_email",
+                "description": "Verify email addresses for found contacts",
+                "params": {},
+                "depends_on": 1,
+            }
+        )
         step_num += 1
 
         # Step 3: Import to HubSpot CRM
-        steps.append({
-            "step": step_num,
-            "agent": "hubspot",
-            "action": "bulk_create_contacts",
-            "description": "Import verified contacts into HubSpot CRM",
-            "params": {},
-            "depends_on": step_num - 1,
-        })
+        steps.append(
+            {
+                "step": step_num,
+                "agent": "hubspot",
+                "action": "bulk_create_contacts",
+                "description": "Import verified contacts into HubSpot CRM",
+                "params": {},
+                "depends_on": step_num - 1,
+            }
+        )
 
         plan = {
             "target": target_desc,
@@ -243,9 +249,7 @@ class AgentIntelligence:
         }
         return plan
 
-    async def smart_create_campaign(
-        self, db: AsyncSession, user_id: UUID, params: dict
-    ) -> dict:
+    async def smart_create_campaign(self, db: AsyncSession, user_id: UUID, params: dict) -> dict:
         """Build a full campaign plan from natural language parameters.
 
         Now includes Apollo sequences and LinkedIn via Taplio as channel options.
@@ -281,47 +285,55 @@ class AgentIntelligence:
         step_num = 3
 
         if "sms" in channels:
-            steps.append({
-                "step": step_num,
-                "agent": "twilio",
-                "action": "send_sms",
-                "description": "Set up SMS follow-up for non-responders",
-                "params": {},
-                "depends_on": 1,
-            })
+            steps.append(
+                {
+                    "step": step_num,
+                    "agent": "twilio",
+                    "action": "send_sms",
+                    "description": "Set up SMS follow-up for non-responders",
+                    "params": {},
+                    "depends_on": 1,
+                }
+            )
             step_num += 1
 
         if "whatsapp" in channels:
-            steps.append({
-                "step": step_num,
-                "agent": "twilio",
-                "action": "send_whatsapp",
-                "description": "Set up WhatsApp follow-up for high-priority leads",
-                "params": {},
-                "depends_on": 1,
-            })
+            steps.append(
+                {
+                    "step": step_num,
+                    "agent": "twilio",
+                    "action": "send_whatsapp",
+                    "description": "Set up WhatsApp follow-up for high-priority leads",
+                    "params": {},
+                    "depends_on": 1,
+                }
+            )
             step_num += 1
 
         if "apollo_sequence" in channels:
-            steps.append({
-                "step": step_num,
-                "agent": "apollo",
-                "action": "add_contacts_to_sequence",
-                "description": "Enroll contacts in Apollo email sequence for automated follow-up",
-                "params": {},
-                "depends_on": 1,
-            })
+            steps.append(
+                {
+                    "step": step_num,
+                    "agent": "apollo",
+                    "action": "add_contacts_to_sequence",
+                    "description": "Enroll contacts in Apollo email sequence for automated follow-up",
+                    "params": {},
+                    "depends_on": 1,
+                }
+            )
             step_num += 1
 
         if "linkedin" in channels:
-            steps.append({
-                "step": step_num,
-                "agent": "taplio",
-                "action": "compose_dm",
-                "description": "Compose personalized LinkedIn DMs for target contacts",
-                "params": {"tone": tone},
-                "depends_on": 1,
-            })
+            steps.append(
+                {
+                    "step": step_num,
+                    "agent": "taplio",
+                    "action": "compose_dm",
+                    "description": "Compose personalized LinkedIn DMs for target contacts",
+                    "params": {"tone": tone},
+                    "depends_on": 1,
+                }
+            )
             step_num += 1
 
         return {
@@ -386,9 +398,7 @@ class AgentIntelligence:
 
         return mapped
 
-    async def build_outreach_options(
-        self, db: AsyncSession, user_id: UUID, params: dict
-    ) -> dict:
+    async def build_outreach_options(self, db: AsyncSession, user_id: UUID, params: dict) -> dict:
         """Given a target description, return available outreach options.
 
         Now includes Apollo sequences and LinkedIn via Taplio as options.
@@ -412,9 +422,11 @@ class AgentIntelligence:
         try:
             from sqlalchemy import func, select as sa_select
             from app.models.lead import Lead
+
             q = sa_select(func.count(Lead.id))
             if location:
                 from sqlalchemy import String
+
                 q = q.where(func.cast(Lead.enriched_data, String).ilike(f"%{location}%"))
             result = await db.execute(q)
             existing_leads = result.scalar_one() or 0
@@ -425,99 +437,103 @@ class AgentIntelligence:
 
         # Option 1: Email Sequence (always available if groq is configured)
         email_ready = "groq" in configured
-        options.append({
-            "name": "Email Sequence",
-            "description": "5-step professional email sequence over 14 days via AWS SES",
-            "channels": ["email"],
-            "estimated_reach": 92,
-            "compliance_status": "ready" if email_ready else "needs_groq_setup",
-            "estimated_cost": "$0.05/email via SES",
-            "requirements": [
-                ("SES configured", True),
-                ("Email warmup > 30 days", True),
-                ("Groq AI configured", "groq" in configured),
-            ],
-        })
+        options.append(
+            {
+                "name": "Email Sequence",
+                "description": "5-step professional email sequence over 14 days via AWS SES",
+                "channels": ["email"],
+                "estimated_reach": 92,
+                "compliance_status": "ready" if email_ready else "needs_groq_setup",
+                "estimated_cost": "$0.05/email via SES",
+                "requirements": [
+                    ("SES configured", True),
+                    ("Email warmup > 30 days", True),
+                    ("Groq AI configured", "groq" in configured),
+                ],
+            }
+        )
 
         # Option 2: Apollo Email Sequence
         apollo_ready = "apollo" in configured
         if apollo_ready:
-            options.append({
-                "name": "Apollo Email Sequence",
-                "description": "Automated multi-step sequence via Apollo with built-in deliverability",
-                "channels": ["email"],
-                "estimated_reach": 90,
-                "compliance_status": "ready",
-                "estimated_cost": "Included in Apollo plan",
-                "requirements": [
-                    ("Apollo configured", True),
-                    ("Apollo email account connected", True),
-                    ("Sequence created in Apollo", True),
-                ],
-            })
+            options.append(
+                {
+                    "name": "Apollo Email Sequence",
+                    "description": "Automated multi-step sequence via Apollo with built-in deliverability",
+                    "channels": ["email"],
+                    "estimated_reach": 90,
+                    "compliance_status": "ready",
+                    "estimated_cost": "Included in Apollo plan",
+                    "requirements": [
+                        ("Apollo configured", True),
+                        ("Apollo email account connected", True),
+                        ("Sequence created in Apollo", True),
+                    ],
+                }
+            )
 
         # Option 3: Multi-Channel Blitz
         twilio_ready = "twilio" in configured
-        options.append({
-            "name": "Multi-Channel Blitz",
-            "description": "Email + SMS + LinkedIn coordinated sequence",
-            "channels": ["email", "sms", "linkedin"],
-            "estimated_reach": 98,
-            "compliance_status": "ready" if twilio_ready else "needs_sms_consent",
-            "estimated_cost": "~$2.50/contact (SES + Twilio + Taplio)",
-            "requirements": [
-                ("SES configured", True),
-                ("Twilio configured", "twilio" in configured),
-                ("Taplio configured", "taplio" in configured),
-                ("TCPA consent", twilio_ready),
-            ],
-        })
+        options.append(
+            {
+                "name": "Multi-Channel Blitz",
+                "description": "Email + SMS + LinkedIn coordinated sequence",
+                "channels": ["email", "sms", "linkedin"],
+                "estimated_reach": 98,
+                "compliance_status": "ready" if twilio_ready else "needs_sms_consent",
+                "estimated_cost": "~$2.50/contact (SES + Twilio + Taplio)",
+                "requirements": [
+                    ("SES configured", True),
+                    ("Twilio configured", "twilio" in configured),
+                    ("Taplio configured", "taplio" in configured),
+                    ("TCPA consent", twilio_ready),
+                ],
+            }
+        )
 
         # Option 4: LinkedIn First (via Taplio)
         taplio_ready = "taplio" in configured
-        options.append({
-            "name": "LinkedIn First",
-            "description": "LinkedIn connection requests + DMs, followed by email for non-responders",
-            "channels": ["linkedin", "email"],
-            "estimated_reach": 65,
-            "compliance_status": "ready" if taplio_ready else "needs_taplio_setup",
-            "estimated_cost": "$0.05/email + Taplio subscription",
-            "requirements": [
-                ("Taplio configured", "taplio" in configured),
-                ("SES configured", True),
-            ],
-        })
+        options.append(
+            {
+                "name": "LinkedIn First",
+                "description": "LinkedIn connection requests + DMs, followed by email for non-responders",
+                "channels": ["linkedin", "email"],
+                "estimated_reach": 65,
+                "compliance_status": "ready" if taplio_ready else "needs_taplio_setup",
+                "estimated_cost": "$0.05/email + Taplio subscription",
+                "requirements": [
+                    ("Taplio configured", "taplio" in configured),
+                    ("SES configured", True),
+                ],
+            }
+        )
 
         # Option 5: WhatsApp Outreach
         if twilio_ready:
-            options.append({
-                "name": "WhatsApp Business Outreach",
-                "description": "WhatsApp messages with approved templates, ideal for DSO contacts",
-                "channels": ["whatsapp"],
-                "estimated_reach": 75,
-                "compliance_status": "ready",
-                "estimated_cost": "~$0.05/message (Twilio WhatsApp)",
-                "requirements": [
-                    ("Twilio configured", True),
-                    ("WhatsApp Business approved", True),
-                    ("Content templates approved", True),
-                ],
-            })
+            options.append(
+                {
+                    "name": "WhatsApp Business Outreach",
+                    "description": "WhatsApp messages with approved templates, ideal for DSO contacts",
+                    "channels": ["whatsapp"],
+                    "estimated_reach": 75,
+                    "compliance_status": "ready",
+                    "estimated_cost": "~$0.05/message (Twilio WhatsApp)",
+                    "requirements": [
+                        ("Twilio configured", True),
+                        ("WhatsApp Business approved", True),
+                        ("Content templates approved", True),
+                    ],
+                }
+            )
 
         # Build lead sourcing info
         lead_sources = []
         if "zoominfo" in configured:
-            lead_sources.append(
-                f"ZoomInfo: search ~{count} dental contacts matching criteria"
-            )
+            lead_sources.append(f"ZoomInfo: search ~{count} dental contacts matching criteria")
         if "apollo" in configured:
-            lead_sources.append(
-                f"Apollo: search 210M+ contacts for {target}"
-            )
+            lead_sources.append(f"Apollo: search 210M+ contacts for {target}")
         if not lead_sources:
-            lead_sources.append(
-                "No lead source configured — add ZoomInfo or Apollo API key in Settings"
-            )
+            lead_sources.append("No lead source configured — add ZoomInfo or Apollo API key in Settings")
 
         return {
             "target": target_desc,
@@ -528,9 +544,7 @@ class AgentIntelligence:
                 "apollo_available": "apollo" in configured,
                 "taplio_available": "taplio" in configured,
                 "sources": lead_sources,
-                "action_needed": (
-                    " | ".join(lead_sources)
-                ),
+                "action_needed": (" | ".join(lead_sources)),
             },
             "next_steps": "Tell me which option you'd like, or say 'go with email' to start immediately.",
         }

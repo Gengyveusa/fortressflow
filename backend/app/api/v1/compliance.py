@@ -45,9 +45,7 @@ async def grant_consent(
     db: AsyncSession = Depends(get_db),
 ) -> ConsentGrantResponse:
     """Record explicit consent for a lead/channel combination."""
-    consent = await compliance_svc.record_consent(
-        body.lead_id, body.channel, body.method, body.proof, db
-    )
+    consent = await compliance_svc.record_consent(body.lead_id, body.channel, body.method, body.proof, db)
     return ConsentGrantResponse(consent_id=consent.id, granted_at=consent.granted_at)
 
 
@@ -125,9 +123,7 @@ async def add_dnc(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Add an email or phone to the DNC list."""
-    block = await compliance_svc.add_to_dnc(
-        body.identifier, body.channel, body.reason, body.source, db
-    )
+    block = await compliance_svc.add_to_dnc(body.identifier, body.channel, body.reason, body.source, db)
     return {
         "id": str(block.id),
         "identifier": block.identifier,

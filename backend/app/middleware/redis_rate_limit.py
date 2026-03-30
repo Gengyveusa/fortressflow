@@ -44,26 +44,24 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class RateLimitPolicy:
     """Defines a sliding-window rate-limit policy for an endpoint group."""
+
     group: str
-    limit: int          # maximum requests allowed in the window
+    limit: int  # maximum requests allowed in the window
     window_seconds: int  # duration of the sliding window in seconds
 
 
 # Ordered list — first match wins (more-specific prefixes before catch-all).
 ENDPOINT_POLICIES: list[tuple[str, RateLimitPolicy]] = [
     # Unlimited — health probes and Prometheus scrapes must never be blocked
-    ("/health",   RateLimitPolicy(group="health",   limit=0, window_seconds=60)),
-    ("/metrics",  RateLimitPolicy(group="metrics",  limit=0, window_seconds=60)),
-
+    ("/health", RateLimitPolicy(group="health", limit=0, window_seconds=60)),
+    ("/metrics", RateLimitPolicy(group="metrics", limit=0, window_seconds=60)),
     # Heavy operations
-    ("/api/v1/leads/import",       RateLimitPolicy(group="leads_import",       limit=10,  window_seconds=60)),
-    ("/api/v1/sequences/generate", RateLimitPolicy(group="sequences_generate", limit=5,   window_seconds=60)),
-
+    ("/api/v1/leads/import", RateLimitPolicy(group="leads_import", limit=10, window_seconds=60)),
+    ("/api/v1/sequences/generate", RateLimitPolicy(group="sequences_generate", limit=5, window_seconds=60)),
     # High-volume webhook ingestion
-    ("/api/v1/webhooks/",          RateLimitPolicy(group="webhooks",           limit=500, window_seconds=60)),
-
+    ("/api/v1/webhooks/", RateLimitPolicy(group="webhooks", limit=500, window_seconds=60)),
     # Default — must be last
-    ("/",                          RateLimitPolicy(group="default",            limit=200, window_seconds=60)),
+    ("/", RateLimitPolicy(group="default", limit=200, window_seconds=60)),
 ]
 
 
@@ -195,9 +193,8 @@ class RedisRateLimitMiddleware(BaseHTTPMiddleware):
         if policy.limit == 0:
             return await call_next(request)
 
-        client_ip = (
-            request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
-            or (request.client.host if request.client else "unknown")
+        client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or (
+            request.client.host if request.client else "unknown"
         )
 
         now = time.time()

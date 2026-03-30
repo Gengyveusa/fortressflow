@@ -28,11 +28,13 @@ def client():
 
 def _override_db(mock_db):
     from app.database import get_db
+
     app.dependency_overrides[get_db] = lambda: mock_db
 
 
 def _override_auth(role="user"):
     from app.auth import get_current_user, require_role
+
     mock_user = MagicMock()
     mock_user.id = uuid.uuid4()
     mock_user.email = "test@test.com"
@@ -239,6 +241,7 @@ class TestDeleteDNC:
 
         # Override admin role
         from app.auth import get_current_user, require_role
+
         admin_user = MagicMock()
         admin_user.id = uuid.uuid4()
         admin_user.role = UserRole.admin
@@ -260,6 +263,7 @@ class TestDeleteDNC:
         _override_db(mock_db)
 
         from app.auth import get_current_user, require_role
+
         admin_user = MagicMock()
         admin_user.id = uuid.uuid4()
         admin_user.role = UserRole.admin

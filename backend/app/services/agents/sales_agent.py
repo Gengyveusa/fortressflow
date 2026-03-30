@@ -159,7 +159,8 @@ class SalesAgent:
             )
 
             ai_enrichment = await self._llm_json_call(
-                system_prompt, user_prompt,
+                system_prompt,
+                user_prompt,
                 model=self.DEFAULT_MODEL,
                 max_tokens=768,
                 user_id=str(user_id or "anon"),
@@ -277,7 +278,8 @@ class SalesAgent:
             user_prompt = f"Optimize this lead search:\n{filter_summary}"
 
             ai_expansion = await self._llm_json_call(
-                system_prompt, user_prompt,
+                system_prompt,
+                user_prompt,
                 model=self.FAST_MODEL,
                 max_tokens=512,
                 user_id=str(user_id or "anon"),
@@ -348,7 +350,9 @@ class SalesAgent:
                 deal.setdefault("pipeline_id", pipeline_id or "default")
                 deal.setdefault("stage", stage or "qualification")
                 deal.setdefault("amount", amount or 0)
-                deal.setdefault("close_date", close_date or (datetime.now(UTC) + timedelta(days=90)).strftime("%Y-%m-%d"))
+                deal.setdefault(
+                    "close_date", close_date or (datetime.now(UTC) + timedelta(days=90)).strftime("%Y-%m-%d")
+                )
                 if properties:
                     deal.update(properties)
 
@@ -407,7 +411,8 @@ class SalesAgent:
                 user_prompt = f"Analyze this deal:\n{json.dumps(deal_info, default=str)}"
 
                 analysis = await self._llm_json_call(
-                    system_prompt, user_prompt,
+                    system_prompt,
+                    user_prompt,
                     max_tokens=768,
                     user_id=str(user_id or "anon"),
                 )
@@ -494,7 +499,8 @@ class SalesAgent:
             )
 
             result = await self._llm_json_call(
-                system_prompt, user_prompt,
+                system_prompt,
+                user_prompt,
                 max_tokens=2048,
                 user_id=str(user_id or "anon"),
             )
@@ -566,8 +572,13 @@ class SalesAgent:
             if not due_date:
                 # AI-suggested due date based on task type
                 default_days = {
-                    "call": 1, "email": 0, "meeting": 2, "demo": 3,
-                    "follow_up": 1, "research": 2, "proposal": 5,
+                    "call": 1,
+                    "email": 0,
+                    "meeting": 2,
+                    "demo": 3,
+                    "follow_up": 1,
+                    "research": 2,
+                    "proposal": 5,
                 }
                 days_out = default_days.get(task_type, 2)
                 due_date = (datetime.now(UTC) + timedelta(days=days_out)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -661,7 +672,8 @@ class SalesAgent:
                 user_prompt = f"Analyze this sales call transcript:\n\n{transcript[:4000]}"
 
                 ai_analysis = await self._llm_json_call(
-                    system_prompt, user_prompt,
+                    system_prompt,
+                    user_prompt,
                     max_tokens=768,
                     user_id=str(user_id or "anon"),
                 )
@@ -733,7 +745,9 @@ class SalesAgent:
 
             logger.info(
                 "SalesAgent enrolled %d contacts in sequence %s (%s)",
-                enrolled_count, sequence_id, sequence_name,
+                enrolled_count,
+                sequence_id,
+                sequence_name,
             )
             return {
                 "sequence_id": sequence_id,
@@ -800,7 +814,8 @@ class SalesAgent:
             )
 
             insights = await self._llm_json_call(
-                system_prompt, user_prompt,
+                system_prompt,
+                user_prompt,
                 max_tokens=1024,
                 user_id=str(user_id or "anon"),
             )
@@ -882,7 +897,8 @@ class SalesAgent:
             )
 
             prep = await self._llm_json_call(
-                system_prompt, user_prompt,
+                system_prompt,
+                user_prompt,
                 model=self.DEFAULT_MODEL,
                 max_tokens=768,
                 user_id=str(user_id or "anon"),
@@ -966,13 +982,15 @@ class SalesAgent:
                 price = product.get("unit_price", 0.0)
                 line_total = qty * price
                 subtotal += line_total
-                line_items.append({
-                    "name": product.get("name", ""),
-                    "description": product.get("description", ""),
-                    "quantity": qty,
-                    "unit_price": price,
-                    "line_total": line_total,
-                })
+                line_items.append(
+                    {
+                        "name": product.get("name", ""),
+                        "description": product.get("description", ""),
+                        "quantity": qty,
+                        "unit_price": price,
+                        "line_total": line_total,
+                    }
+                )
 
             discount_amount = subtotal * (discount_percent / 100)
             total_after_discount = subtotal - discount_amount
@@ -996,7 +1014,8 @@ class SalesAgent:
             )
 
             ai_summary = await self._llm_json_call(
-                system_prompt, user_prompt,
+                system_prompt,
+                user_prompt,
                 model=self.FAST_MODEL,
                 max_tokens=512,
                 user_id=str(user_id or "anon"),
@@ -1087,7 +1106,8 @@ class SalesAgent:
             )
 
             analysis = await self._llm_json_call(
-                system_prompt, user_prompt,
+                system_prompt,
+                user_prompt,
                 max_tokens=1536,
                 user_id=str(user_id or "anon"),
             )
@@ -1163,7 +1183,8 @@ class SalesAgent:
             )
 
             scoring = await self._llm_json_call(
-                system_prompt, user_prompt,
+                system_prompt,
+                user_prompt,
                 max_tokens=1024,
                 user_id=str(user_id or "anon"),
             )
@@ -1250,7 +1271,8 @@ class SalesAgent:
             )
 
             insights = await self._llm_json_call(
-                system_prompt, user_prompt,
+                system_prompt,
+                user_prompt,
                 max_tokens=1536,
                 user_id=str(user_id or "anon"),
             )
@@ -1322,7 +1344,8 @@ class SalesAgent:
             )
 
             recommendations = await self._llm_json_call(
-                system_prompt, user_prompt,
+                system_prompt,
+                user_prompt,
                 max_tokens=1536,
                 user_id=str(user_id or "anon"),
             )
@@ -1403,7 +1426,8 @@ class SalesAgent:
             )
 
             forecast = await self._llm_json_call(
-                system_prompt, user_prompt,
+                system_prompt,
+                user_prompt,
                 max_tokens=1536,
                 user_id=str(user_id or "anon"),
             )

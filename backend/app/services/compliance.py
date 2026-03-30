@@ -178,26 +178,18 @@ async def get_audit_trail(lead_id: UUID, db: AsyncSession) -> dict:
     if lead is None:
         return {"lead_id": lead_id, "consents": [], "touch_logs": [], "dnc_records": []}
 
-    result = await db.execute(
-        select(Consent).where(Consent.lead_id == lead_id).order_by(Consent.created_at)
-    )
+    result = await db.execute(select(Consent).where(Consent.lead_id == lead_id).order_by(Consent.created_at))
     consents = result.scalars().all()
 
-    result = await db.execute(
-        select(TouchLog).where(TouchLog.lead_id == lead_id).order_by(TouchLog.created_at)
-    )
+    result = await db.execute(select(TouchLog).where(TouchLog.lead_id == lead_id).order_by(TouchLog.created_at))
     touch_logs = result.scalars().all()
 
     identifier = lead.email
-    result = await db.execute(
-        select(DNCBlock).where(DNCBlock.identifier == identifier).order_by(DNCBlock.created_at)
-    )
+    result = await db.execute(select(DNCBlock).where(DNCBlock.identifier == identifier).order_by(DNCBlock.created_at))
     dnc_records = result.scalars().all()
     if lead.phone:
         result = await db.execute(
-            select(DNCBlock)
-            .where(DNCBlock.identifier == lead.phone)
-            .order_by(DNCBlock.created_at)
+            select(DNCBlock).where(DNCBlock.identifier == lead.phone).order_by(DNCBlock.created_at)
         )
         phone_dnc = result.scalars().all()
         dnc_records = list(dnc_records) + list(phone_dnc)
@@ -245,15 +237,14 @@ async def get_audit_trail(lead_id: UUID, db: AsyncSession) -> dict:
 def generate_unsubscribe_token(lead_id: UUID, channel: str) -> str:
     """Generate a signed HMAC-SHA256 token encoding lead_id and channel."""
     import base64
+
     payload = json.dumps({"lead_id": str(lead_id), "channel": channel}, sort_keys=True)
     sig = hmac.new(
         settings.UNSUBSCRIBE_HMAC_KEY.encode(),
         payload.encode(),
         hashlib.sha256,
     ).hexdigest()
-    token_data = base64.urlsafe_b64encode(
-        json.dumps({"payload": payload, "sig": sig}).encode()
-    ).decode()
+    token_data = base64.urlsafe_b64encode(json.dumps({"payload": payload, "sig": sig}).encode()).decode()
     return token_data
 
 
@@ -262,6 +253,7 @@ def verify_unsubscribe_token(token: str) -> tuple[UUID, str] | tuple[None, None]
     Verify HMAC token and return (lead_id, channel) or (None, None) if invalid.
     """
     import base64
+
     try:
         decoded = json.loads(base64.urlsafe_b64decode(token.encode()).decode())
         payload = decoded["payload"]

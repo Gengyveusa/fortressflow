@@ -145,11 +145,7 @@ class OpenAIAgent:
         return {
             "flagged": result.flagged,
             "categories": {k: v for k, v in result.categories.model_dump().items() if v},
-            "category_scores": {
-                k: round(v, 4)
-                for k, v in result.category_scores.model_dump().items()
-                if v > 0.01
-            },
+            "category_scores": {k: round(v, 4) for k, v in result.category_scores.model_dump().items() if v > 0.01},
         }
 
     # ── Structured extraction ────────────────────────────────────────────
@@ -215,10 +211,7 @@ class OpenAIAgent:
                 {"role": "system", "content": system_prompt},
                 {
                     "role": "user",
-                    "content": (
-                        f"Template:\n{template_content}\n\n"
-                        f"Metrics:\n{json.dumps(metrics, default=str)}"
-                    ),
+                    "content": (f"Template:\n{template_content}\n\nMetrics:\n{json.dumps(metrics, default=str)}"),
                 },
             ],
             max_tokens=1024,

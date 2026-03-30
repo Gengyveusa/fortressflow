@@ -5,6 +5,7 @@ Revises:
 Create Date: 2024-01-01 00:00:00.000000
 
 """
+
 from typing import Sequence, Union
 
 import sqlalchemy as sa
@@ -23,14 +24,18 @@ def upgrade() -> None:
     bind = op.get_bind()
 
     # Enums — use DO blocks so creation is idempotent at the SQL level
-    consent_channel = postgresql.ENUM(
-        "email", "sms", "linkedin", name="consent_channel", create_type=False
-    )
+    consent_channel = postgresql.ENUM("email", "sms", "linkedin", name="consent_channel", create_type=False)
     consent_method = postgresql.ENUM(
         "meeting_card", "web_form", "import_verified", name="consent_method", create_type=False
     )
     touch_action = postgresql.ENUM(
-        "sent", "delivered", "opened", "replied", "bounced", "complained", "unsubscribed",
+        "sent",
+        "delivered",
+        "opened",
+        "replied",
+        "bounced",
+        "complained",
+        "unsubscribed",
         name="touch_action",
         create_type=False,
     )

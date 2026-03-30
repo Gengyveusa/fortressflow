@@ -62,9 +62,7 @@ class AIFeedbackService:
         try:
             # Total enrollments for this sequence
             total_result = await self.db.execute(
-                select(func.count(SequenceEnrollment.id)).where(
-                    SequenceEnrollment.sequence_id == sequence_id
-                )
+                select(func.count(SequenceEnrollment.id)).where(SequenceEnrollment.sequence_id == sequence_id)
             )
             total_enrolled = total_result.scalar() or 0
 
@@ -168,9 +166,7 @@ class AIFeedbackService:
             return metrics
 
         except Exception as exc:
-            logger.error(
-                "Failed to aggregate metrics for sequence %s: %s", sequence_id, exc
-            )
+            logger.error("Failed to aggregate metrics for sequence %s: %s", sequence_id, exc)
             return {"error": str(exc), "sequence_id": str(sequence_id)}
 
     async def _avg_steps_before_reply(self, sequence_id: UUID) -> float:
@@ -277,9 +273,7 @@ class AIFeedbackService:
             logger.debug("Best template lookup error: %s", exc)
             return None
 
-    async def _meeting_booked_rate(
-        self, sequence_id: UUID, total_replied: int
-    ) -> float:
+    async def _meeting_booked_rate(self, sequence_id: UUID, total_replied: int) -> float:
         """
         Approximate meeting booked rate from reply_logs sentiment.
 
@@ -290,9 +284,7 @@ class AIFeedbackService:
 
         try:
             total_enrolled_result = await self.db.execute(
-                select(func.count(SequenceEnrollment.id)).where(
-                    SequenceEnrollment.sequence_id == sequence_id
-                )
+                select(func.count(SequenceEnrollment.id)).where(SequenceEnrollment.sequence_id == sequence_id)
             )
             total_enrolled = total_enrolled_result.scalar() or 1
 
@@ -317,9 +309,7 @@ class AIFeedbackService:
             total_enrolled = 1
             try:
                 r = await self.db.execute(
-                    select(func.count(SequenceEnrollment.id)).where(
-                        SequenceEnrollment.sequence_id == sequence_id
-                    )
+                    select(func.count(SequenceEnrollment.id)).where(SequenceEnrollment.sequence_id == sequence_id)
                 )
                 total_enrolled = r.scalar() or 1
             except Exception:
@@ -328,9 +318,7 @@ class AIFeedbackService:
 
     # ── Platform Feedback Push ─────────────────────────────────────────────
 
-    async def push_metrics_to_platforms(
-        self, sequence_id: UUID, metrics: dict[str, Any]
-    ) -> dict[str, int]:
+    async def push_metrics_to_platforms(self, sequence_id: UUID, metrics: dict[str, Any]) -> dict[str, int]:
         """
         Push aggregated sequence metrics to all 3 AI platforms in parallel.
 
@@ -371,9 +359,7 @@ class AIFeedbackService:
             tasks = []
             for email in batch:
                 for platform in ("hubspot", "zoominfo", "apollo"):
-                    tasks.append(
-                        self._push_to_platform(platform, email, outcomes)
-                    )
+                    tasks.append(self._push_to_platform(platform, email, outcomes))
 
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -385,21 +371,18 @@ class AIFeedbackService:
                     if isinstance(r, bool) and r:
                         success_counts[platform] += 1
                     elif isinstance(r, Exception):
-                        logger.debug(
-                            "Platform push error (%s, %s): %s", platform, email, r
-                        )
+                        logger.debug("Platform push error (%s, %s): %s", platform, email, r)
                     task_idx += 1
 
         logger.info(
             "Metrics push complete for sequence %s: %s",
-            sequence_id, success_counts,
+            sequence_id,
+            success_counts,
         )
 
         return success_counts
 
-    async def _push_to_platform(
-        self, platform: str, email: str, outcomes: dict[str, Any]
-    ) -> bool:
+    async def _push_to_platform(self, platform: str, email: str, outcomes: dict[str, Any]) -> bool:
         """Push outcome data for a single contact to a single platform."""
         return await self._ai.send_outcome_feedback(
             platform=f"{platform}_sequence_feedback",
@@ -432,20 +415,12 @@ class AIFeedbackService:
         }
 
         tasks = {
-            "hubspot": self._ai.send_outcome_feedback(
-                "hubspot_breeze_data_agent", lead_email, outcomes
-            ),
-            "zoominfo": self._ai.send_outcome_feedback(
-                "zoominfo_copilot", lead_email, outcomes
-            ),
-            "apollo": self._ai.send_outcome_feedback(
-                "apollo_ai", lead_email, outcomes
-            ),
+            "hubspot": self._ai.send_outcome_feedback("hubspot_breeze_data_agent", lead_email, outcomes),
+            "zoominfo": self._ai.send_outcome_feedback("zoominfo_copilot", lead_email, outcomes),
+            "apollo": self._ai.send_outcome_feedback("apollo_ai", lead_email, outcomes),
         }
 
-        platform_results = await asyncio.gather(
-            *tasks.values(), return_exceptions=True
-        )
+        platform_results = await asyncio.gather(*tasks.values(), return_exceptions=True)
 
         result: dict[str, Any] = {}
         for platform, outcome in zip(tasks.keys(), platform_results):
@@ -453,14 +428,18 @@ class AIFeedbackService:
                 result[platform] = False
                 logger.warning(
                     "Reply feedback push failed (%s, %s): %s",
-                    platform, lead_email, outcome,
+                    platform,
+                    lead_email,
+                    outcome,
                 )
             else:
                 result[platform] = bool(outcome)
 
         logger.info(
             "Reply feedback pushed for %s (sentiment=%s): %s",
-            lead_email, reply_sentiment, result,
+            lead_email,
+            reply_sentiment,
+            result,
         )
 
         return result
@@ -485,7 +464,8 @@ class AIFeedbackService:
         if "error" in metrics:
             logger.warning(
                 "Cannot push completion feedback for sequence %s: %s",
-                sequence_id, metrics["error"],
+                sequence_id,
+                metrics["error"],
             )
             return metrics
 
@@ -603,9 +583,7 @@ class AIFeedbackService:
             }
 
         except Exception as exc:
-            logger.error(
-                "Failed to get template performance for %s: %s", template_id, exc
-            )
+            logger.error("Failed to get template performance for %s: %s", template_id, exc)
             return {
                 "template_id": str(template_id),
                 "error": str(exc),
@@ -645,9 +623,7 @@ class AIFeedbackService:
         step_funnel = await self._analyze_step_funnel(sequence_id)
 
         # AI recommendations
-        recommendations = self._generate_recommendations(
-            metrics, channel_perf, step_funnel
-        )
+        recommendations = self._generate_recommendations(metrics, channel_perf, step_funnel)
 
         report = {
             "sequence_id": str(sequence_id),
@@ -669,8 +645,7 @@ class AIFeedbackService:
         }
 
         logger.info(
-            "Learning report generated for sequence %s: "
-            "reply_rate=%.1f%% best_channel=%s",
+            "Learning report generated for sequence %s: reply_rate=%.1f%% best_channel=%s",
             sequence_id,
             (metrics.get("reply_rate") or 0) * 100,
             metrics.get("best_performing_channel"),
@@ -678,9 +653,7 @@ class AIFeedbackService:
 
         return report
 
-    async def _analyze_channel_performance(
-        self, sequence_id: UUID
-    ) -> dict[str, Any]:
+    async def _analyze_channel_performance(self, sequence_id: UUID) -> dict[str, Any]:
         """Analyze per-channel performance for a sequence."""
         channel_data: dict[str, Any] = {}
 
@@ -791,11 +764,7 @@ class AIFeedbackService:
             prev_leads = None
 
             for step_num, unique_leads in steps:
-                drop_off = (
-                    round(1.0 - unique_leads / prev_leads, 4)
-                    if prev_leads and prev_leads > 0
-                    else 0.0
-                )
+                drop_off = round(1.0 - unique_leads / prev_leads, 4) if prev_leads and prev_leads > 0 else 0.0
                 funnel.append(
                     {
                         "step": step_num,
@@ -837,15 +806,13 @@ class AIFeedbackService:
             )
         elif reply_rate > 0.15:
             recommendations.append(
-                f"Strong reply rate ({reply_rate:.1%}) — replicate subject line "
-                f"patterns and timing from this sequence."
+                f"Strong reply rate ({reply_rate:.1%}) — replicate subject line patterns and timing from this sequence."
             )
 
         # Open rate
         if open_rate < 0.15:
             recommendations.append(
-                "Open rate below 15% — A/B test subject lines; "
-                "consider personalization tokens (first name, company)."
+                "Open rate below 15% — A/B test subject lines; consider personalization tokens (first name, company)."
             )
 
         # Bounce rate
@@ -867,16 +834,11 @@ class AIFeedbackService:
             )
 
         if sms_reply > email_reply and channel_perf.get("sms", {}).get("sent", 0) > 0:
-            recommendations.append(
-                "SMS nudges showed higher reply rate — "
-                "add SMS touch earlier in the sequence flow."
-            )
+            recommendations.append("SMS nudges showed higher reply rate — add SMS touch earlier in the sequence flow.")
 
         # Step funnel drop-off
         if step_funnel:
-            high_dropoff = [
-                s for s in step_funnel if s.get("drop_off_from_prev", 0) > 0.30
-            ]
+            high_dropoff = [s for s in step_funnel if s.get("drop_off_from_prev", 0) > 0.30]
             if high_dropoff:
                 steps_str = ", ".join(str(s["step"]) for s in high_dropoff[:3])
                 recommendations.append(

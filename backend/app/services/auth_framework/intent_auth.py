@@ -20,19 +20,22 @@ from typing import Any, Dict, List, Optional
 _SIGNING_KEY: bytes = secrets.token_bytes(32)
 
 # Actions that require explicit human approval before execution
-ACTIONS_REQUIRING_APPROVAL = frozenset({
-    "publish_content",
-    "delete_record",
-    "modify_patient_data",
-    "send_communication",
-    "override_recommendation",
-    "export_pii",
-})
+ACTIONS_REQUIRING_APPROVAL = frozenset(
+    {
+        "publish_content",
+        "delete_record",
+        "modify_patient_data",
+        "send_communication",
+        "override_recommendation",
+        "export_pii",
+    }
+)
 
 
 @dataclass
 class IntentCredential:
     """Immutable record of a user's authenticated intent."""
+
     user_id: str
     action: str
     params_hash: str
@@ -52,6 +55,7 @@ class IntentCredential:
 @dataclass
 class _LedgerEntry:
     """Single entry in the tamper-resistant ledger."""
+
     index: int
     credential: IntentCredential
     previous_hash: str
@@ -147,15 +151,15 @@ class IntentLedger:
                 continue
             if since and entry.recorded_at < since:
                 continue
-            results.append({
-                "index": entry.index,
-                "credential": cred.to_dict(),
-                "previous_hash": entry.previous_hash,
-                "entry_hash": entry.entry_hash,
-                "recorded_at": datetime.fromtimestamp(
-                    entry.recorded_at, tz=timezone.utc
-                ).isoformat(),
-            })
+            results.append(
+                {
+                    "index": entry.index,
+                    "credential": cred.to_dict(),
+                    "previous_hash": entry.previous_hash,
+                    "entry_hash": entry.entry_hash,
+                    "recorded_at": datetime.fromtimestamp(entry.recorded_at, tz=timezone.utc).isoformat(),
+                }
+            )
         return results
 
     def verify_chain_integrity(self) -> bool:

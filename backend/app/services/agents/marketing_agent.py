@@ -87,14 +87,18 @@ class MarketingAgent:
         api_key = await _get_api_key(db, user_id)
         client = _get_client(api_key)
 
-        criteria_str = json.dumps(scoring_criteria or {
-            "engagement_weight": 0.6,
-            "fit_weight": 0.4,
-            "ideal_profile": {
-                "company_size": "50-500",
-                "industries": ["SaaS", "Technology", "Financial Services"],
+        criteria_str = json.dumps(
+            scoring_criteria
+            or {
+                "engagement_weight": 0.6,
+                "fit_weight": 0.4,
+                "ideal_profile": {
+                    "company_size": "50-500",
+                    "industries": ["SaaS", "Technology", "Financial Services"],
+                },
             },
-        }, default=str)
+            default=str,
+        )
 
         system_prompt = (
             "You are a B2B lead scoring specialist. Score each lead on a 0-100 scale "
@@ -117,8 +121,7 @@ class MarketingAgent:
                     {
                         "role": "user",
                         "content": (
-                            f"Scoring criteria:\n{criteria_str}\n\n"
-                            f"Leads to score:\n{json.dumps(leads, default=str)}"
+                            f"Scoring criteria:\n{criteria_str}\n\nLeads to score:\n{json.dumps(leads, default=str)}"
                         ),
                     },
                 ],
@@ -200,7 +203,8 @@ class MarketingAgent:
             result = json.loads(response.choices[0].message.content)
             logger.info(
                 "Created %d-step outbound sequence for user %s",
-                num_steps, user_id,
+                num_steps,
+                user_id,
             )
             return result
         except Exception as exc:
@@ -277,7 +281,8 @@ class MarketingAgent:
             result = json.loads(response.choices[0].message.content)
             logger.info(
                 "Compliance check completed for user %s: compliant=%s",
-                user_id, result.get("compliant"),
+                user_id,
+                result.get("compliant"),
             )
             return result
         except Exception as exc:
@@ -351,7 +356,8 @@ class MarketingAgent:
             result = json.loads(response.choices[0].message.content)
             logger.info(
                 "Generated %d A/B variants for user %s",
-                num_variants, user_id,
+                num_variants,
+                user_id,
             )
             return result
         except Exception as exc:
@@ -541,10 +547,14 @@ class MarketingAgent:
 
         history_str = json.dumps(conversation_history or [], default=str)
         context_str = json.dumps(company_context or {}, default=str)
-        rules_str = json.dumps(routing_rules or {
-            "escalate_on": ["pricing request", "demo request", "complaint", "technical issue"],
-            "qualify_on": ["budget", "timeline", "authority", "need"],
-        }, default=str)
+        rules_str = json.dumps(
+            routing_rules
+            or {
+                "escalate_on": ["pricing request", "demo request", "complaint", "technical issue"],
+                "qualify_on": ["budget", "timeline", "authority", "need"],
+            },
+            default=str,
+        )
 
         system_prompt = (
             "You are an intelligent B2B marketing chatbot. Respond helpfully and "
@@ -585,7 +595,9 @@ class MarketingAgent:
             result = json.loads(response.choices[0].message.content)
             logger.info(
                 "Chatbot response for user %s, intent=%s, route=%s",
-                user_id, result.get("intent"), result.get("route_to_human"),
+                user_id,
+                result.get("intent"),
+                result.get("route_to_human"),
             )
             return result
         except Exception as exc:
@@ -662,7 +674,8 @@ class MarketingAgent:
             result = json.loads(response.choices[0].message.content)
             logger.info(
                 "Generated multilingual content in %d languages for user %s",
-                len(targets), user_id,
+                len(targets),
+                user_id,
             )
             return result
         except Exception as exc:
@@ -743,7 +756,8 @@ class MarketingAgent:
             result = json.loads(response.choices[0].message.content)
             logger.info(
                 "Created demand gen sequence with %d touchpoints for user %s",
-                num_touchpoints, user_id,
+                num_touchpoints,
+                user_id,
             )
             return result
         except Exception as exc:
@@ -781,7 +795,10 @@ class MarketingAgent:
         client = _get_client(api_key)
 
         criteria = segmentation_criteria or [
-            "engagement_level", "company_size", "industry", "deal_value",
+            "engagement_level",
+            "company_size",
+            "industry",
+            "deal_value",
         ]
         criteria_str = ", ".join(criteria)
 
@@ -823,7 +840,9 @@ class MarketingAgent:
             result = json.loads(response.choices[0].message.content)
             logger.info(
                 "Segmented %d customers into %d segments for user %s",
-                len(customers), num_segments, user_id,
+                len(customers),
+                num_segments,
+                user_id,
             )
             return result
         except Exception as exc:
@@ -982,7 +1001,8 @@ class MarketingAgent:
             result = json.loads(response.choices[0].message.content)
             logger.info(
                 "Created event promotion for '%s' for user %s",
-                event_name, user_id,
+                event_name,
+                user_id,
             )
             return result
         except Exception as exc:
@@ -1019,10 +1039,17 @@ class MarketingAgent:
         api_key = await _get_api_key(db, user_id)
         client = _get_client(api_key)
 
-        tz_str = json.dumps(timezone_distribution or {
-            "US/Eastern": 40, "US/Pacific": 25, "Europe/London": 15,
-            "US/Central": 10, "Other": 10,
-        }, default=str)
+        tz_str = json.dumps(
+            timezone_distribution
+            or {
+                "US/Eastern": 40,
+                "US/Pacific": 25,
+                "Europe/London": 15,
+                "US/Central": 10,
+                "Other": 10,
+            },
+            default=str,
+        )
         history_str = json.dumps(historical_performance or [], default=str)
 
         system_prompt = (
@@ -1183,11 +1210,15 @@ class MarketingAgent:
         api_key = await _get_api_key(db, user_id)
         client = _get_client(api_key)
 
-        benchmarks_str = json.dumps(benchmarks or {
-            "email": {"open_rate": 21.5, "click_rate": 2.3, "conversion_rate": 1.5},
-            "social": {"engagement_rate": 3.5, "click_rate": 1.2},
-            "paid": {"ctr": 2.0, "conversion_rate": 3.5, "cpc": 2.50},
-        }, default=str)
+        benchmarks_str = json.dumps(
+            benchmarks
+            or {
+                "email": {"open_rate": 21.5, "click_rate": 2.3, "conversion_rate": 1.5},
+                "social": {"engagement_rate": 3.5, "click_rate": 1.2},
+                "paid": {"ctr": 2.0, "conversion_rate": 3.5, "cpc": 2.50},
+            },
+            default=str,
+        )
 
         system_prompt = (
             f"You are a {campaign_type} campaign performance analyst for B2B marketing. "
@@ -1232,7 +1263,8 @@ class MarketingAgent:
             result = json.loads(response.choices[0].message.content)
             logger.info(
                 "Analyzed campaign performance for user %s: grade=%s",
-                user_id, result.get("campaign_grade"),
+                user_id,
+                result.get("campaign_grade"),
             )
             return result
         except Exception as exc:

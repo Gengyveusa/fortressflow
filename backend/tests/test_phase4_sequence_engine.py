@@ -610,26 +610,19 @@ class TestVisualConfigBuilder:
     def test_step_label_generation(self):
         from app.services.sequence_ai_service import SequenceAIService
 
-        assert SequenceAIService._step_label(
-            {"step_type": "email", "config": {"subject_hint": "Test Subject"}}
-        ) == "Test Subject"
+        assert (
+            SequenceAIService._step_label({"step_type": "email", "config": {"subject_hint": "Test Subject"}})
+            == "Test Subject"
+        )
 
-        assert SequenceAIService._step_label(
-            {"step_type": "wait", "delay_hours": 48}
-        ) == "Wait 2 days"
+        assert SequenceAIService._step_label({"step_type": "wait", "delay_hours": 48}) == "Wait 2 days"
 
-        assert SequenceAIService._step_label(
-            {"step_type": "wait", "delay_hours": 12}
-        ) == "Wait 12h"
+        assert SequenceAIService._step_label({"step_type": "wait", "delay_hours": 12}) == "Wait 12h"
 
-        assert SequenceAIService._step_label(
-            {"step_type": "conditional", "condition": {"type": "opened"}}
-        ) == "If: opened"
+        assert (
+            SequenceAIService._step_label({"step_type": "conditional", "condition": {"type": "opened"}}) == "If: opened"
+        )
 
-        assert SequenceAIService._step_label(
-            {"step_type": "ab_split"}
-        ) == "A/B Test"
+        assert SequenceAIService._step_label({"step_type": "ab_split"}) == "A/B Test"
 
-        assert SequenceAIService._step_label(
-            {"step_type": "end"}
-        ) == "End"
+        assert SequenceAIService._step_label({"step_type": "end"}) == "End"

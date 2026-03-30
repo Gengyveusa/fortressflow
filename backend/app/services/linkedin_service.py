@@ -142,26 +142,15 @@ def validate_linkedin_content(
 
     if action == LinkedInAction.connection_request:
         if len(note) > CONNECTION_NOTE_MAX_CHARS:
-            issues.append(
-                f"Connection note ({len(note)} chars) exceeds "
-                f"{CONNECTION_NOTE_MAX_CHARS} char limit"
-            )
+            issues.append(f"Connection note ({len(note)} chars) exceeds {CONNECTION_NOTE_MAX_CHARS} char limit")
         if not note.strip():
-            issues.append(
-                "Connection note is empty — personalized notes get 2-3x acceptance rates"
-            )
+            issues.append("Connection note is empty — personalized notes get 2-3x acceptance rates")
 
     elif action == LinkedInAction.inmail:
         if len(subject) > INMAIL_SUBJECT_MAX_CHARS:
-            issues.append(
-                f"InMail subject ({len(subject)} chars) exceeds "
-                f"{INMAIL_SUBJECT_MAX_CHARS} char limit"
-            )
+            issues.append(f"InMail subject ({len(subject)} chars) exceeds {INMAIL_SUBJECT_MAX_CHARS} char limit")
         if len(body) > INMAIL_BODY_MAX_CHARS:
-            issues.append(
-                f"InMail body ({len(body)} chars) exceeds "
-                f"{INMAIL_BODY_MAX_CHARS} char limit"
-            )
+            issues.append(f"InMail body ({len(body)} chars) exceeds {INMAIL_BODY_MAX_CHARS} char limit")
 
     elif action == LinkedInAction.message:
         if not body.strip():
@@ -289,9 +278,7 @@ class LinkedInService:
 
     # ── AI Personalization ─────────────────────────────────────────────────
 
-    async def generate_personalized_note(
-        self, lead: Lead, context: str = ""
-    ) -> str:
+    async def generate_personalized_note(self, lead: Lead, context: str = "") -> str:
         """
         Generate a personalized LinkedIn connection note using AI platforms.
 
@@ -367,7 +354,9 @@ class LinkedInService:
                         json={
                             "matchPersonInput": [{"emailAddress": lead.email}],
                             "outputFields": [
-                                "companyName", "jobTitle", "seniorityLevel",
+                                "companyName",
+                                "jobTitle",
+                                "seniorityLevel",
                                 "recentActivity",
                             ],
                         },
@@ -376,9 +365,7 @@ class LinkedInService:
                     if zi_resp.status_code == 200:
                         zi_data = zi_resp.json().get("data", {}).get("outputFields", {})
                         if zi_data.get("recentActivity"):
-                            ai_context_parts.append(
-                                f"recent activity: {str(zi_data['recentActivity'])[:80]}"
-                            )
+                            ai_context_parts.append(f"recent activity: {str(zi_data['recentActivity'])[:80]}")
         except Exception as exc:
             logger.debug("ZoomInfo copilot insights error: %s", exc)
 
@@ -424,9 +411,7 @@ class LinkedInService:
         Returns a LinkedInResult indicating the item was queued (not sent).
         """
         # Check compliance gate
-        can_send, reason = await compliance_svc.can_send_to_lead(
-            lead.id, "linkedin", self.db
-        )
+        can_send, reason = await compliance_svc.can_send_to_lead(lead.id, "linkedin", self.db)
         if not can_send:
             return LinkedInResult(
                 success=False,
@@ -456,11 +441,7 @@ class LinkedInService:
             recipient_name=f"{lead.first_name} {lead.last_name}",
             recipient_title=lead.title,
             recipient_company=lead.company,
-            recipient_linkedin_url=(
-                lead.enriched_data.get("linkedin_url")
-                if lead.enriched_data
-                else None
-            ),
+            recipient_linkedin_url=(lead.enriched_data.get("linkedin_url") if lead.enriched_data else None),
             note=note,
         )
 
@@ -504,9 +485,7 @@ class LinkedInService:
 
         InMail is subject to the same 25/day limit and human delay patterns.
         """
-        can_send, reason = await compliance_svc.can_send_to_lead(
-            lead.id, "linkedin", self.db
-        )
+        can_send, reason = await compliance_svc.can_send_to_lead(lead.id, "linkedin", self.db)
         if not can_send:
             return LinkedInResult(
                 success=False,
@@ -521,9 +500,7 @@ class LinkedInService:
             )
 
         # Validate
-        issues = validate_linkedin_content(
-            LinkedInAction.inmail, subject=subject, body=body
-        )
+        issues = validate_linkedin_content(LinkedInAction.inmail, subject=subject, body=body)
         if issues:
             logger.warning("LinkedIn InMail validation issues: %s", issues)
 
@@ -538,11 +515,7 @@ class LinkedInService:
             recipient_name=f"{lead.first_name} {lead.last_name}",
             recipient_title=lead.title,
             recipient_company=lead.company,
-            recipient_linkedin_url=(
-                lead.enriched_data.get("linkedin_url")
-                if lead.enriched_data
-                else None
-            ),
+            recipient_linkedin_url=(lead.enriched_data.get("linkedin_url") if lead.enriched_data else None),
             subject=subject,
             body=body,
         )
@@ -560,9 +533,7 @@ class LinkedInService:
         )
         self._queue.append(item)
 
-        logger.info(
-            "LinkedIn InMail queued for %s (item %s)", lead.email, item.id
-        )
+        logger.info("LinkedIn InMail queued for %s (item %s)", lead.email, item.id)
 
         return LinkedInResult(
             success=True,
@@ -605,9 +576,7 @@ class LinkedInService:
             # Human delay between items
             if results:  # Not the first item
                 delay = self._generate_human_delay()
-                logger.debug(
-                    "Applying %.0fs human delay before next LinkedIn action", delay
-                )
+                logger.debug("Applying %.0fs human delay before next LinkedIn action", delay)
                 await asyncio.sleep(delay)
 
             item.status = QueueItemStatus.executing
@@ -638,9 +607,7 @@ class LinkedInService:
 
         return results
 
-    async def _execute_queue_item(
-        self, item: LinkedInQueueItem
-    ) -> dict:
+    async def _execute_queue_item(self, item: LinkedInQueueItem) -> dict:
         """
         Execute a queue item via the configured executor.
 
@@ -651,9 +618,7 @@ class LinkedInService:
         profile_url = item.payload.recipient_linkedin_url or ""
 
         if not profile_url:
-            logger.warning(
-                "No LinkedIn URL for item %s — marking as manual", item.id
-            )
+            logger.warning("No LinkedIn URL for item %s — marking as manual", item.id)
             return {
                 "success": False,
                 "manual": True,
@@ -664,17 +629,11 @@ class LinkedInService:
 
         try:
             if item.payload.action == LinkedInAction.connection_request:
-                result = await executor.send_connection_request(
-                    profile_url, item.payload.note
-                )
+                result = await executor.send_connection_request(profile_url, item.payload.note)
             elif item.payload.action == LinkedInAction.message:
-                result = await executor.send_message(
-                    profile_url, item.payload.body
-                )
+                result = await executor.send_message(profile_url, item.payload.body)
             elif item.payload.action == LinkedInAction.inmail:
-                result = await executor.send_message(
-                    profile_url, item.payload.body
-                )
+                result = await executor.send_message(profile_url, item.payload.body)
             else:
                 result = await executor.view_profile(profile_url)
 
@@ -699,9 +658,7 @@ class LinkedInService:
                     "reason": "manual_mode",
                 }
             elif result.status == ExecutionStatus.rate_limited:
-                logger.warning(
-                    "LinkedIn executor rate limited for item %s", item.id
-                )
+                logger.warning("LinkedIn executor rate limited for item %s", item.id)
                 return {
                     "success": False,
                     "manual": False,
@@ -717,9 +674,7 @@ class LinkedInService:
                 }
 
         except Exception as exc:
-            logger.error(
-                "LinkedIn execution error for item %s: %s", item.id, exc
-            )
+            logger.error("LinkedIn execution error for item %s: %s", item.id, exc)
             return {
                 "success": False,
                 "manual": False,
@@ -847,18 +802,12 @@ class LinkedInService:
 
         Returns CSV string with headers matching Expandi/Dux-Soup formats.
         """
-        manual_items = [
-            i
-            for i in self._queue
-            if i.status in (QueueItemStatus.pending, QueueItemStatus.manual)
-        ]
+        manual_items = [i for i in self._queue if i.status in (QueueItemStatus.pending, QueueItemStatus.manual)]
 
         payloads = [item.payload for item in manual_items]
         csv_data = await export_linkedin_queue_csv(payloads)
 
-        logger.info(
-            "Exported %d LinkedIn queue items to CSV", len(manual_items)
-        )
+        logger.info("Exported %d LinkedIn queue items to CSV", len(manual_items))
 
         # Mark as manual
         for item in manual_items:

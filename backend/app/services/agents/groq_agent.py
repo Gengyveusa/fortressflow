@@ -136,9 +136,7 @@ class GroqAgent:
             try:
                 pe = prompt_engine_context.get("prompt_engine")
                 if pe:
-                    system_prompt = await pe.build_system_prompt(
-                        db, user_id, "groq", "generate_sequence_content"
-                    )
+                    system_prompt = await pe.build_system_prompt(db, user_id, "groq", "generate_sequence_content")
             except Exception as exc:
                 logger.debug("PromptEngine fallback for generate_sequence_content: %s", exc)
 
@@ -193,9 +191,7 @@ class GroqAgent:
             try:
                 pe = prompt_engine_context.get("prompt_engine")
                 if pe:
-                    system_prompt = await pe.build_system_prompt(
-                        db, user_id, "groq", "classify_reply"
-                    )
+                    system_prompt = await pe.build_system_prompt(db, user_id, "groq", "classify_reply")
             except Exception:
                 pass
 
@@ -242,9 +238,7 @@ class GroqAgent:
             try:
                 pe = prompt_engine_context.get("prompt_engine")
                 if pe:
-                    system_prompt = await pe.build_system_prompt(
-                        db, user_id, "groq", "check_compliance"
-                    )
+                    system_prompt = await pe.build_system_prompt(db, user_id, "groq", "check_compliance")
             except Exception:
                 pass
 

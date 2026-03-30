@@ -233,6 +233,7 @@ async def chat_history(
         logger.error("chat_history: DB error: %s", exc)
         # Return empty history instead of failing
         from app.schemas.chat import ChatHistoryItem
+
         return ChatHistoryResponse(items=[], total=0, session_id=session_id)
 
 
@@ -291,20 +292,20 @@ async def get_session_messages(
 
     if not logs:
         # Check if session exists but belongs to another user
-        exists_result = await db.execute(
-            select(ChatLog.id).where(ChatLog.session_id == session_id).limit(1)
-        )
+        exists_result = await db.execute(select(ChatLog.id).where(ChatLog.session_id == session_id).limit(1))
         if exists_result.scalar_one_or_none() is not None:
             raise HTTPException(status_code=404, detail="Session not found")
 
     messages = []
     for log in logs:
-        messages.append({
-            "id": str(log.id),
-            "role": "user",
-            "content": log.message,
-            "timestamp": log.created_at.isoformat(),
-        })
+        messages.append(
+            {
+                "id": str(log.id),
+                "role": "user",
+                "content": log.message,
+                "timestamp": log.created_at.isoformat(),
+            }
+        )
         response_entry = {
             "id": f"{log.id}-response",
             "role": "assistant",

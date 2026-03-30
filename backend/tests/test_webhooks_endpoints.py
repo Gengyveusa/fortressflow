@@ -27,6 +27,7 @@ def client():
 
 def _override_db(mock_db):
     from app.database import get_db
+
     app.dependency_overrides[get_db] = lambda: mock_db
 
 
@@ -125,9 +126,7 @@ class TestSESEventsWebhook:
         enr_result = MagicMock()
         enr_result.scalars.return_value = enr_scalars
 
-        mock_db.execute = AsyncMock(
-            side_effect=[lead_result, dnc_result, consent_result, enr_result]
-        )
+        mock_db.execute = AsyncMock(side_effect=[lead_result, dnc_result, consent_result, enr_result])
         _override_db(mock_db)
 
         response = client.post(
@@ -186,15 +185,17 @@ class TestSESEventsWebhook:
 
         payload = {
             "Type": "Notification",
-            "Message": json.dumps({
-                "eventType": "Delivery",
-                "mail": {
-                    "messageId": "ses-msg-1",
-                    "timestamp": "2024-01-15T10:00:00Z",
-                    "destination": ["delivered@example.com"],
-                    "headers": [],
-                },
-            }),
+            "Message": json.dumps(
+                {
+                    "eventType": "Delivery",
+                    "mail": {
+                        "messageId": "ses-msg-1",
+                        "timestamp": "2024-01-15T10:00:00Z",
+                        "destination": ["delivered@example.com"],
+                        "headers": [],
+                    },
+                }
+            ),
         }
         response = client.post(
             "/api/v1/webhooks/ses/events",
@@ -255,13 +256,18 @@ class TestEmailReplyWebhook:
 
         with patch("app.api.v1.webhooks.settings") as mock_settings:
             mock_settings.REPLY_WEBHOOK_SECRET = "test-reply-secret"
-            with patch.dict("sys.modules", {
-                "app.workers": MagicMock(tasks=MagicMock(process_reply_full_task=mock_task)),
-                "app.workers.tasks": MagicMock(process_reply_full_task=mock_task),
-                "app.services.reply_service": MagicMock(ReplyService=mock_reply_service, ReplySignal=mock_reply_signal_cls),
-                "app.services.platform_ai_service": MagicMock(),
-                "aiolimiter": MagicMock(),
-            }):
+            with patch.dict(
+                "sys.modules",
+                {
+                    "app.workers": MagicMock(tasks=MagicMock(process_reply_full_task=mock_task)),
+                    "app.workers.tasks": MagicMock(process_reply_full_task=mock_task),
+                    "app.services.reply_service": MagicMock(
+                        ReplyService=mock_reply_service, ReplySignal=mock_reply_signal_cls
+                    ),
+                    "app.services.platform_ai_service": MagicMock(),
+                    "aiolimiter": MagicMock(),
+                },
+            ):
                 response = client.post(
                     "/api/v1/webhooks/email/reply",
                     json={

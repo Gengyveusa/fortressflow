@@ -110,10 +110,7 @@ def validate_sms_content(body: str) -> list[str]:
         issues.append("SMS body is empty")
 
     if len(body) > SMS_MAX_CHARS:
-        issues.append(
-            f"SMS body ({len(body)} chars) exceeds max {SMS_MAX_CHARS} chars "
-            f"({SMS_MAX_SEGMENTS} segments)"
-        )
+        issues.append(f"SMS body ({len(body)} chars) exceeds max {SMS_MAX_CHARS} chars ({SMS_MAX_SEGMENTS} segments)")
 
     if "{{" in body and "}}" in body:
         issues.append("SMS body contains unresolved template variables")
@@ -146,9 +143,7 @@ async def check_timezone_gate(
     try:
         tz = pytz.timezone(tz_name)
     except pytz.exceptions.UnknownTimeZoneError:
-        logger.warning(
-            "Unknown timezone '%s' — falling back to %s", tz_name, DEFAULT_TIMEZONE
-        )
+        logger.warning("Unknown timezone '%s' — falling back to %s", tz_name, DEFAULT_TIMEZONE)
         tz = pytz.timezone(DEFAULT_TIMEZONE)
 
     now_local = datetime.now(UTC).astimezone(tz)
@@ -216,10 +211,7 @@ async def check_tcpa_consent(
 
     # Import verified — check for written proof
     if consent.method == ConsentMethod.import_verified:
-        has_written = (
-            "written" in str(consent.proof).lower()
-            or consent.proof.get("written_consent") is True
-        )
+        has_written = "written" in str(consent.proof).lower() or consent.proof.get("written_consent") is True
         if has_written:
             return True, "written_consent_via_import"
         return False, "import_consent_lacks_written_proof"
@@ -339,9 +331,7 @@ async def send_sms(
 
     # 1. Timezone gate
     if not skip_tz_gate and lead:
-        lead_tz = (
-            lead.enriched_data.get("timezone") if lead.enriched_data else None
-        )
+        lead_tz = lead.enriched_data.get("timezone") if lead.enriched_data else None
         can_send, tz_reason = await check_timezone_gate(lead_tz)
         if not can_send:
             logger.info(
@@ -569,9 +559,7 @@ async def _process_stop_request(phone: str, db: AsyncSession) -> list[str]:
     paused_ids: list[str] = []
 
     # Find lead(s) with this phone number
-    result = await db.execute(
-        select(Lead).where(Lead.phone == phone)
-    )
+    result = await db.execute(select(Lead).where(Lead.phone == phone))
     leads = result.scalars().all()
 
     for lead in leads:
@@ -640,17 +628,13 @@ async def _process_stop_request(phone: str, db: AsyncSession) -> list[str]:
     return paused_ids
 
 
-async def _match_sms_to_enrollment(
-    phone: str, db: AsyncSession
-) -> tuple[UUID | None, UUID | None]:
+async def _match_sms_to_enrollment(phone: str, db: AsyncSession) -> tuple[UUID | None, UUID | None]:
     """
     Match an inbound SMS to a SequenceEnrollment by phone number.
 
     Returns (enrollment_id, lead_id) or (None, None) if no match.
     """
-    lead_result = await db.execute(
-        select(Lead).where(Lead.phone == phone)
-    )
+    lead_result = await db.execute(select(Lead).where(Lead.phone == phone))
     lead = lead_result.scalar_one_or_none()
 
     if not lead:
@@ -704,11 +688,7 @@ async def _log_sms_status_update(
 
     try:
         # Find the original touch log by message_sid in metadata
-        result = await db.execute(
-            select(TouchLog).where(
-                TouchLog.extra_metadata["message_sid"].astext == message_sid
-            )
-        )
+        result = await db.execute(select(TouchLog).where(TouchLog.extra_metadata["message_sid"].astext == message_sid))
         original_log = result.scalar_one_or_none()
 
         if original_log:
@@ -728,13 +708,9 @@ async def _log_sms_status_update(
             db.add(delivery_log)
             await db.commit()
 
-            logger.debug(
-                "Logged SMS delivery status %s for SID %s", status, message_sid
-            )
+            logger.debug("Logged SMS delivery status %s for SID %s", status, message_sid)
     except Exception as exc:
-        logger.warning(
-            "Failed to log SMS status update for SID %s: %s", message_sid, exc
-        )
+        logger.warning("Failed to log SMS status update for SID %s: %s", message_sid, exc)
 
 
 # ── Metrics ────────────────────────────────────────────────────────────────
@@ -789,9 +765,7 @@ async def get_sms_metrics(db: AsyncSession) -> dict:
         total_failed = failed_result.scalar() or 0
 
         # Today's sends
-        today_start = datetime.now(UTC).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
+        today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
         today_result = await db.execute(
             select(func.count(TouchLog.id)).where(
                 and_(
@@ -803,12 +777,8 @@ async def get_sms_metrics(db: AsyncSession) -> dict:
         )
         today_sent = today_result.scalar() or 0
 
-        delivery_rate = (
-            total_delivered / total_sent if total_sent > 0 else 0.0
-        )
-        failure_rate = (
-            total_failed / total_sent if total_sent > 0 else 0.0
-        )
+        delivery_rate = total_delivered / total_sent if total_sent > 0 else 0.0
+        failure_rate = total_failed / total_sent if total_sent > 0 else 0.0
 
         return {
             "total_sent": total_sent,
@@ -836,6 +806,7 @@ async def get_sms_metrics(db: AsyncSession) -> dict:
 
 
 # ── Legacy Compatibility ───────────────────────────────────────────────────
+
 
 async def process_twilio_webhook(form_data: dict) -> dict:
     """

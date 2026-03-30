@@ -26,11 +26,13 @@ def client():
 
 def _override_db(mock_db):
     from app.database import get_db
+
     app.dependency_overrides[get_db] = lambda: mock_db
 
 
 def _override_auth():
     from app.auth import get_current_user
+
     mock_user = MagicMock()
     mock_user.id = "00000000-0000-0000-0000-000000000001"
     mock_user.email = "test@test.com"
@@ -93,7 +95,7 @@ class TestDeployPreset:
         import uuid
 
         async def mock_refresh(obj):
-            if not hasattr(obj, '_refreshed'):
+            if not hasattr(obj, "_refreshed"):
                 obj.id = uuid.uuid4()
                 obj._refreshed = True
 

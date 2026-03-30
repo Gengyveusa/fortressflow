@@ -38,17 +38,13 @@ class TestWarmupRampSchedule:
     def test_volume_capped_at_target(self):
         from app.services.warmup_ai import compute_daily_volume
 
-        vol = compute_daily_volume(
-            warmup_day=100, initial_volume=5, ramp_multiplier=1.15, target_volume=50
-        )
+        vol = compute_daily_volume(warmup_day=100, initial_volume=5, ramp_multiplier=1.15, target_volume=50)
         assert vol == 50
 
     def test_never_below_initial(self):
         from app.services.warmup_ai import compute_daily_volume
 
-        vol = compute_daily_volume(
-            warmup_day=0, initial_volume=5, ramp_multiplier=0.5, target_volume=50
-        )
+        vol = compute_daily_volume(warmup_day=0, initial_volume=5, ramp_multiplier=0.5, target_volume=50)
         assert vol >= 5
 
     def test_full_ramp_schedule_length(self):
@@ -63,9 +59,7 @@ class TestWarmupRampSchedule:
         schedule = compute_ramp_schedule(duration_weeks=6)
         volumes = [e["daily_volume"] for e in schedule]
         for i in range(1, len(volumes)):
-            assert volumes[i] >= volumes[i - 1], (
-                f"Volume decreased at day {i}: {volumes[i]} < {volumes[i-1]}"
-            )
+            assert volumes[i] >= volumes[i - 1], f"Volume decreased at day {i}: {volumes[i]} < {volumes[i - 1]}"
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -99,9 +93,7 @@ class TestSESInfrastructureService:
         assert "adkim=s" in record  # Strict alignment
 
     def test_generate_dmarc_record_with_rua(self, ses_service):
-        record = ses_service.generate_dmarc_record(
-            policy="reject", rua_email="dmarc@gengyveusa.com"
-        )
+        record = ses_service.generate_dmarc_record(policy="reject", rua_email="dmarc@gengyveusa.com")
         assert "p=reject" in record
         assert "rua=mailto:dmarc@gengyveusa.com" in record
 
@@ -137,9 +129,7 @@ class TestSESInfrastructureService:
 
     @pytest.mark.asyncio
     async def test_verify_email_identity_success(self, ses_service):
-        expected_response = {
-            "IdentityArn": "arn:aws:ses:us-east-1:123456789:identity/outreach1@mail.gengyveusa.com"
-        }
+        expected_response = {"IdentityArn": "arn:aws:ses:us-east-1:123456789:identity/outreach1@mail.gengyveusa.com"}
         mock_sesv2 = MagicMock()
         mock_sesv2.create_email_identity.return_value = expected_response
         ses_service._sesv2 = mock_sesv2
@@ -171,9 +161,7 @@ class TestPlatformAIService:
     async def test_breeze_data_agent_disabled(self, platform_ai):
         """Returns empty list when Breeze is disabled."""
         with patch.object(settings, "HUBSPOT_BREEZE_ENABLED", False):
-            results = await platform_ai.breeze_data_agent_insights(
-                ["test@example.com"]
-            )
+            results = await platform_ai.breeze_data_agent_insights(["test@example.com"])
         assert results == []
 
     @pytest.mark.asyncio
@@ -202,9 +190,7 @@ class TestPlatformAIService:
             patch.object(settings, "HUBSPOT_BREEZE_ENABLED", True),
             patch.object(settings, "HUBSPOT_API_KEY", "test-key"),
         ):
-            results = await platform_ai.breeze_data_agent_insights(
-                ["dr.smith@dental.com"]
-            )
+            results = await platform_ai.breeze_data_agent_insights(["dr.smith@dental.com"])
 
         assert len(results) == 1
         assert results[0].platform == "hubspot_breeze_data_agent"
@@ -214,9 +200,7 @@ class TestPlatformAIService:
     async def test_copilot_context_graph_disabled(self, platform_ai):
         """Returns empty list when Copilot is disabled."""
         with patch.object(settings, "ZOOMINFO_COPILOT_ENABLED", False):
-            results = await platform_ai.copilot_gtm_context_scores(
-                ["test@example.com"]
-            )
+            results = await platform_ai.copilot_gtm_context_scores(["test@example.com"])
         assert results == []
 
     @pytest.mark.asyncio
@@ -230,9 +214,7 @@ class TestPlatformAIService:
                     {
                         "emailAddress": "dr.jones@dso.com",
                         "intentScore": 85,
-                        "topicIntentScores": [
-                            {"topic": "dental_supplies", "score": 90}
-                        ],
+                        "topicIntentScores": [{"topic": "dental_supplies", "score": 90}],
                         "techStackDetails": ["Eaglesoft", "Dentrix"],
                     }
                 ]
@@ -246,9 +228,7 @@ class TestPlatformAIService:
             patch.object(settings, "ZOOMINFO_API_KEY", "test-key"),
         ):
             platform_ai._zoominfo_jwt = "test-jwt"
-            results = await platform_ai.copilot_gtm_context_scores(
-                ["dr.jones@dso.com"]
-            )
+            results = await platform_ai.copilot_gtm_context_scores(["dr.jones@dso.com"])
 
         assert len(results) == 1
         assert results[0].platform == "zoominfo_copilot_context_graph"
@@ -258,9 +238,7 @@ class TestPlatformAIService:
     async def test_apollo_ai_scoring_disabled(self, platform_ai):
         """Returns empty list when Apollo AI is disabled."""
         with patch.object(settings, "APOLLO_AI_ENABLED", False):
-            results = await platform_ai.apollo_ai_score_leads(
-                [{"email": "test@example.com"}]
-            )
+            results = await platform_ai.apollo_ai_score_leads([{"email": "test@example.com"}])
         assert results == []
 
     @pytest.mark.asyncio
@@ -289,9 +267,7 @@ class TestPlatformAIService:
             patch.object(settings, "APOLLO_AI_ENABLED", True),
             patch.object(settings, "APOLLO_API_KEY", "test-key"),
         ):
-            results = await platform_ai.apollo_ai_score_leads(
-                [{"email": "sarah@dso.com"}]
-            )
+            results = await platform_ai.apollo_ai_score_leads([{"email": "sarah@dso.com"}])
 
         assert len(results) == 1
         assert results[0].platform == "apollo_ai"
@@ -306,9 +282,7 @@ class TestPlatformAIService:
             patch.object(settings, "ZOOMINFO_COPILOT_ENABLED", False),
             patch.object(settings, "APOLLO_AI_ENABLED", False),
         ):
-            results = await platform_ai.get_unified_lead_scores(
-                ["test@example.com"]
-            )
+            results = await platform_ai.get_unified_lead_scores(["test@example.com"])
         assert results == {}
 
     @pytest.mark.asyncio
@@ -460,9 +434,7 @@ class TestDeliverabilityRouter:
         unhealthy_inbox.email_address = "unhealthy@mail.gengyveusa.com"
         unhealthy_inbox.daily_sent = 0
 
-        router.get_available_inboxes = AsyncMock(
-            return_value=[healthy_inbox, unhealthy_inbox]
-        )
+        router.get_available_inboxes = AsyncMock(return_value=[healthy_inbox, unhealthy_inbox])
 
         mock_settings = MagicMock()
         mock_settings.DAILY_WARMUP_VOLUME_CAP = 400

@@ -23,9 +23,7 @@ class ApolloService:
 
     def __init__(self, http_client: httpx.AsyncClient | None = None) -> None:
         self._client = http_client or httpx.AsyncClient(timeout=30)
-        self._limiter = AsyncLimiter(
-            max_rate=settings.APOLLO_RATE_LIMIT, time_period=60
-        )
+        self._limiter = AsyncLimiter(max_rate=settings.APOLLO_RATE_LIMIT, time_period=60)
 
     async def enrich_person(self, email: str) -> dict:
         """Enrich a person by email using Apollo /v1/people/match.
@@ -82,7 +80,7 @@ class ApolloService:
             return {}
 
     async def enrich_person_waterfall(
-                self,
+        self,
         email=None,
         first_name=None,
         last_name=None,
@@ -136,7 +134,10 @@ class ApolloService:
             async with self._limiter:
                 logger.info(
                     "Apollo waterfall: email=%s, name=%s %s, org=%s",
-                    email, first_name, last_name, organization_name,
+                    email,
+                    first_name,
+                    last_name,
+                    organization_name,
                 )
                 resp = await self._client.post(
                     f"{_APOLLO_BASE}/v1/people/match",

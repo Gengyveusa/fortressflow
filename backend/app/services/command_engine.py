@@ -172,10 +172,7 @@ class IntentResult:
         return self.intent != "unknown" and self.confidence >= 0.7
 
     def needs_clarification(self) -> bool:
-        return (
-            (self.intent != "unknown" and self.confidence < 0.7)
-            or bool(self.missing_required)
-        )
+        return (self.intent != "unknown" and self.confidence < 0.7) or bool(self.missing_required)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -198,9 +195,7 @@ class CommandEngine:
 
         Uses the same Groq → OpenAI fallback cascade as the chat service.
         """
-        intents_list = "\n".join(
-            f"- {name}: {desc}" for name, desc in INTENTS.items()
-        )
+        intents_list = "\n".join(f"- {name}: {desc}" for name, desc in INTENTS.items())
         prompt = _CLASSIFICATION_PROMPT.format(
             intents_list=intents_list,
             message=message,
@@ -236,9 +231,7 @@ class CommandEngine:
             from app.services.smart_questioner import SmartQuestioner
 
             questioner = SmartQuestioner()
-            return await questioner.ask_clarification(
-                result, message, session_state or {}
-            )
+            return await questioner.ask_clarification(result, message, session_state or {})
 
         # Route to handlers
         if intent == "create_campaign":
@@ -306,10 +299,7 @@ class CommandEngine:
             return await self._handle_ai_generate(result.entities, user_id, db)
 
         if intent == "plan_outreach":
-            return await self._handle_plan_outreach(
-                result.entities, message, user_id, db
-            )
-
+            return await self._handle_plan_outreach(result.entities, message, user_id, db)
 
         if intent == "apollo_search":
             return await self._handle_apollo_search(result.entities, user_id, db)
@@ -339,15 +329,25 @@ class CommandEngine:
         if intent == "optimize_send_time":
             return await self._handle_agent_dispatch("marketing", "optimize_send_time", result.entities, user_id, db)
         if intent == "generate_landing_page":
-            return await self._handle_agent_dispatch("marketing", "generate_landing_page_copy", result.entities, user_id, db)
+            return await self._handle_agent_dispatch(
+                "marketing", "generate_landing_page_copy", result.entities, user_id, db
+            )
         if intent == "demand_gen":
-            return await self._handle_agent_dispatch("marketing", "create_demand_gen_sequence", result.entities, user_id, db)
+            return await self._handle_agent_dispatch(
+                "marketing", "create_demand_gen_sequence", result.entities, user_id, db
+            )
         if intent == "upsell_crosssell":
-            return await self._handle_agent_dispatch("marketing", "recommend_upsell_crosssell", result.entities, user_id, db)
+            return await self._handle_agent_dispatch(
+                "marketing", "recommend_upsell_crosssell", result.entities, user_id, db
+            )
         if intent == "event_promotion":
-            return await self._handle_agent_dispatch("marketing", "create_event_promotion", result.entities, user_id, db)
+            return await self._handle_agent_dispatch(
+                "marketing", "create_event_promotion", result.entities, user_id, db
+            )
         if intent == "multilingual_content" or intent == "translate_content":
-            return await self._handle_agent_dispatch("marketing", "generate_multilingual_content", result.entities, user_id, db)
+            return await self._handle_agent_dispatch(
+                "marketing", "generate_multilingual_content", result.entities, user_id, db
+            )
         if intent == "chatbot_response":
             return await self._handle_agent_dispatch("marketing", "manage_chatbot", result.entities, user_id, db)
 
@@ -396,6 +396,7 @@ class CommandEngine:
         """Dispatch to any agent via the orchestrator and return formatted results."""
         try:
             from uuid import UUID as _UUID
+
             uid = _UUID(user_id) if isinstance(user_id, str) else user_id
 
             # Build params from entities — map common entity names to what agents expect
@@ -405,7 +406,15 @@ class CommandEngine:
             # Marketing agent param mapping
             if agent_name == "marketing":
                 if action == "score_leads" and "leads" not in params:
-                    params["leads"] = [{"name": params.get("name", ""), "company": params.get("company", ""), "role": params.get("specialty", params.get("role", "")), "location": params.get("location", ""), "context": raw_message}]
+                    params["leads"] = [
+                        {
+                            "name": params.get("name", ""),
+                            "company": params.get("company", ""),
+                            "role": params.get("specialty", params.get("role", "")),
+                            "location": params.get("location", ""),
+                            "context": raw_message,
+                        }
+                    ]
                 if action in ("create_outbound_sequence", "create_demand_gen_sequence") and "topic" not in params:
                     params["topic"] = raw_message
                 if action == "create_social_post" and "topic" not in params:
@@ -419,7 +428,11 @@ class CommandEngine:
             # Sales agent param mapping
             if agent_name == "sales":
                 if action == "enrich_lead" and "lead" not in params:
-                    params["lead"] = {"name": params.get("name", ""), "company": params.get("company", ""), "context": raw_message}
+                    params["lead"] = {
+                        "name": params.get("name", ""),
+                        "company": params.get("company", ""),
+                        "context": raw_message,
+                    }
                 if action == "manage_pipeline" and "action_type" not in params:
                     params["action_type"] = "analyze"
                 if action == "score_opportunity" and "opportunity" not in params:
@@ -439,7 +452,9 @@ class CommandEngine:
                     formatted = f"**{agent_name.title()} → {action.replace('_', ' ').title()}**\n\n"
                     for k, v in content.items():
                         if isinstance(v, (list, dict)):
-                            formatted += f"**{k.replace('_', ' ').title()}:** {json.dumps(v, indent=2, default=str)[:500]}\n\n"
+                            formatted += (
+                                f"**{k.replace('_', ' ').title()}:** {json.dumps(v, indent=2, default=str)[:500]}\n\n"
+                            )
                         else:
                             formatted += f"**{k.replace('_', ' ').title()}:** {v}\n"
                     return {"type": "text", "content": formatted}
@@ -455,6 +470,7 @@ class CommandEngine:
         """Fetch data from an insights endpoint and format for chat."""
         try:
             import httpx
+
             async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.get(f"http://127.0.0.1:8000/api/v1{endpoint}")
                 if resp.status_code == 200:
@@ -463,7 +479,9 @@ class CommandEngine:
                     if isinstance(data, dict):
                         for k, v in list(data.items())[:15]:
                             if isinstance(v, (list, dict)):
-                                formatted += f"**{k.replace('_', ' ').title()}:** {json.dumps(v, default=str)[:300]}\n\n"
+                                formatted += (
+                                    f"**{k.replace('_', ' ').title()}:** {json.dumps(v, default=str)[:300]}\n\n"
+                                )
                             else:
                                 formatted += f"**{k.replace('_', ' ').title()}:** {v}\n"
                     elif isinstance(data, list):
@@ -480,9 +498,7 @@ class CommandEngine:
 
     # ── Original Intent Handlers ───────────────────────────────────────────
 
-    async def _handle_find_leads(
-        self, entities: dict[str, Any], user_id: str
-    ) -> dict[str, Any]:
+    async def _handle_find_leads(self, entities: dict[str, Any], user_id: str) -> dict[str, Any]:
         """Search for leads matching the given criteria."""
         from sqlalchemy import String, func, select
 
@@ -503,10 +519,7 @@ class CommandEngine:
                     | func.cast(Lead.enriched_data, String).ilike(f"%{specialty}%")
                 )
             if location:
-                query = query.where(
-                    func.cast(Lead.enriched_data, String).ilike(f"%{location}%")
-                )
-
+                query = query.where(func.cast(Lead.enriched_data, String).ilike(f"%{location}%"))
 
             query = query.limit(min(count, 100))
             result = await db.execute(query)
@@ -550,9 +563,7 @@ class CommandEngine:
             ),
         }
 
-    async def _handle_enrich_leads(
-        self, entities: dict[str, Any], user_id: str, db=None
-    ) -> dict[str, Any]:
+    async def _handle_enrich_leads(self, entities: dict[str, Any], user_id: str, db=None) -> dict[str, Any]:
         """Trigger lead enrichment — counts un-enriched leads and dispatches to ZoomInfo."""
         from sqlalchemy import func, select
 
@@ -560,9 +571,7 @@ class CommandEngine:
         from app.models.lead import Lead
 
         async with AsyncSessionLocal() as session:
-            result = await session.execute(
-                select(func.count(Lead.id)).where(Lead.last_enriched_at.is_(None))
-            )
+            result = await session.execute(select(func.count(Lead.id)).where(Lead.last_enriched_at.is_(None)))
             unenriched = result.scalar_one() or 0
 
         if unenriched == 0:
@@ -610,9 +619,7 @@ class CommandEngine:
             ),
         }
 
-    async def _handle_pause_campaign(
-        self, entities: dict[str, Any], user_id: str
-    ) -> dict[str, Any]:
+    async def _handle_pause_campaign(self, entities: dict[str, Any], user_id: str) -> dict[str, Any]:
         """Pause a campaign/sequence."""
         from sqlalchemy import select
 
@@ -635,17 +642,15 @@ class CommandEngine:
                     await db.commit()
                     return {
                         "type": "text",
-                        "content": f"Paused campaign **{seq.name}**. Use \"resume {seq.name}\" to restart it.",
+                        "content": f'Paused campaign **{seq.name}**. Use "resume {seq.name}" to restart it.',
                     }
                 return {
                     "type": "text",
-                    "content": f"No active campaign found matching \"{campaign_name}\". Check `/sequences` for active campaigns.",
+                    "content": f'No active campaign found matching "{campaign_name}". Check `/sequences` for active campaigns.',
                 }
 
             # List active campaigns to choose from
-            result = await db.execute(
-                select(Sequence).where(Sequence.status == SequenceStatus.active).limit(10)
-            )
+            result = await db.execute(select(Sequence).where(Sequence.status == SequenceStatus.active).limit(10))
             active = result.scalars().all()
             if not active:
                 return {"type": "text", "content": "No active campaigns to pause."}
@@ -659,9 +664,7 @@ class CommandEngine:
                 "options": [s.name for s in active],
             }
 
-    async def _handle_resume_campaign(
-        self, entities: dict[str, Any], user_id: str
-    ) -> dict[str, Any]:
+    async def _handle_resume_campaign(self, entities: dict[str, Any], user_id: str) -> dict[str, Any]:
         """Resume a paused campaign/sequence."""
         from sqlalchemy import select
 
@@ -688,12 +691,10 @@ class CommandEngine:
                     }
                 return {
                     "type": "text",
-                    "content": f"No paused campaign found matching \"{campaign_name}\".",
+                    "content": f'No paused campaign found matching "{campaign_name}".',
                 }
 
-            result = await db.execute(
-                select(Sequence).where(Sequence.status == SequenceStatus.paused).limit(10)
-            )
+            result = await db.execute(select(Sequence).where(Sequence.status == SequenceStatus.paused).limit(10))
             paused = result.scalars().all()
             if not paused:
                 return {"type": "text", "content": "No paused campaigns to resume."}
@@ -752,9 +753,7 @@ class CommandEngine:
             ),
         }
 
-    async def _handle_check_integrations(
-        self, user_id: str = "", db=None
-    ) -> dict[str, Any]:
+    async def _handle_check_integrations(self, user_id: str = "", db=None) -> dict[str, Any]:
         """Show current integration status including AI agent status."""
         integrations = []
 
@@ -771,15 +770,9 @@ class CommandEngine:
         integrations.append(
             f"- **ZoomInfo Copilot**: {_status(settings.ZOOMINFO_COPILOT_ENABLED, bool(settings.ZOOMINFO_API_KEY))}"
         )
-        integrations.append(
-            f"- **Apollo AI**: {_status(settings.APOLLO_AI_ENABLED, bool(settings.APOLLO_API_KEY))}"
-        )
-        integrations.append(
-            f"- **AWS SES**: {'Configured' if settings.AWS_ACCESS_KEY_ID else 'Not configured'}"
-        )
-        integrations.append(
-            f"- **Twilio SMS**: {'Configured' if settings.TWILIO_ACCOUNT_SID else 'Not configured'}"
-        )
+        integrations.append(f"- **Apollo AI**: {_status(settings.APOLLO_AI_ENABLED, bool(settings.APOLLO_API_KEY))}")
+        integrations.append(f"- **AWS SES**: {'Configured' if settings.AWS_ACCESS_KEY_ID else 'Not configured'}")
+        integrations.append(f"- **Twilio SMS**: {'Configured' if settings.TWILIO_ACCOUNT_SID else 'Not configured'}")
         integrations.append(
             f"- **LinkedIn**: {'Configured' if settings.LINKEDIN_OAUTH_CLIENT_ID else 'Not configured'}"
         )
@@ -807,9 +800,7 @@ class CommandEngine:
             "content": "**Integration Status**\n\n" + "\n".join(integrations) + agent_section,
         }
 
-    async def _handle_send_sms(
-        self, entities: dict[str, Any], user_id: str, db=None
-    ) -> dict[str, Any]:
+    async def _handle_send_sms(self, entities: dict[str, Any], user_id: str, db=None) -> dict[str, Any]:
         """Dispatch SMS sending to Twilio agent."""
         phone_number = entities.get("phone_number", "")
         sms_body = entities.get("sms_body", "")
@@ -821,7 +812,7 @@ class CommandEngine:
                     "To send an SMS, I need:\n"
                     "- **Phone number** (e.g., +15551234567)\n"
                     "- **Message body**\n\n"
-                    "Example: \"Send SMS to +15551234567: Hello from FortressFlow!\""
+                    'Example: "Send SMS to +15551234567: Hello from FortressFlow!"'
                 ),
             }
 
@@ -847,9 +838,7 @@ class CommandEngine:
             "content": f"Failed to send SMS: {result.get('error', 'Unknown error')}. Check your Twilio configuration in **Settings → Integrations**.",
         }
 
-    async def _handle_sync_crm(
-        self, entities: dict[str, Any], user_id: str, db=None
-    ) -> dict[str, Any]:
+    async def _handle_sync_crm(self, entities: dict[str, Any], user_id: str, db=None) -> dict[str, Any]:
         """Dispatch CRM sync to HubSpot agent."""
         if db is None:
             return {"type": "text", "content": "Unable to sync CRM — no database session available."}
@@ -878,9 +867,7 @@ class CommandEngine:
             "content": f"CRM sync failed: {result.get('error', 'Unknown error')}. Check your HubSpot API key in **Settings → Integrations**.",
         }
 
-    async def _handle_search_company(
-        self, entities: dict[str, Any], user_id: str, db=None
-    ) -> dict[str, Any]:
+    async def _handle_search_company(self, entities: dict[str, Any], user_id: str, db=None) -> dict[str, Any]:
         """Dispatch company search to ZoomInfo agent."""
         company_query = entities.get("company_query", "")
 
@@ -917,9 +904,7 @@ class CommandEngine:
             "content": f"Company search failed: {result.get('error', 'Unknown error')}. Check your ZoomInfo API key in **Settings → Integrations**.",
         }
 
-    async def _handle_ai_generate(
-        self, entities: dict[str, Any], user_id: str, db=None
-    ) -> dict[str, Any]:
+    async def _handle_ai_generate(self, entities: dict[str, Any], user_id: str, db=None) -> dict[str, Any]:
         """Dispatch AI content generation to Groq agent."""
         ai_prompt = entities.get("ai_prompt", "")
 
@@ -1039,7 +1024,7 @@ class CommandEngine:
 
                 plan_id = plan.get("plan_id", "")
                 if plan_id:
-                    parts.append(f"\nSay **\"go\"** or **\"execute\"** to run this plan. (Plan ID: {plan_id})")
+                    parts.append(f'\nSay **"go"** or **"execute"** to run this plan. (Plan ID: {plan_id})')
 
             return {
                 "type": "text",
@@ -1053,10 +1038,7 @@ class CommandEngine:
                 "content": f"Failed to create outreach plan: {sanitize_error(exc)}",
             }
 
-
-    async def _handle_apollo_search(
-        self, entities: dict[str, Any], user_id: str, db=None
-    ) -> dict[str, Any]:
+    async def _handle_apollo_search(self, entities: dict[str, Any], user_id: str, db=None) -> dict[str, Any]:
         """Search Apollo for contacts or companies."""
         if db is None:
             return {"type": "text", "content": "Unable to search — no database session available."}
@@ -1072,23 +1054,29 @@ class CommandEngine:
                     "What would you like to search for in Apollo? I can search for:\n"
                     "- **People**: dentists, office managers, DSO executives\n"
                     "- **Companies**: dental practices, DSOs, dental labs\n\n"
-                    "Example: \"Find periodontists in Denver\" or \"Search for DSOs in Texas\""
+                    'Example: "Find periodontists in Denver" or "Search for DSOs in Texas"'
                 ),
             }
 
         uid = UUID(user_id) if isinstance(user_id, str) else user_id
         # Determine if searching people or organizations
-        is_org_search = any(kw in query.lower() for kw in ["company", "companies", "organization", "practice", "dso", "lab"])
+        is_org_search = any(
+            kw in query.lower() for kw in ["company", "companies", "organization", "practice", "dso", "lab"]
+        )
 
         if is_org_search:
             result = await AgentOrchestrator.dispatch(
-                db=db, agent_name="apollo", action="search_organizations",
+                db=db,
+                agent_name="apollo",
+                action="search_organizations",
                 params={"query": query, "locations": [location] if location else None, "per_page": min(count, 100)},
                 user_id=uid,
             )
         else:
             result = await AgentOrchestrator.dispatch(
-                db=db, agent_name="apollo", action="search_people",
+                db=db,
+                agent_name="apollo",
+                action="search_people",
                 params={"query": query, "location": location, "per_page": min(count, 100)},
                 user_id=uid,
             )
@@ -1098,35 +1086,39 @@ class CommandEngine:
             return {
                 "type": "text",
                 "content": (
-                    f"**Apollo Search Results** for \"{query}\"{f' in {location}' if location else ''}:\n\n"
+                    f'**Apollo Search Results** for "{query}"{f" in {location}" if location else ""}:\n\n'
                     f"{json.dumps(data, indent=2, default=str)[:3000]}\n\n"
                     f"Latency: {result.get('latency_ms', 'N/A')}ms"
                 ),
             }
-        return {"type": "text", "content": f"Apollo search failed: {result.get('error', 'Unknown error')}. Check your Apollo API key in Settings."}
+        return {
+            "type": "text",
+            "content": f"Apollo search failed: {result.get('error', 'Unknown error')}. Check your Apollo API key in Settings.",
+        }
 
-    async def _handle_apollo_sequence(
-        self, entities: dict[str, Any], user_id: str, db=None
-    ) -> dict[str, Any]:
+    async def _handle_apollo_sequence(self, entities: dict[str, Any], user_id: str, db=None) -> dict[str, Any]:
         """Manage Apollo email sequences."""
         if db is None:
             return {"type": "text", "content": "Unable to manage sequences — no database session available."}
 
         uid = UUID(user_id) if isinstance(user_id, str) else user_id
         result = await AgentOrchestrator.dispatch(
-            db=db, agent_name="apollo", action="search_sequences",
+            db=db,
+            agent_name="apollo",
+            action="search_sequences",
             params={"query": entities.get("sequence_name", "")},
             user_id=uid,
         )
 
         if result.get("status") == "success":
             data = result.get("result", {})
-            return {"type": "text", "content": f"**Apollo Sequences:**\n\n{json.dumps(data, indent=2, default=str)[:3000]}"}
+            return {
+                "type": "text",
+                "content": f"**Apollo Sequences:**\n\n{json.dumps(data, indent=2, default=str)[:3000]}",
+            }
         return {"type": "text", "content": f"Failed to fetch sequences: {result.get('error', 'Unknown error')}"}
 
-    async def _handle_linkedin_post(
-        self, entities: dict[str, Any], user_id: str, db=None
-    ) -> dict[str, Any]:
+    async def _handle_linkedin_post(self, entities: dict[str, Any], user_id: str, db=None) -> dict[str, Any]:
         """Generate LinkedIn content via Taplio agent."""
         if db is None:
             return {"type": "text", "content": "Unable to generate content — no database session available."}
@@ -1137,30 +1129,42 @@ class CommandEngine:
 
         uid = UUID(user_id) if isinstance(user_id, str) else user_id
         result = await AgentOrchestrator.dispatch(
-            db=db, agent_name="taplio", action="generate_linkedin_post",
-            params={"topic": topic, "tone": entities.get("tone", "professional"), "format": entities.get("linkedin_format", "text")},
+            db=db,
+            agent_name="taplio",
+            action="generate_linkedin_post",
+            params={
+                "topic": topic,
+                "tone": entities.get("tone", "professional"),
+                "format": entities.get("linkedin_format", "text"),
+            },
             user_id=uid,
         )
 
         if result.get("status") == "success":
             content = result.get("result", "")
-            return {"type": "text", "content": f"**Generated LinkedIn Post:**\n\n{content}\n\nWant me to schedule this or make changes?"}
+            return {
+                "type": "text",
+                "content": f"**Generated LinkedIn Post:**\n\n{content}\n\nWant me to schedule this or make changes?",
+            }
         return {"type": "text", "content": f"Post generation failed: {result.get('error', 'Unknown error')}"}
 
-    async def _handle_linkedin_dm(
-        self, entities: dict[str, Any], user_id: str, db=None
-    ) -> dict[str, Any]:
+    async def _handle_linkedin_dm(self, entities: dict[str, Any], user_id: str, db=None) -> dict[str, Any]:
         """Compose personalized LinkedIn DM via Taplio agent."""
         if db is None:
             return {"type": "text", "content": "Unable to compose DM — no database session available."}
 
         recipient = entities.get("recipient_name", "") or entities.get("name", "")
         if not recipient:
-            return {"type": "text", "content": "Who would you like to send a LinkedIn message to? Provide their name or profile details."}
+            return {
+                "type": "text",
+                "content": "Who would you like to send a LinkedIn message to? Provide their name or profile details.",
+            }
 
         uid = UUID(user_id) if isinstance(user_id, str) else user_id
         result = await AgentOrchestrator.dispatch(
-            db=db, agent_name="taplio", action="compose_dm",
+            db=db,
+            agent_name="taplio",
+            action="compose_dm",
             params={
                 "recipient_name": recipient,
                 "recipient_title": entities.get("title", ""),
@@ -1173,12 +1177,13 @@ class CommandEngine:
 
         if result.get("status") == "success":
             dm = result.get("result", "")
-            return {"type": "text", "content": f"**Draft LinkedIn DM for {recipient}:**\n\n{dm}\n\nWant me to send this or make changes?"}
+            return {
+                "type": "text",
+                "content": f"**Draft LinkedIn DM for {recipient}:**\n\n{dm}\n\nWant me to send this or make changes?",
+            }
         return {"type": "text", "content": f"DM generation failed: {result.get('error', 'Unknown error')}"}
 
-    async def _handle_send_whatsapp(
-        self, entities: dict[str, Any], user_id: str, db=None
-    ) -> dict[str, Any]:
+    async def _handle_send_whatsapp(self, entities: dict[str, Any], user_id: str, db=None) -> dict[str, Any]:
         """Send WhatsApp message via Twilio agent."""
         phone = entities.get("whatsapp_number", "") or entities.get("phone_number", "")
         body = entities.get("whatsapp_body", "") or entities.get("sms_body", "")
@@ -1190,7 +1195,7 @@ class CommandEngine:
                     "To send a WhatsApp message, I need:\n"
                     "- **Phone number** (with country code, e.g., +15551234567)\n"
                     "- **Message body**\n\n"
-                    "Example: \"Send WhatsApp to +15551234567: Hello from FortressFlow!\""
+                    'Example: "Send WhatsApp to +15551234567: Hello from FortressFlow!"'
                 ),
             }
 
@@ -1199,15 +1204,19 @@ class CommandEngine:
 
         uid = UUID(user_id) if isinstance(user_id, str) else user_id
         result = await AgentOrchestrator.dispatch(
-            db=db, agent_name="twilio", action="send_whatsapp",
+            db=db,
+            agent_name="twilio",
+            action="send_whatsapp",
             params={"to": f"whatsapp:{phone}" if not phone.startswith("whatsapp:") else phone, "body": body},
             user_id=uid,
         )
 
         if result.get("status") == "success":
             return {"type": "text", "content": f"WhatsApp message sent to **{phone}** successfully!"}
-        return {"type": "text", "content": f"Failed to send WhatsApp: {result.get('error', 'Unknown error')}. Check your Twilio configuration."}
-
+        return {
+            "type": "text",
+            "content": f"Failed to send WhatsApp: {result.get('error', 'Unknown error')}. Check your Twilio configuration.",
+        }
 
     def _handle_help(self) -> dict[str, Any]:
         """Return help text with all v2.0 capabilities."""
@@ -1216,30 +1225,30 @@ class CommandEngine:
             "content": (
                 "**🚀 FortressFlow AI Assistant — Full Capabilities**\n\n"
                 "**🎯 Marketing Agent** (15 skills)\n"
-                "- \"Score this lead\" — AI lead scoring\n"
-                "- \"Create an outbound sequence for dentists\" — multi-step sequences\n"
-                "- \"Write a LinkedIn post about dental AI\" — social content\n"
-                "- \"Translate this email to Spanish\" — 10 languages supported\n"
-                "- \"Segment my customers\" — behavioral segmentation\n"
-                "- \"Create event promotion for our webinar\" — event marketing\n"
-                "- \"Generate landing page copy\" — conversion-optimized copy\n"
-                "- \"Best time to send emails?\" — send time optimization\n"
-                "- \"A/B test variants\" — variant generation\n\n"
+                '- "Score this lead" — AI lead scoring\n'
+                '- "Create an outbound sequence for dentists" — multi-step sequences\n'
+                '- "Write a LinkedIn post about dental AI" — social content\n'
+                '- "Translate this email to Spanish" — 10 languages supported\n'
+                '- "Segment my customers" — behavioral segmentation\n'
+                '- "Create event promotion for our webinar" — event marketing\n'
+                '- "Generate landing page copy" — conversion-optimized copy\n'
+                '- "Best time to send emails?" — send time optimization\n'
+                '- "A/B test variants" — variant generation\n\n'
                 "**💼 Sales Agent** (15 skills)\n"
-                "- \"Enrich this company\" — firmographic data\n"
-                "- \"Pipeline status\" — deal management\n"
-                "- \"Schedule a meeting\" — meeting booking\n"
-                "- \"Generate a quote\" — proposals & pricing\n"
-                "- \"Score this opportunity\" — MEDDIC analysis\n"
-                "- \"Revenue forecast\" — pipeline projections\n"
-                "- \"Account insights for Acme Corp\" — ABM intelligence\n"
-                "- \"Renewal recommendations\" — churn prevention\n\n"
+                '- "Enrich this company" — firmographic data\n'
+                '- "Pipeline status" — deal management\n'
+                '- "Schedule a meeting" — meeting booking\n'
+                '- "Generate a quote" — proposals & pricing\n'
+                '- "Score this opportunity" — MEDDIC analysis\n'
+                '- "Revenue forecast" — pipeline projections\n'
+                '- "Account insights for Acme Corp" — ABM intelligence\n'
+                '- "Renewal recommendations" — churn prevention\n\n'
                 "**📊 Analytics & Intelligence**\n"
-                "- \"Churn risk\" — predictive churn detection\n"
-                "- \"Dedup health\" — duplicate contact status\n"
-                "- \"Experiment results\" — A/B test outcomes\n"
-                "- \"Community stats\" — member & waitlist data\n"
-                "- \"Call analytics\" — meeting sentiment & action items\n\n"
+                '- "Churn risk" — predictive churn detection\n'
+                '- "Dedup health" — duplicate contact status\n'
+                '- "Experiment results" — A/B test outcomes\n'
+                '- "Community stats" — member & waitlist data\n'
+                '- "Call analytics" — meeting sentiment & action items\n\n'
                 "**🔌 Integrations**\n"
                 "- **HubSpot** — full CRM (contacts, deals, pipelines, workflows)\n"
                 "- **ZoomInfo** — company/person enrichment, intent signals\n"

@@ -35,6 +35,7 @@ def _get_database_url() -> str:
     url = os.environ.get("DATABASE_URL", "")
     if not url:
         from app.config import settings
+
         url = settings.DATABASE_URL
     return url
 

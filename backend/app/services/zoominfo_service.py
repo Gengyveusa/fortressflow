@@ -27,9 +27,7 @@ class ZoomInfoService:
     def __init__(self, http_client: httpx.AsyncClient | None = None) -> None:
         self._base_url = settings.ZOOMINFO_API_BASE_URL or "https://api.zoominfo.com"
         self._client = http_client or httpx.AsyncClient(timeout=30)
-        self._limiter = AsyncLimiter(
-            max_rate=settings.ZOOMINFO_RATE_LIMIT, time_period=1
-        )
+        self._limiter = AsyncLimiter(max_rate=settings.ZOOMINFO_RATE_LIMIT, time_period=1)
         self._access_token: str | None = None
         self._token_expires_at: float = 0
 
@@ -102,9 +100,7 @@ class ZoomInfoService:
 
         raise ValueError("ZoomInfo credentials not configured")
 
-    async def _authed_request(
-        self, method: str, path: str, **kwargs
-    ) -> httpx.Response:
+    async def _authed_request(self, method: str, path: str, **kwargs) -> httpx.Response:
         """Make an authenticated, rate-limited request to ZoomInfo."""
         token = await self._authenticate()
         headers = kwargs.pop("headers", {})
@@ -117,9 +113,7 @@ class ZoomInfoService:
 
     # ── Contact / Lead operations ──────────────────────────────
 
-    async def enrich_person(
-        self, email: str, company: str | None = None
-    ) -> dict:
+    async def enrich_person(self, email: str, company: str | None = None) -> dict:
         """Enrich a person by email (and optional company).
 
         Returns enriched data dict with source/timestamp, or empty dict on failure.
@@ -196,10 +190,19 @@ class ZoomInfoService:
             return []
 
         try:
-            query.setdefault("outputFields", [
-                "firstName", "lastName", "jobTitle", "companyName",
-                "phone", "email", "linkedInUrl", "companyDomain",
-            ])
+            query.setdefault(
+                "outputFields",
+                [
+                    "firstName",
+                    "lastName",
+                    "jobTitle",
+                    "companyName",
+                    "phone",
+                    "email",
+                    "linkedInUrl",
+                    "companyDomain",
+                ],
+            )
             resp = await self._authed_request("POST", "/search/contact", json=query)
             results = resp.json().get("result", {}).get("data", [])
             return [
@@ -235,10 +238,19 @@ class ZoomInfoService:
             return []
 
         try:
-            query.setdefault("outputFields", [
-                "companyName", "website", "revenue", "employeeCount",
-                "industry", "city", "state", "country",
-            ])
+            query.setdefault(
+                "outputFields",
+                [
+                    "companyName",
+                    "website",
+                    "revenue",
+                    "employeeCount",
+                    "industry",
+                    "city",
+                    "state",
+                    "country",
+                ],
+            )
             resp = await self._authed_request("POST", "/search/company", json=query)
             results = resp.json().get("result", {}).get("data", [])
             return [

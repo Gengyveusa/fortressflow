@@ -3,6 +3,7 @@ Shared pytest fixtures.
 
 All fixtures use in-memory mocks — no real database required.
 """
+
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
@@ -311,18 +312,16 @@ def mock_admin_user():
 def auth_token(mock_user):
     """Generate a valid JWT access token for the mock user."""
     from app.services.auth_service import create_access_token
-    return create_access_token(
-        str(mock_user.id), mock_user.email, mock_user.role.value
-    )
+
+    return create_access_token(str(mock_user.id), mock_user.email, mock_user.role.value)
 
 
 @pytest.fixture
 def admin_auth_token(mock_admin_user):
     """Generate a valid JWT access token for the mock admin user."""
     from app.services.auth_service import create_access_token
-    return create_access_token(
-        str(mock_admin_user.id), mock_admin_user.email, mock_admin_user.role.value
-    )
+
+    return create_access_token(str(mock_admin_user.id), mock_admin_user.email, mock_admin_user.role.value)
 
 
 @pytest.fixture

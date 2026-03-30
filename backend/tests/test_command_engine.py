@@ -126,11 +126,18 @@ class TestCommandEngineClassification:
         from app.services.command_engine import INTENTS
 
         expected = [
-            "find_leads", "import_leads", "enrich_leads",
-            "create_campaign", "pause_campaign", "resume_campaign",
-            "check_status", "check_deliverability",
-            "configure_integration", "check_integrations",
-            "get_help", "unknown",
+            "find_leads",
+            "import_leads",
+            "enrich_leads",
+            "create_campaign",
+            "pause_campaign",
+            "resume_campaign",
+            "check_status",
+            "check_deliverability",
+            "configure_integration",
+            "check_integrations",
+            "get_help",
+            "unknown",
         ]
         for intent in expected:
             assert intent in INTENTS
@@ -340,9 +347,7 @@ class TestCampaignWizard:
         from app.services.campaign_wizard import CampaignWizard
 
         wizard = CampaignWizard()
-        result = wizard._build_default_sequence(
-            "oral surgeons", ["email", "linkedin", "sms"], 7
-        )
+        result = wizard._build_default_sequence("oral surgeons", ["email", "linkedin", "sms"], 7)
         step_types = [s["step_type"] for s in result["steps"]]
         assert "email" in step_types
         assert "linkedin" in step_types
@@ -517,9 +522,7 @@ class TestChatServiceCommandEngine:
                 "content": "Campaign launched!",
             }
             with patch.object(svc, "_save_session_state", new_callable=AsyncMock):
-                result = await svc._handle_campaign_confirmation(
-                    "yes", "user-1", "session-1", state
-                )
+                result = await svc._handle_campaign_confirmation("yes", "user-1", "session-1", state)
                 assert result["type"] == "progress"
                 assert "launched" in result["content"]
 
@@ -530,9 +533,7 @@ class TestChatServiceCommandEngine:
         svc = ChatService()
         state = {"active_intent": "confirm_campaign", "gathered_params": {}}
         with patch.object(svc, "_save_session_state", new_callable=AsyncMock):
-            result = await svc._handle_campaign_confirmation(
-                "cancel", "user-1", "session-1", state
-            )
+            result = await svc._handle_campaign_confirmation("cancel", "user-1", "session-1", state)
             assert result["type"] == "text"
             assert "cancelled" in result["content"].lower()
 
@@ -542,9 +543,7 @@ class TestChatServiceCommandEngine:
 
         svc = ChatService()
         state = {"active_intent": "confirm_campaign", "gathered_params": {}}
-        result = await svc._handle_campaign_confirmation(
-            "modify", "user-1", "session-1", state
-        )
+        result = await svc._handle_campaign_confirmation("modify", "user-1", "session-1", state)
         assert result["type"] == "question"
         assert len(result["options"]) > 0
 
@@ -554,9 +553,7 @@ class TestChatServiceCommandEngine:
 
         svc = ChatService()
         state = {"active_intent": "confirm_campaign", "gathered_params": {}}
-        result = await svc._handle_campaign_confirmation(
-            "hmm maybe", "user-1", "session-1", state
-        )
+        result = await svc._handle_campaign_confirmation("hmm maybe", "user-1", "session-1", state)
         assert result["type"] == "question"
         assert "launch" in result["content"].lower()
 
@@ -575,9 +572,7 @@ class TestChatServiceCommandEngine:
                             yield "Hello test"
 
                         with patch.object(svc, "_stream_llm", side_effect=mock_stream):
-                            result = await svc.handle_message_sync(
-                                "hello", "user-1", "session-1"
-                            )
+                            result = await svc.handle_message_sync("hello", "user-1", "session-1")
                             assert result["session_id"] == "session-1"
                             assert "response" in result
 

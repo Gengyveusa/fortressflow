@@ -74,9 +74,7 @@ class HubSpotAgent:
             if resp.status_code != 429:
                 resp.raise_for_status()
                 return resp
-            retry_after = float(
-                resp.headers.get("Retry-After", _BACKOFF_BASE * (2 ** attempt))
-            )
+            retry_after = float(resp.headers.get("Retry-After", _BACKOFF_BASE * (2**attempt)))
             logger.warning(
                 "HubSpot rate limit hit; retrying in %.1fs (attempt %d)",
                 retry_after,
@@ -92,7 +90,8 @@ class HubSpotAgent:
         """Create a contact in HubSpot."""
         try:
             resp = await self._request_with_backoff(
-                "POST", "/crm/v3/objects/contacts",
+                "POST",
+                "/crm/v3/objects/contacts",
                 user_id=user_id,
                 json={"properties": properties},
             )
@@ -102,13 +101,12 @@ class HubSpotAgent:
             logger.error("HubSpot create_contact error: %s", exc)
             return {"error": str(exc)}
 
-    async def update_contact(
-        self, contact_id: str, properties: dict, user_id: UUID | None = None
-    ) -> dict:
+    async def update_contact(self, contact_id: str, properties: dict, user_id: UUID | None = None) -> dict:
         """Update a contact's properties."""
         try:
             resp = await self._request_with_backoff(
-                "PATCH", f"/crm/v3/objects/contacts/{contact_id}",
+                "PATCH",
+                f"/crm/v3/objects/contacts/{contact_id}",
                 user_id=user_id,
                 json={"properties": properties},
             )
@@ -122,7 +120,8 @@ class HubSpotAgent:
         """Get a contact by ID."""
         try:
             resp = await self._request_with_backoff(
-                "GET", f"/crm/v3/objects/contacts/{contact_id}",
+                "GET",
+                f"/crm/v3/objects/contacts/{contact_id}",
                 user_id=user_id,
             )
             data = resp.json()
@@ -154,15 +153,19 @@ class HubSpotAgent:
                 payload["after"] = after
             try:
                 resp = await self._request_with_backoff(
-                    "POST", "/crm/v3/objects/contacts/search",
-                    user_id=user_id, json=payload,
+                    "POST",
+                    "/crm/v3/objects/contacts/search",
+                    user_id=user_id,
+                    json=payload,
                 )
                 body = resp.json()
                 for contact in body.get("results", []):
-                    results.append({
-                        "id": contact.get("id"),
-                        "properties": contact.get("properties", {}),
-                    })
+                    results.append(
+                        {
+                            "id": contact.get("id"),
+                            "properties": contact.get("properties", {}),
+                        }
+                    )
                 paging = body.get("paging", {}).get("next", {})
                 after = paging.get("after")
                 if not after or len(results) >= limit:
@@ -173,14 +176,13 @@ class HubSpotAgent:
 
         return results[:limit]
 
-    async def bulk_create_contacts(
-        self, contacts: list[dict], user_id: UUID | None = None
-    ) -> dict:
+    async def bulk_create_contacts(self, contacts: list[dict], user_id: UUID | None = None) -> dict:
         """Bulk create contacts via batch API."""
         inputs = [{"properties": c} for c in contacts]
         try:
             resp = await self._request_with_backoff(
-                "POST", "/crm/v3/objects/contacts/batch/create",
+                "POST",
+                "/crm/v3/objects/contacts/batch/create",
                 user_id=user_id,
                 json={"inputs": inputs},
             )
@@ -188,8 +190,7 @@ class HubSpotAgent:
             return {
                 "status": data.get("status", "COMPLETE"),
                 "results": [
-                    {"id": r.get("id"), "properties": r.get("properties", {})}
-                    for r in data.get("results", [])
+                    {"id": r.get("id"), "properties": r.get("properties", {})} for r in data.get("results", [])
                 ],
                 "errors": data.get("errors", []),
             }
@@ -197,13 +198,12 @@ class HubSpotAgent:
             logger.error("HubSpot bulk_create_contacts error: %s", exc)
             return {"error": str(exc)}
 
-    async def merge_contacts(
-        self, primary_id: str, secondary_id: str, user_id: UUID | None = None
-    ) -> dict:
+    async def merge_contacts(self, primary_id: str, secondary_id: str, user_id: UUID | None = None) -> dict:
         """Merge two contacts. The secondary is merged into the primary."""
         try:
             resp = await self._request_with_backoff(
-                "POST", "/crm/v3/objects/contacts/merge",
+                "POST",
+                "/crm/v3/objects/contacts/merge",
                 user_id=user_id,
                 json={"primaryObjectId": primary_id, "objectIdToMerge": secondary_id},
             )
@@ -217,7 +217,8 @@ class HubSpotAgent:
         """Archive (soft-delete) a contact."""
         try:
             await self._request_with_backoff(
-                "DELETE", f"/crm/v3/objects/contacts/{contact_id}",
+                "DELETE",
+                f"/crm/v3/objects/contacts/{contact_id}",
                 user_id=user_id,
             )
             return True
@@ -239,8 +240,10 @@ class HubSpotAgent:
             payload["associations"] = associations
         try:
             resp = await self._request_with_backoff(
-                "POST", "/crm/v3/objects/deals",
-                user_id=user_id, json=payload,
+                "POST",
+                "/crm/v3/objects/deals",
+                user_id=user_id,
+                json=payload,
             )
             data = resp.json()
             return {"id": data.get("id"), "properties": data.get("properties", {})}
@@ -248,13 +251,12 @@ class HubSpotAgent:
             logger.error("HubSpot create_deal error: %s", exc)
             return {"error": str(exc)}
 
-    async def update_deal(
-        self, deal_id: str, properties: dict, user_id: UUID | None = None
-    ) -> dict:
+    async def update_deal(self, deal_id: str, properties: dict, user_id: UUID | None = None) -> dict:
         """Update a deal's properties."""
         try:
             resp = await self._request_with_backoff(
-                "PATCH", f"/crm/v3/objects/deals/{deal_id}",
+                "PATCH",
+                f"/crm/v3/objects/deals/{deal_id}",
                 user_id=user_id,
                 json={"properties": properties},
             )
@@ -264,9 +266,7 @@ class HubSpotAgent:
             logger.error("HubSpot update_deal error: %s", exc)
             return {"error": str(exc)}
 
-    async def move_deal_stage(
-        self, deal_id: str, stage: str, user_id: UUID | None = None
-    ) -> dict:
+    async def move_deal_stage(self, deal_id: str, stage: str, user_id: UUID | None = None) -> dict:
         """Move a deal to a different pipeline stage."""
         return await self.update_deal(deal_id, {"dealstage": stage}, user_id)
 
@@ -274,7 +274,8 @@ class HubSpotAgent:
         """Get a deal pipeline and its stages."""
         try:
             resp = await self._request_with_backoff(
-                "GET", f"/crm/v3/pipelines/deals/{pipeline_id}",
+                "GET",
+                f"/crm/v3/pipelines/deals/{pipeline_id}",
                 user_id=user_id,
             )
             data = resp.json()
@@ -290,34 +291,29 @@ class HubSpotAgent:
             logger.error("HubSpot get_pipeline error: %s", exc)
             return {"error": str(exc)}
 
-    async def get_deals(
-        self, filters: list, user_id: UUID | None = None
-    ) -> list[dict]:
+    async def get_deals(self, filters: list, user_id: UUID | None = None) -> list[dict]:
         """Search deals using filters."""
         try:
             resp = await self._request_with_backoff(
-                "POST", "/crm/v3/objects/deals/search",
+                "POST",
+                "/crm/v3/objects/deals/search",
                 user_id=user_id,
                 json={"filterGroups": [{"filters": filters}], "limit": 100},
             )
             body = resp.json()
-            return [
-                {"id": d.get("id"), "properties": d.get("properties", {})}
-                for d in body.get("results", [])
-            ]
+            return [{"id": d.get("id"), "properties": d.get("properties", {})} for d in body.get("results", [])]
         except httpx.HTTPStatusError as exc:
             logger.error("HubSpot get_deals error: %s", exc)
             return []
 
     # ── Companies ──────────────────────────────────────────────────────────
 
-    async def create_company(
-        self, properties: dict, user_id: UUID | None = None
-    ) -> dict:
+    async def create_company(self, properties: dict, user_id: UUID | None = None) -> dict:
         """Create a company in HubSpot."""
         try:
             resp = await self._request_with_backoff(
-                "POST", "/crm/v3/objects/companies",
+                "POST",
+                "/crm/v3/objects/companies",
                 user_id=user_id,
                 json={"properties": properties},
             )
@@ -327,13 +323,12 @@ class HubSpotAgent:
             logger.error("HubSpot create_company error: %s", exc)
             return {"error": str(exc)}
 
-    async def update_company(
-        self, company_id: str, properties: dict, user_id: UUID | None = None
-    ) -> dict:
+    async def update_company(self, company_id: str, properties: dict, user_id: UUID | None = None) -> dict:
         """Update a company's properties."""
         try:
             resp = await self._request_with_backoff(
-                "PATCH", f"/crm/v3/objects/companies/{company_id}",
+                "PATCH",
+                f"/crm/v3/objects/companies/{company_id}",
                 user_id=user_id,
                 json={"properties": properties},
             )
@@ -343,9 +338,7 @@ class HubSpotAgent:
             logger.error("HubSpot update_company error: %s", exc)
             return {"error": str(exc)}
 
-    async def associate_contact_to_company(
-        self, contact_id: str, company_id: str, user_id: UUID | None = None
-    ) -> bool:
+    async def associate_contact_to_company(self, contact_id: str, company_id: str, user_id: UUID | None = None) -> bool:
         """Associate a contact with a company."""
         try:
             await self._request_with_backoff(
@@ -360,13 +353,12 @@ class HubSpotAgent:
 
     # ── Lists ──────────────────────────────────────────────────────────────
 
-    async def create_list(
-        self, name: str, filters: list, user_id: UUID | None = None
-    ) -> dict:
+    async def create_list(self, name: str, filters: list, user_id: UUID | None = None) -> dict:
         """Create a contact list (ILS v3)."""
         try:
             resp = await self._request_with_backoff(
-                "POST", "/crm/v3/lists/",
+                "POST",
+                "/crm/v3/lists/",
                 user_id=user_id,
                 json={
                     "name": name,
@@ -375,7 +367,9 @@ class HubSpotAgent:
                     "filterBranch": {
                         "filterBranchType": "AND",
                         "filters": filters,
-                    } if filters else None,
+                    }
+                    if filters
+                    else None,
                 },
             )
             data = resp.json()
@@ -384,13 +378,12 @@ class HubSpotAgent:
             logger.error("HubSpot create_list error: %s", exc)
             return {"error": str(exc)}
 
-    async def add_to_list(
-        self, list_id: str, contact_ids: list[str], user_id: UUID | None = None
-    ) -> bool:
+    async def add_to_list(self, list_id: str, contact_ids: list[str], user_id: UUID | None = None) -> bool:
         """Add contacts to a static list."""
         try:
             await self._request_with_backoff(
-                "PUT", f"/crm/v3/lists/{list_id}/memberships/add",
+                "PUT",
+                f"/crm/v3/lists/{list_id}/memberships/add",
                 user_id=user_id,
                 json=contact_ids,
             )
@@ -399,13 +392,12 @@ class HubSpotAgent:
             logger.error("HubSpot add_to_list error: %s", exc)
             return False
 
-    async def remove_from_list(
-        self, list_id: str, contact_ids: list[str], user_id: UUID | None = None
-    ) -> bool:
+    async def remove_from_list(self, list_id: str, contact_ids: list[str], user_id: UUID | None = None) -> bool:
         """Remove contacts from a static list."""
         try:
             await self._request_with_backoff(
-                "PUT", f"/crm/v3/lists/{list_id}/memberships/remove",
+                "PUT",
+                f"/crm/v3/lists/{list_id}/memberships/remove",
                 user_id=user_id,
                 json=contact_ids,
             )
@@ -443,8 +435,10 @@ class HubSpotAgent:
         }
         try:
             resp = await self._request_with_backoff(
-                "POST", f"/crm/v3/objects/{object_type}",
-                user_id=user_id, json=payload,
+                "POST",
+                f"/crm/v3/objects/{object_type}",
+                user_id=user_id,
+                json=payload,
             )
             data = resp.json()
             return {"id": data.get("id"), "properties": data.get("properties", {})}
@@ -452,24 +446,24 @@ class HubSpotAgent:
             logger.error("HubSpot _create_engagement (%s) error: %s", object_type, exc)
             return {"error": str(exc)}
 
-    async def log_email(
-        self, contact_id: str, subject: str, body: str, user_id: UUID | None = None
-    ) -> dict:
+    async def log_email(self, contact_id: str, subject: str, body: str, user_id: UUID | None = None) -> dict:
         """Log an email engagement against a contact."""
         return await self._create_engagement(
             "emails",
             {"hs_email_subject": subject, "hs_email_text": body, "hs_email_direction": "SENT"},
-            contact_id, 198, user_id,  # 198 = email-to-contact
+            contact_id,
+            198,
+            user_id,  # 198 = email-to-contact
         )
 
-    async def log_call(
-        self, contact_id: str, duration_ms: int, notes: str, user_id: UUID | None = None
-    ) -> dict:
+    async def log_call(self, contact_id: str, duration_ms: int, notes: str, user_id: UUID | None = None) -> dict:
         """Log a call engagement against a contact."""
         return await self._create_engagement(
             "calls",
             {"hs_call_duration": str(duration_ms), "hs_call_body": notes},
-            contact_id, 194, user_id,  # 194 = call-to-contact
+            contact_id,
+            194,
+            user_id,  # 194 = call-to-contact
         )
 
     async def log_meeting(
@@ -490,12 +484,12 @@ class HubSpotAgent:
                 "hs_meeting_end_time": end,
                 "hs_meeting_body": notes,
             },
-            contact_id, 200, user_id,  # 200 = meeting-to-contact
+            contact_id,
+            200,
+            user_id,  # 200 = meeting-to-contact
         )
 
-    async def create_task(
-        self, contact_id: str, title: str, due_date: str, user_id: UUID | None = None
-    ) -> dict:
+    async def create_task(self, contact_id: str, title: str, due_date: str, user_id: UUID | None = None) -> dict:
         """Create a task associated with a contact."""
         return await self._create_engagement(
             "tasks",
@@ -504,17 +498,19 @@ class HubSpotAgent:
                 "hs_task_status": "NOT_STARTED",
                 "hs_timestamp": due_date,
             },
-            contact_id, 204, user_id,  # 204 = task-to-contact
+            contact_id,
+            204,
+            user_id,  # 204 = task-to-contact
         )
 
-    async def log_note(
-        self, contact_id: str, body: str, user_id: UUID | None = None
-    ) -> dict:
+    async def log_note(self, contact_id: str, body: str, user_id: UUID | None = None) -> dict:
         """Log a note against a contact."""
         return await self._create_engagement(
             "notes",
             {"hs_note_body": body},
-            contact_id, 202, user_id,  # 202 = note-to-contact
+            contact_id,
+            202,
+            user_id,  # 202 = note-to-contact
         )
 
     # ── Properties ─────────────────────────────────────────────────────────
@@ -530,7 +526,8 @@ class HubSpotAgent:
         """Create a custom property on an object type."""
         try:
             resp = await self._request_with_backoff(
-                "POST", f"/crm/v3/properties/{object_type}",
+                "POST",
+                f"/crm/v3/properties/{object_type}",
                 user_id=user_id,
                 json={
                     "name": name,
@@ -546,13 +543,12 @@ class HubSpotAgent:
             logger.error("HubSpot create_property error: %s", exc)
             return {"error": str(exc)}
 
-    async def get_properties(
-        self, object_type: str, user_id: UUID | None = None
-    ) -> list[dict]:
+    async def get_properties(self, object_type: str, user_id: UUID | None = None) -> list[dict]:
         """Get all properties for an object type."""
         try:
             resp = await self._request_with_backoff(
-                "GET", f"/crm/v3/properties/{object_type}",
+                "GET",
+                f"/crm/v3/properties/{object_type}",
                 user_id=user_id,
             )
             body = resp.json()
@@ -566,9 +562,7 @@ class HubSpotAgent:
 
     # ── Analytics ──────────────────────────────────────────────────────────
 
-    async def get_contact_activity(
-        self, contact_id: str, user_id: UUID | None = None
-    ) -> list[dict]:
+    async def get_contact_activity(self, contact_id: str, user_id: UUID | None = None) -> list[dict]:
         """Get engagement activity history for a contact."""
         activities: list[dict] = []
         for obj_type in ("emails", "calls", "meetings", "notes", "tasks"):
@@ -585,9 +579,7 @@ class HubSpotAgent:
                 continue
         return activities
 
-    async def get_pipeline_report(
-        self, pipeline_id: str, date_range: dict, user_id: UUID | None = None
-    ) -> dict:
+    async def get_pipeline_report(self, pipeline_id: str, date_range: dict, user_id: UUID | None = None) -> dict:
         """Generate a pipeline report by aggregating deals per stage."""
         pipeline = await self.get_pipeline(pipeline_id, user_id)
         if "error" in pipeline:
@@ -595,17 +587,21 @@ class HubSpotAgent:
 
         filters = [{"propertyName": "pipeline", "operator": "EQ", "value": pipeline_id}]
         if date_range.get("start"):
-            filters.append({
-                "propertyName": "createdate",
-                "operator": "GTE",
-                "value": date_range["start"],
-            })
+            filters.append(
+                {
+                    "propertyName": "createdate",
+                    "operator": "GTE",
+                    "value": date_range["start"],
+                }
+            )
         if date_range.get("end"):
-            filters.append({
-                "propertyName": "createdate",
-                "operator": "LTE",
-                "value": date_range["end"],
-            })
+            filters.append(
+                {
+                    "propertyName": "createdate",
+                    "operator": "LTE",
+                    "value": date_range["end"],
+                }
+            )
 
         deals = await self.get_deals(filters, user_id)
 
@@ -652,9 +648,7 @@ class HubSpotAgent:
 
         return {"created": created, "updated": updated, "errors": errors, "total": len(leads)}
 
-    async def pull_updates(
-        self, since: str, user_id: UUID | None = None
-    ) -> list[dict]:
+    async def pull_updates(self, since: str, user_id: UUID | None = None) -> list[dict]:
         """Pull contacts modified since a given ISO timestamp from HubSpot."""
         service = await self._get_service(user_id)
         since_dt = datetime.fromisoformat(since) if isinstance(since, str) else since
@@ -675,7 +669,8 @@ class HubSpotAgent:
         """
         try:
             resp = await self._request_with_backoff(
-                "POST", f"/crm/v3/pipelines/{object_type}",
+                "POST",
+                f"/crm/v3/pipelines/{object_type}",
                 user_id=user_id,
                 json={"label": label, "stages": stages},
             )
@@ -702,7 +697,8 @@ class HubSpotAgent:
         """Update a pipeline's label."""
         try:
             resp = await self._request_with_backoff(
-                "PATCH", f"/crm/v3/pipelines/{object_type}/{pipeline_id}",
+                "PATCH",
+                f"/crm/v3/pipelines/{object_type}/{pipeline_id}",
                 user_id=user_id,
                 json={"label": label},
             )
@@ -713,12 +709,16 @@ class HubSpotAgent:
             return {"error": str(exc)}
 
     async def delete_pipeline(
-        self, object_type: str, pipeline_id: str, user_id: UUID | None = None,
+        self,
+        object_type: str,
+        pipeline_id: str,
+        user_id: UUID | None = None,
     ) -> bool:
         """Delete a pipeline."""
         try:
             await self._request_with_backoff(
-                "DELETE", f"/crm/v3/pipelines/{object_type}/{pipeline_id}",
+                "DELETE",
+                f"/crm/v3/pipelines/{object_type}/{pipeline_id}",
                 user_id=user_id,
             )
             return True
@@ -727,12 +727,16 @@ class HubSpotAgent:
             return False
 
     async def get_pipeline_stages(
-        self, object_type: str, pipeline_id: str, user_id: UUID | None = None,
+        self,
+        object_type: str,
+        pipeline_id: str,
+        user_id: UUID | None = None,
     ) -> list[dict]:
         """Get all stages for a pipeline."""
         try:
             resp = await self._request_with_backoff(
-                "GET", f"/crm/v3/pipelines/{object_type}/{pipeline_id}/stages",
+                "GET",
+                f"/crm/v3/pipelines/{object_type}/{pipeline_id}/stages",
                 user_id=user_id,
             )
             body = resp.json()
@@ -755,7 +759,8 @@ class HubSpotAgent:
         """Create a stage in a pipeline."""
         try:
             resp = await self._request_with_backoff(
-                "POST", f"/crm/v3/pipelines/{object_type}/{pipeline_id}/stages",
+                "POST",
+                f"/crm/v3/pipelines/{object_type}/{pipeline_id}/stages",
                 user_id=user_id,
                 json={"label": label, "displayOrder": display_order},
             )
@@ -922,15 +927,15 @@ class HubSpotAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", f"/crm/v3/objects/{object_type}/search",
+                "POST",
+                f"/crm/v3/objects/{object_type}/search",
                 user_id=user_id,
                 json=payload,
             )
             body = resp.json()
             return {
                 "results": [
-                    {"id": r.get("id"), "properties": r.get("properties", {})}
-                    for r in body.get("results", [])
+                    {"id": r.get("id"), "properties": r.get("properties", {})} for r in body.get("results", [])
                 ],
                 "total": body.get("total", 0),
                 "paging": body.get("paging"),
@@ -942,7 +947,10 @@ class HubSpotAgent:
     # ── Imports / Exports ─────────────────────────────────────────────────────
 
     async def import_contacts(
-        self, file_url: str, mapping: dict, user_id: UUID | None = None,
+        self,
+        file_url: str,
+        mapping: dict,
+        user_id: UUID | None = None,
     ) -> dict:
         """Start a contact import job."""
         import_request = {
@@ -969,7 +977,8 @@ class HubSpotAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/crm/v3/imports",
+                "POST",
+                "/crm/v3/imports",
                 user_id=user_id,
                 json=import_request,
             )
@@ -984,12 +993,15 @@ class HubSpotAgent:
             return {"error": str(exc)}
 
     async def get_import_status(
-        self, import_id: str, user_id: UUID | None = None,
+        self,
+        import_id: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Check the status of an import job."""
         try:
             resp = await self._request_with_backoff(
-                "GET", f"/crm/v3/imports/{import_id}",
+                "GET",
+                f"/crm/v3/imports/{import_id}",
                 user_id=user_id,
             )
             data = resp.json()
@@ -1050,7 +1062,8 @@ class HubSpotAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/marketing/v3/transactional/single-email/send",
+                "POST",
+                "/marketing/v3/transactional/single-email/send",
                 user_id=user_id,
                 json=payload,
             )
@@ -1065,12 +1078,16 @@ class HubSpotAgent:
             return {"error": str(exc)}
 
     async def get_marketing_emails(
-        self, limit: int = 50, offset: int = 0, user_id: UUID | None = None,
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        user_id: UUID | None = None,
     ) -> list[dict]:
         """Get marketing emails."""
         try:
             resp = await self._request_with_backoff(
-                "GET", "/marketing/v3/emails",
+                "GET",
+                "/marketing/v3/emails",
                 user_id=user_id,
                 params={"limit": min(limit, 100), "offset": offset},
             )
@@ -1090,12 +1107,15 @@ class HubSpotAgent:
             return []
 
     async def get_email_statistics(
-        self, email_id: str, user_id: UUID | None = None,
+        self,
+        email_id: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Get statistics for a marketing email."""
         try:
             resp = await self._request_with_backoff(
-                "GET", f"/marketing/v3/emails/{email_id}/statistics",
+                "GET",
+                f"/marketing/v3/emails/{email_id}/statistics",
                 user_id=user_id,
             )
             return resp.json()
@@ -1122,7 +1142,8 @@ class HubSpotAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/marketing/v3/campaigns",
+                "POST",
+                "/marketing/v3/campaigns",
                 user_id=user_id,
                 json=payload,
             )
@@ -1137,12 +1158,15 @@ class HubSpotAgent:
             return {"error": str(exc)}
 
     async def get_campaign_report(
-        self, campaign_id: str, user_id: UUID | None = None,
+        self,
+        campaign_id: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Get a campaign's performance report."""
         try:
             resp = await self._request_with_backoff(
-                "GET", f"/marketing/v3/campaigns/{campaign_id}/reports",
+                "GET",
+                f"/marketing/v3/campaigns/{campaign_id}/reports",
                 user_id=user_id,
             )
             return resp.json()
@@ -1156,7 +1180,9 @@ class HubSpotAgent:
         """List all marketing forms."""
         try:
             resp = await self._request_with_backoff(
-                "GET", "/marketing/v3/forms", user_id=user_id,
+                "GET",
+                "/marketing/v3/forms",
+                user_id=user_id,
             )
             body = resp.json()
             return [
@@ -1173,12 +1199,15 @@ class HubSpotAgent:
             return []
 
     async def get_form_submissions(
-        self, form_id: str, user_id: UUID | None = None,
+        self,
+        form_id: str,
+        user_id: UUID | None = None,
     ) -> list[dict]:
         """Get form submissions."""
         try:
             resp = await self._request_with_backoff(
-                "GET", f"/marketing/v3/forms/{form_id}/submissions",
+                "GET",
+                f"/marketing/v3/forms/{form_id}/submissions",
                 user_id=user_id,
             )
             body = resp.json()
@@ -1207,7 +1236,8 @@ class HubSpotAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/marketing/v3/forms",
+                "POST",
+                "/marketing/v3/forms",
                 user_id=user_id,
                 json=payload,
             )
@@ -1234,7 +1264,9 @@ class HubSpotAgent:
         return await self._create_engagement(
             "postal_mail",
             {"hs_postal_mail_body": body},
-            contact_id, 453, user_id,  # 453 = postal_mail-to-contact
+            contact_id,
+            453,
+            user_id,  # 453 = postal_mail-to-contact
         )
 
     async def create_task_with_queue(
@@ -1261,18 +1293,25 @@ class HubSpotAgent:
             properties["hs_queue_membership_ids"] = queue_id
 
         return await self._create_engagement(
-            "tasks", properties, contact_id, 204, user_id,
+            "tasks",
+            properties,
+            contact_id,
+            204,
+            user_id,
         )
 
     # ── Automation ────────────────────────────────────────────────────────────
 
     async def get_workflows(
-        self, limit: int = 50, user_id: UUID | None = None,
+        self,
+        limit: int = 50,
+        user_id: UUID | None = None,
     ) -> list[dict]:
         """Get automation workflows."""
         try:
             resp = await self._request_with_backoff(
-                "GET", "/automation/v4/flows",
+                "GET",
+                "/automation/v4/flows",
                 user_id=user_id,
                 params={"limit": min(limit, 100)},
             )
@@ -1318,7 +1357,8 @@ class HubSpotAgent:
         """Enroll a contact in a sequence."""
         try:
             resp = await self._request_with_backoff(
-                "POST", "/automation/v1/sequences/enroll",
+                "POST",
+                "/automation/v1/sequences/enroll",
                 user_id=user_id,
                 json={
                     "sequenceId": sequence_id,
@@ -1343,7 +1383,8 @@ class HubSpotAgent:
         """List conversation inboxes."""
         try:
             resp = await self._request_with_backoff(
-                "GET", "/conversations/v3/conversations/inboxes",
+                "GET",
+                "/conversations/v3/conversations/inboxes",
                 user_id=user_id,
             )
             body = resp.json()
@@ -1360,12 +1401,15 @@ class HubSpotAgent:
             return []
 
     async def get_threads(
-        self, inbox_id: str, user_id: UUID | None = None,
+        self,
+        inbox_id: str,
+        user_id: UUID | None = None,
     ) -> list[dict]:
         """Get conversation threads for an inbox."""
         try:
             resp = await self._request_with_backoff(
-                "GET", "/conversations/v3/conversations/threads",
+                "GET",
+                "/conversations/v3/conversations/threads",
                 user_id=user_id,
                 params={"inboxId": inbox_id},
             )
@@ -1434,7 +1478,8 @@ class HubSpotAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/crm/v3/objects/invoices",
+                "POST",
+                "/crm/v3/objects/invoices",
                 user_id=user_id,
                 json=payload,
             )
@@ -1445,7 +1490,10 @@ class HubSpotAgent:
             return {"error": str(exc)}
 
     async def create_payment(
-        self, amount: float, contact_id: str | None = None, user_id: UUID | None = None,
+        self,
+        amount: float,
+        contact_id: str | None = None,
+        user_id: UUID | None = None,
     ) -> dict:
         """Create a payment record."""
         properties: dict = {"hs_payment_amount": str(amount)}
@@ -1461,7 +1509,8 @@ class HubSpotAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/crm/v3/objects/payments",
+                "POST",
+                "/crm/v3/objects/payments",
                 user_id=user_id,
                 json=payload,
             )
@@ -1496,7 +1545,8 @@ class HubSpotAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/crm/v3/objects/subscriptions",
+                "POST",
+                "/crm/v3/objects/subscriptions",
                 user_id=user_id,
                 json=payload,
             )
@@ -1512,7 +1562,9 @@ class HubSpotAgent:
         """List users in the HubSpot account."""
         try:
             resp = await self._request_with_backoff(
-                "GET", "/settings/v3/users", user_id=user_id,
+                "GET",
+                "/settings/v3/users",
+                user_id=user_id,
             )
             body = resp.json()
             return [
@@ -1532,7 +1584,9 @@ class HubSpotAgent:
         """List teams in the HubSpot account."""
         try:
             resp = await self._request_with_backoff(
-                "GET", "/settings/v3/users/teams", user_id=user_id,
+                "GET",
+                "/settings/v3/users/teams",
+                user_id=user_id,
             )
             body = resp.json()
             return [
@@ -1550,7 +1604,9 @@ class HubSpotAgent:
         """List currencies configured in the account."""
         try:
             resp = await self._request_with_backoff(
-                "GET", "/settings/v3/account-info/currencies", user_id=user_id,
+                "GET",
+                "/settings/v3/account-info/currencies",
+                user_id=user_id,
             )
             body = resp.json()
             return [
@@ -1580,7 +1636,8 @@ class HubSpotAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", f"/webhooks/v3/{app_id}/subscriptions",
+                "POST",
+                f"/webhooks/v3/{app_id}/subscriptions",
                 user_id=user_id,
                 json={
                     "eventType": event_type,
@@ -1600,7 +1657,8 @@ class HubSpotAgent:
             return {"error": str(exc)}
 
     async def list_webhook_subscriptions(
-        self, user_id: UUID | None = None,
+        self,
+        user_id: UUID | None = None,
     ) -> list[dict]:
         """List webhook subscriptions."""
         app_id = getattr(settings, "HUBSPOT_APP_ID", None)
@@ -1609,7 +1667,8 @@ class HubSpotAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "GET", f"/webhooks/v3/{app_id}/subscriptions",
+                "GET",
+                f"/webhooks/v3/{app_id}/subscriptions",
                 user_id=user_id,
             )
             body = resp.json()
@@ -1626,7 +1685,9 @@ class HubSpotAgent:
             return []
 
     async def delete_webhook_subscription(
-        self, subscription_id: str, user_id: UUID | None = None,
+        self,
+        subscription_id: str,
+        user_id: UUID | None = None,
     ) -> bool:
         """Delete a webhook subscription."""
         app_id = getattr(settings, "HUBSPOT_APP_ID", None)
@@ -1635,7 +1696,8 @@ class HubSpotAgent:
 
         try:
             await self._request_with_backoff(
-                "DELETE", f"/webhooks/v3/{app_id}/subscriptions/{subscription_id}",
+                "DELETE",
+                f"/webhooks/v3/{app_id}/subscriptions/{subscription_id}",
                 user_id=user_id,
             )
             return True
@@ -1663,7 +1725,8 @@ class HubSpotAgent:
         """
         try:
             resp = await self._request_with_backoff(
-                "POST", f"/crm/v3/pipelines/{object_type}",
+                "POST",
+                f"/crm/v3/pipelines/{object_type}",
                 user_id=user_id,
                 json={"label": label, "stages": stages},
             )
@@ -1680,7 +1743,6 @@ class HubSpotAgent:
             logger.error("HubSpot create_pipeline error: %s", exc)
             return {"error": str(exc)}
 
-
     async def update_pipeline(
         self,
         object_type: str,
@@ -1691,7 +1753,8 @@ class HubSpotAgent:
         """Update a pipeline's label."""
         try:
             resp = await self._request_with_backoff(
-                "PATCH", f"/crm/v3/pipelines/{object_type}/{pipeline_id}",
+                "PATCH",
+                f"/crm/v3/pipelines/{object_type}/{pipeline_id}",
                 user_id=user_id,
                 json={"label": label},
             )
@@ -1701,14 +1764,17 @@ class HubSpotAgent:
             logger.error("HubSpot update_pipeline error: %s", exc)
             return {"error": str(exc)}
 
-
     async def delete_pipeline(
-        self, object_type: str, pipeline_id: str, user_id: UUID | None = None,
+        self,
+        object_type: str,
+        pipeline_id: str,
+        user_id: UUID | None = None,
     ) -> bool:
         """Delete a pipeline."""
         try:
             await self._request_with_backoff(
-                "DELETE", f"/crm/v3/pipelines/{object_type}/{pipeline_id}",
+                "DELETE",
+                f"/crm/v3/pipelines/{object_type}/{pipeline_id}",
                 user_id=user_id,
             )
             return True
@@ -1716,14 +1782,17 @@ class HubSpotAgent:
             logger.error("HubSpot delete_pipeline error: %s", exc)
             return False
 
-
     async def get_pipeline_stages(
-        self, object_type: str, pipeline_id: str, user_id: UUID | None = None,
+        self,
+        object_type: str,
+        pipeline_id: str,
+        user_id: UUID | None = None,
     ) -> list[dict]:
         """Get all stages for a pipeline."""
         try:
             resp = await self._request_with_backoff(
-                "GET", f"/crm/v3/pipelines/{object_type}/{pipeline_id}/stages",
+                "GET",
+                f"/crm/v3/pipelines/{object_type}/{pipeline_id}/stages",
                 user_id=user_id,
             )
             body = resp.json()
@@ -1734,7 +1803,6 @@ class HubSpotAgent:
         except httpx.HTTPStatusError as exc:
             logger.error("HubSpot get_pipeline_stages error: %s", exc)
             return []
-
 
     async def create_pipeline_stage(
         self,
@@ -1747,7 +1815,8 @@ class HubSpotAgent:
         """Create a stage in a pipeline."""
         try:
             resp = await self._request_with_backoff(
-                "POST", f"/crm/v3/pipelines/{object_type}/{pipeline_id}/stages",
+                "POST",
+                f"/crm/v3/pipelines/{object_type}/{pipeline_id}/stages",
                 user_id=user_id,
                 json={"label": label, "displayOrder": display_order},
             )
@@ -1760,7 +1829,6 @@ class HubSpotAgent:
         except httpx.HTTPStatusError as exc:
             logger.error("HubSpot create_pipeline_stage error: %s", exc)
             return {"error": str(exc)}
-
 
     async def update_pipeline_stage(
         self,
@@ -1792,7 +1860,6 @@ class HubSpotAgent:
             logger.error("HubSpot update_pipeline_stage error: %s", exc)
             return {"error": str(exc)}
 
-
     # ── Associations v4 ───────────────────────────────────────────────────────
 
     async def create_association(
@@ -1816,7 +1883,6 @@ class HubSpotAgent:
         except httpx.HTTPStatusError as exc:
             logger.error("HubSpot create_association error: %s", exc)
             return False
-
 
     async def get_associations(
         self,
@@ -1847,7 +1913,6 @@ class HubSpotAgent:
             logger.error("HubSpot get_associations error: %s", exc)
             return []
 
-
     async def delete_association(
         self,
         from_type: str,
@@ -1867,7 +1932,6 @@ class HubSpotAgent:
         except httpx.HTTPStatusError as exc:
             logger.error("HubSpot delete_association error: %s", exc)
             return False
-
 
     async def batch_create_associations(
         self,
@@ -1897,7 +1961,6 @@ class HubSpotAgent:
             logger.error("HubSpot batch_create_associations error: %s", exc)
             return {"error": str(exc)}
 
-
     # ── CRM Search ────────────────────────────────────────────────────────────
 
     async def crm_search(
@@ -1923,15 +1986,15 @@ class HubSpotAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", f"/crm/v3/objects/{object_type}/search",
+                "POST",
+                f"/crm/v3/objects/{object_type}/search",
                 user_id=user_id,
                 json=payload,
             )
             body = resp.json()
             return {
                 "results": [
-                    {"id": r.get("id"), "properties": r.get("properties", {})}
-                    for r in body.get("results", [])
+                    {"id": r.get("id"), "properties": r.get("properties", {})} for r in body.get("results", [])
                 ],
                 "total": body.get("total", 0),
                 "paging": body.get("paging"),
@@ -1940,11 +2003,13 @@ class HubSpotAgent:
             logger.error("HubSpot crm_search error: %s", exc)
             return {"error": str(exc)}
 
-
     # ── Imports / Exports ─────────────────────────────────────────────────────
 
     async def import_contacts(
-        self, file_url: str, mapping: dict, user_id: UUID | None = None,
+        self,
+        file_url: str,
+        mapping: dict,
+        user_id: UUID | None = None,
     ) -> dict:
         """Start a contact import job.
 
@@ -1974,7 +2039,8 @@ class HubSpotAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/crm/v3/imports",
+                "POST",
+                "/crm/v3/imports",
                 user_id=user_id,
                 json=import_request,
             )
@@ -1988,14 +2054,16 @@ class HubSpotAgent:
             logger.error("HubSpot import_contacts error: %s", exc)
             return {"error": str(exc)}
 
-
     async def get_import_status(
-        self, import_id: str, user_id: UUID | None = None,
+        self,
+        import_id: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Check the status of an import job."""
         try:
             resp = await self._request_with_backoff(
-                "GET", f"/crm/v3/imports/{import_id}",
+                "GET",
+                f"/crm/v3/imports/{import_id}",
                 user_id=user_id,
             )
             data = resp.json()
@@ -2008,7 +2076,6 @@ class HubSpotAgent:
         except httpx.HTTPStatusError as exc:
             logger.error("HubSpot get_import_status error: %s", exc)
             return {"error": str(exc)}
-
 
     async def export_contacts(
         self,
@@ -2035,7 +2102,6 @@ class HubSpotAgent:
             "exported_at": datetime.now(UTC).isoformat(),
         }
 
-
     # ── Marketing ─────────────────────────────────────────────────────────────
 
     async def send_transactional_email(
@@ -2058,7 +2124,8 @@ class HubSpotAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/marketing/v3/transactional/single-email/send",
+                "POST",
+                "/marketing/v3/transactional/single-email/send",
                 user_id=user_id,
                 json=payload,
             )
@@ -2072,14 +2139,17 @@ class HubSpotAgent:
             logger.error("HubSpot send_transactional_email error: %s", exc)
             return {"error": str(exc)}
 
-
     async def get_marketing_emails(
-        self, limit: int = 50, offset: int = 0, user_id: UUID | None = None,
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        user_id: UUID | None = None,
     ) -> list[dict]:
         """Get marketing emails."""
         try:
             resp = await self._request_with_backoff(
-                "GET", "/marketing/v3/emails",
+                "GET",
+                "/marketing/v3/emails",
                 user_id=user_id,
                 params={"limit": min(limit, 100), "offset": offset},
             )
@@ -2098,21 +2168,22 @@ class HubSpotAgent:
             logger.error("HubSpot get_marketing_emails error: %s", exc)
             return []
 
-
     async def get_email_statistics(
-        self, email_id: str, user_id: UUID | None = None,
+        self,
+        email_id: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Get statistics for a marketing email."""
         try:
             resp = await self._request_with_backoff(
-                "GET", f"/marketing/v3/emails/{email_id}/statistics",
+                "GET",
+                f"/marketing/v3/emails/{email_id}/statistics",
                 user_id=user_id,
             )
             return resp.json()
         except httpx.HTTPStatusError as exc:
             logger.error("HubSpot get_email_statistics error: %s", exc)
             return {"error": str(exc)}
-
 
     async def create_campaign(
         self,
@@ -2133,7 +2204,8 @@ class HubSpotAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/marketing/v3/campaigns",
+                "POST",
+                "/marketing/v3/campaigns",
                 user_id=user_id,
                 json=payload,
             )
@@ -2147,14 +2219,16 @@ class HubSpotAgent:
             logger.error("HubSpot create_campaign error: %s", exc)
             return {"error": str(exc)}
 
-
     async def get_campaign_report(
-        self, campaign_id: str, user_id: UUID | None = None,
+        self,
+        campaign_id: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Get a campaign's performance report."""
         try:
             resp = await self._request_with_backoff(
-                "GET", f"/marketing/v3/campaigns/{campaign_id}/reports",
+                "GET",
+                f"/marketing/v3/campaigns/{campaign_id}/reports",
                 user_id=user_id,
             )
             return resp.json()
@@ -2162,14 +2236,15 @@ class HubSpotAgent:
             logger.error("HubSpot get_campaign_report error: %s", exc)
             return {"error": str(exc)}
 
-
     # ── Forms ─────────────────────────────────────────────────────────────────
 
     async def list_forms(self, user_id: UUID | None = None) -> list[dict]:
         """List all marketing forms."""
         try:
             resp = await self._request_with_backoff(
-                "GET", "/marketing/v3/forms", user_id=user_id,
+                "GET",
+                "/marketing/v3/forms",
+                user_id=user_id,
             )
             body = resp.json()
             return [
@@ -2185,14 +2260,16 @@ class HubSpotAgent:
             logger.error("HubSpot list_forms error: %s", exc)
             return []
 
-
     async def get_form_submissions(
-        self, form_id: str, user_id: UUID | None = None,
+        self,
+        form_id: str,
+        user_id: UUID | None = None,
     ) -> list[dict]:
         """Get form submissions."""
         try:
             resp = await self._request_with_backoff(
-                "GET", f"/marketing/v3/forms/{form_id}/submissions",
+                "GET",
+                f"/marketing/v3/forms/{form_id}/submissions",
                 user_id=user_id,
             )
             body = resp.json()
@@ -2206,7 +2283,6 @@ class HubSpotAgent:
         except httpx.HTTPStatusError as exc:
             logger.error("HubSpot get_form_submissions error: %s", exc)
             return []
-
 
     async def create_form(
         self,
@@ -2222,7 +2298,8 @@ class HubSpotAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/marketing/v3/forms",
+                "POST",
+                "/marketing/v3/forms",
                 user_id=user_id,
                 json=payload,
             )
@@ -2235,7 +2312,6 @@ class HubSpotAgent:
         except httpx.HTTPStatusError as exc:
             logger.error("HubSpot create_form error: %s", exc)
             return {"error": str(exc)}
-
 
     # ── Engagements (expand) ──────────────────────────────────────────────────
 
@@ -2250,9 +2326,10 @@ class HubSpotAgent:
         return await self._create_engagement(
             "postal_mail",
             {"hs_postal_mail_body": body},
-            contact_id, 453, user_id,  # 453 = postal_mail-to-contact
+            contact_id,
+            453,
+            user_id,  # 453 = postal_mail-to-contact
         )
-
 
     async def create_task_with_queue(
         self,
@@ -2278,19 +2355,25 @@ class HubSpotAgent:
             properties["hs_queue_membership_ids"] = queue_id
 
         return await self._create_engagement(
-            "tasks", properties, contact_id, 204, user_id,
+            "tasks",
+            properties,
+            contact_id,
+            204,
+            user_id,
         )
-
 
     # ── Automation ────────────────────────────────────────────────────────────
 
     async def get_workflows(
-        self, limit: int = 50, user_id: UUID | None = None,
+        self,
+        limit: int = 50,
+        user_id: UUID | None = None,
     ) -> list[dict]:
         """Get automation workflows."""
         try:
             resp = await self._request_with_backoff(
-                "GET", "/automation/v4/flows",
+                "GET",
+                "/automation/v4/flows",
                 user_id=user_id,
                 params={"limit": min(limit, 100)},
             )
@@ -2307,7 +2390,6 @@ class HubSpotAgent:
         except httpx.HTTPStatusError as exc:
             logger.error("HubSpot get_workflows error: %s", exc)
             return []
-
 
     async def trigger_workflow(
         self,
@@ -2327,7 +2409,6 @@ class HubSpotAgent:
             logger.error("HubSpot trigger_workflow error: %s", exc)
             return {"error": str(exc)}
 
-
     async def create_sequence_enrollment(
         self,
         sequence_id: str,
@@ -2338,7 +2419,8 @@ class HubSpotAgent:
         """Enroll a contact in a sequence."""
         try:
             resp = await self._request_with_backoff(
-                "POST", "/automation/v1/sequences/enroll",
+                "POST",
+                "/automation/v1/sequences/enroll",
                 user_id=user_id,
                 json={
                     "sequenceId": sequence_id,
@@ -2357,14 +2439,14 @@ class HubSpotAgent:
             logger.error("HubSpot create_sequence_enrollment error: %s", exc)
             return {"error": str(exc)}
 
-
     # ── Conversations ─────────────────────────────────────────────────────────
 
     async def list_inboxes(self, user_id: UUID | None = None) -> list[dict]:
         """List conversation inboxes."""
         try:
             resp = await self._request_with_backoff(
-                "GET", "/conversations/v3/conversations/inboxes",
+                "GET",
+                "/conversations/v3/conversations/inboxes",
                 user_id=user_id,
             )
             body = resp.json()
@@ -2380,14 +2462,16 @@ class HubSpotAgent:
             logger.error("HubSpot list_inboxes error: %s", exc)
             return []
 
-
     async def get_threads(
-        self, inbox_id: str, user_id: UUID | None = None,
+        self,
+        inbox_id: str,
+        user_id: UUID | None = None,
     ) -> list[dict]:
         """Get conversation threads for an inbox."""
         try:
             resp = await self._request_with_backoff(
-                "GET", "/conversations/v3/conversations/threads",
+                "GET",
+                "/conversations/v3/conversations/threads",
                 user_id=user_id,
                 params={"inboxId": inbox_id},
             )
@@ -2404,7 +2488,6 @@ class HubSpotAgent:
         except httpx.HTTPStatusError as exc:
             logger.error("HubSpot get_threads error: %s", exc)
             return []
-
 
     async def send_message(
         self,
@@ -2432,7 +2515,6 @@ class HubSpotAgent:
             logger.error("HubSpot send_message error: %s", exc)
             return {"error": str(exc)}
 
-
     # ── Commerce ──────────────────────────────────────────────────────────────
 
     async def create_invoice(
@@ -2458,7 +2540,8 @@ class HubSpotAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/crm/v3/objects/invoices",
+                "POST",
+                "/crm/v3/objects/invoices",
                 user_id=user_id,
                 json=payload,
             )
@@ -2468,9 +2551,11 @@ class HubSpotAgent:
             logger.error("HubSpot create_invoice error: %s", exc)
             return {"error": str(exc)}
 
-
     async def create_payment(
-        self, amount: float, contact_id: str | None = None, user_id: UUID | None = None,
+        self,
+        amount: float,
+        contact_id: str | None = None,
+        user_id: UUID | None = None,
     ) -> dict:
         """Create a payment record."""
         properties: dict = {"hs_payment_amount": str(amount)}
@@ -2486,7 +2571,8 @@ class HubSpotAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/crm/v3/objects/payments",
+                "POST",
+                "/crm/v3/objects/payments",
                 user_id=user_id,
                 json=payload,
             )
@@ -2495,7 +2581,6 @@ class HubSpotAgent:
         except httpx.HTTPStatusError as exc:
             logger.error("HubSpot create_payment error: %s", exc)
             return {"error": str(exc)}
-
 
     async def create_subscription(
         self,
@@ -2522,7 +2607,8 @@ class HubSpotAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", "/crm/v3/objects/subscriptions",
+                "POST",
+                "/crm/v3/objects/subscriptions",
                 user_id=user_id,
                 json=payload,
             )
@@ -2532,14 +2618,15 @@ class HubSpotAgent:
             logger.error("HubSpot create_subscription error: %s", exc)
             return {"error": str(exc)}
 
-
     # ── Settings ──────────────────────────────────────────────────────────────
 
     async def list_users(self, user_id: UUID | None = None) -> list[dict]:
         """List users in the HubSpot account."""
         try:
             resp = await self._request_with_backoff(
-                "GET", "/settings/v3/users", user_id=user_id,
+                "GET",
+                "/settings/v3/users",
+                user_id=user_id,
             )
             body = resp.json()
             return [
@@ -2555,12 +2642,13 @@ class HubSpotAgent:
             logger.error("HubSpot list_users error: %s", exc)
             return []
 
-
     async def list_teams(self, user_id: UUID | None = None) -> list[dict]:
         """List teams in the HubSpot account."""
         try:
             resp = await self._request_with_backoff(
-                "GET", "/settings/v3/users/teams", user_id=user_id,
+                "GET",
+                "/settings/v3/users/teams",
+                user_id=user_id,
             )
             body = resp.json()
             return [
@@ -2574,12 +2662,13 @@ class HubSpotAgent:
             logger.error("HubSpot list_teams error: %s", exc)
             return []
 
-
     async def list_currencies(self, user_id: UUID | None = None) -> list[dict]:
         """List currencies configured in the account."""
         try:
             resp = await self._request_with_backoff(
-                "GET", "/settings/v3/account-info/currencies", user_id=user_id,
+                "GET",
+                "/settings/v3/account-info/currencies",
+                user_id=user_id,
             )
             body = resp.json()
             return [
@@ -2593,7 +2682,6 @@ class HubSpotAgent:
         except httpx.HTTPStatusError as exc:
             logger.error("HubSpot list_currencies error: %s", exc)
             return []
-
 
     # ── Webhooks ──────────────────────────────────────────────────────────────
 
@@ -2613,7 +2701,8 @@ class HubSpotAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "POST", f"/webhooks/v3/{app_id}/subscriptions",
+                "POST",
+                f"/webhooks/v3/{app_id}/subscriptions",
                 user_id=user_id,
                 json={
                     "eventType": event_type,
@@ -2632,9 +2721,9 @@ class HubSpotAgent:
             logger.error("HubSpot create_webhook_subscription error: %s", exc)
             return {"error": str(exc)}
 
-
     async def list_webhook_subscriptions(
-        self, user_id: UUID | None = None,
+        self,
+        user_id: UUID | None = None,
     ) -> list[dict]:
         """List webhook subscriptions."""
         app_id = getattr(settings, "HUBSPOT_APP_ID", None)
@@ -2643,7 +2732,8 @@ class HubSpotAgent:
 
         try:
             resp = await self._request_with_backoff(
-                "GET", f"/webhooks/v3/{app_id}/subscriptions",
+                "GET",
+                f"/webhooks/v3/{app_id}/subscriptions",
                 user_id=user_id,
             )
             body = resp.json()
@@ -2659,9 +2749,10 @@ class HubSpotAgent:
             logger.error("HubSpot list_webhook_subscriptions error: %s", exc)
             return []
 
-
     async def delete_webhook_subscription(
-        self, subscription_id: str, user_id: UUID | None = None,
+        self,
+        subscription_id: str,
+        user_id: UUID | None = None,
     ) -> bool:
         """Delete a webhook subscription."""
         app_id = getattr(settings, "HUBSPOT_APP_ID", None)
@@ -2670,11 +2761,11 @@ class HubSpotAgent:
 
         try:
             await self._request_with_backoff(
-                "DELETE", f"/webhooks/v3/{app_id}/subscriptions/{subscription_id}",
+                "DELETE",
+                f"/webhooks/v3/{app_id}/subscriptions/{subscription_id}",
                 user_id=user_id,
             )
             return True
         except httpx.HTTPStatusError as exc:
             logger.error("HubSpot delete_webhook_subscription error: %s", exc)
             return False
-

@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 # Data classes
 # ---------------------------------------------------------------------------
 
+
 class RiskLevel(str, Enum):
     LOW = "low"
     MEDIUM = "medium"
@@ -35,11 +36,11 @@ class ChurnFeatures:
     """Input feature vector for churn prediction."""
 
     days_since_last_activity: float = 0.0
-    email_open_rate_trend: float = 0.0   # negative = declining
-    login_frequency: float = 0.0          # logins per week
+    email_open_rate_trend: float = 0.0  # negative = declining
+    login_frequency: float = 0.0  # logins per week
     support_tickets: int = 0
-    deal_stage_velocity: float = 0.0      # days per stage transition
-    engagement_score: float = 0.0         # 0-100 composite
+    deal_stage_velocity: float = 0.0  # days per stage transition
+    engagement_score: float = 0.0  # 0-100 composite
 
     def to_vector(self) -> List[float]:
         """Return a flat numeric list suitable for the scoring function."""
@@ -79,6 +80,7 @@ class ChurnPrediction:
 # Logistic regression helpers (pure Python)
 # ---------------------------------------------------------------------------
 
+
 def _sigmoid(z: float) -> float:
     """Numerically stable sigmoid function."""
     if z >= 0:
@@ -103,6 +105,7 @@ def _normalize_feature(value: float, mean: float, std: float) -> float:
 # Churn predictor
 # ---------------------------------------------------------------------------
 
+
 class ChurnPredictor:
     """Logistic-regression-style churn scorer.
 
@@ -124,23 +127,23 @@ class ChurnPredictor:
 
     # Pre-calibrated weights (positive = increases churn probability)
     DEFAULT_WEIGHTS: List[float] = [
-        0.035,   # days_since_last_activity  -- more days = higher churn
-        -1.8,    # email_open_rate_trend     -- declining trend = higher churn
-        -0.25,   # login_frequency           -- fewer logins = higher churn
-        0.30,    # support_tickets           -- more tickets = higher churn
-        0.020,   # deal_stage_velocity       -- slower movement = higher churn
-        -0.04,   # engagement_score          -- lower score = higher churn
+        0.035,  # days_since_last_activity  -- more days = higher churn
+        -1.8,  # email_open_rate_trend     -- declining trend = higher churn
+        -0.25,  # login_frequency           -- fewer logins = higher churn
+        0.30,  # support_tickets           -- more tickets = higher churn
+        0.020,  # deal_stage_velocity       -- slower movement = higher churn
+        -0.04,  # engagement_score          -- lower score = higher churn
     ]
     DEFAULT_BIAS: float = -0.5
 
     # Normalisation stats (mean, std) per feature
     FEATURE_STATS: List[Tuple[float, float]] = [
-        (15.0, 12.0),   # days_since_last_activity
-        (0.0, 0.15),    # email_open_rate_trend
-        (3.0, 2.5),     # login_frequency
-        (1.5, 2.0),     # support_tickets
-        (14.0, 10.0),   # deal_stage_velocity
-        (55.0, 20.0),   # engagement_score
+        (15.0, 12.0),  # days_since_last_activity
+        (0.0, 0.15),  # email_open_rate_trend
+        (3.0, 2.5),  # login_frequency
+        (1.5, 2.0),  # support_tickets
+        (14.0, 10.0),  # deal_stage_velocity
+        (55.0, 20.0),  # engagement_score
     ]
 
     # Risk-level thresholds
@@ -159,9 +162,7 @@ class ChurnPredictor:
         self.bias = bias if bias is not None else self.DEFAULT_BIAS
 
         if len(self.weights) != len(self.FEATURE_NAMES):
-            raise ValueError(
-                f"Expected {len(self.FEATURE_NAMES)} weights, got {len(self.weights)}"
-            )
+            raise ValueError(f"Expected {len(self.FEATURE_NAMES)} weights, got {len(self.weights)}")
 
         self._prediction_cache: Dict[str, ChurnPrediction] = {}
         logger.info("ChurnPredictor initialised with %d features", len(self.weights))
@@ -177,10 +178,7 @@ class ChurnPredictor:
         raw = features.to_vector()
 
         # Normalise
-        normed = [
-            _normalize_feature(v, mean, std)
-            for v, (mean, std) in zip(raw, self.FEATURE_STATS)
-        ]
+        normed = [_normalize_feature(v, mean, std) for v, (mean, std) in zip(raw, self.FEATURE_STATS)]
 
         # Linear combination + sigmoid
         z = _dot(self.weights, normed) + self.bias
@@ -188,9 +186,7 @@ class ChurnPredictor:
 
         # Identify risk level
         risk = RiskLevel.LOW
-        for level, threshold in sorted(
-            self.RISK_THRESHOLDS.items(), key=lambda kv: kv[1], reverse=True
-        ):
+        for level, threshold in sorted(self.RISK_THRESHOLDS.items(), key=lambda kv: kv[1], reverse=True):
             if prob >= threshold:
                 risk = level
                 break
@@ -213,7 +209,9 @@ class ChurnPredictor:
         self._prediction_cache[customer_id] = prediction
         logger.info(
             "Churn prediction for %s: prob=%.3f risk=%s",
-            customer_id, prob, risk.value,
+            customer_id,
+            prob,
+            risk.value,
         )
         return prediction
 
@@ -248,17 +246,13 @@ class ChurnPredictor:
 
     def get_risk_segments(self) -> Dict[str, List[Dict[str, Any]]]:
         """Group all cached predictions by risk level."""
-        segments: Dict[str, List[Dict[str, Any]]] = {
-            level.value: [] for level in RiskLevel
-        }
+        segments: Dict[str, List[Dict[str, Any]]] = {level.value: [] for level in RiskLevel}
         for pred in self._prediction_cache.values():
             segments[pred.risk_level.value].append(pred.to_dict())
 
         # Sort each segment by churn probability descending
         for level in segments:
-            segments[level].sort(
-                key=lambda p: p["churn_probability"], reverse=True
-            )
+            segments[level].sort(key=lambda p: p["churn_probability"], reverse=True)
 
         counts = {k: len(v) for k, v in segments.items()}
         logger.info("Risk segments: %s", counts)
@@ -278,7 +272,8 @@ class ChurnPredictor:
         if prediction.risk_level in (RiskLevel.HIGH, RiskLevel.CRITICAL):
             logger.info(
                 "Triggering retention workflow for customer %s (risk=%s)",
-                prediction.customer_id, prediction.risk_level.value,
+                prediction.customer_id,
+                prediction.risk_level.value,
             )
             if workflow_callback:
                 workflow_callback(prediction)
@@ -292,7 +287,8 @@ class ChurnPredictor:
 
         logger.debug(
             "No retention trigger for customer %s (risk=%s)",
-            prediction.customer_id, prediction.risk_level.value,
+            prediction.customer_id,
+            prediction.risk_level.value,
         )
         return {
             "triggered": False,
@@ -303,9 +299,7 @@ class ChurnPredictor:
 
     # -- Public recommendations API ------------------------------------------
 
-    def get_retention_recommendations(
-        self, prediction: ChurnPrediction
-    ) -> List[str]:
+    def get_retention_recommendations(self, prediction: ChurnPrediction) -> List[str]:
         """Return personalized retention recommendations for a prediction."""
         return self._get_retention_recommendations_internal(
             prediction.risk_level,
@@ -318,9 +312,7 @@ class ChurnPredictor:
         """Per-feature contribution to the churn logit."""
         return [w * x for w, x in zip(self.weights, normed)]
 
-    def _rank_factors(
-        self, contributions: List[float], raw_values: List[float]
-    ) -> List[Dict[str, Any]]:
+    def _rank_factors(self, contributions: List[float], raw_values: List[float]) -> List[Dict[str, Any]]:
         """Rank features by their absolute contribution magnitude."""
         paired = [
             {
@@ -344,46 +336,28 @@ class ChurnPredictor:
         recommendations: List[str] = []
 
         # Top 3 contributing factors that push toward churn
-        churn_drivers = [
-            f for f in factors if f["direction"] == "increases churn"
-        ][:3]
+        churn_drivers = [f for f in factors if f["direction"] == "increases churn"][:3]
 
         for factor in churn_drivers:
             name = factor["feature"]
             if name == "days_since_last_activity":
-                recommendations.append(
-                    "Send a personalized re-engagement email with recent product updates."
-                )
+                recommendations.append("Send a personalized re-engagement email with recent product updates.")
             elif name == "email_open_rate_trend":
-                recommendations.append(
-                    "A/B test new subject lines and send-time optimization for this contact."
-                )
+                recommendations.append("A/B test new subject lines and send-time optimization for this contact.")
             elif name == "login_frequency":
-                recommendations.append(
-                    "Trigger an in-app walkthrough highlighting unused features."
-                )
+                recommendations.append("Trigger an in-app walkthrough highlighting unused features.")
             elif name == "support_tickets":
-                recommendations.append(
-                    "Escalate to customer success manager for proactive outreach."
-                )
+                recommendations.append("Escalate to customer success manager for proactive outreach.")
             elif name == "deal_stage_velocity":
-                recommendations.append(
-                    "Schedule a deal review call to unblock stalled pipeline."
-                )
+                recommendations.append("Schedule a deal review call to unblock stalled pipeline.")
             elif name == "engagement_score":
-                recommendations.append(
-                    "Enrol in a nurture sequence with high-value content assets."
-                )
+                recommendations.append("Enrol in a nurture sequence with high-value content assets.")
 
         # Risk-level-specific extras
         if risk == RiskLevel.CRITICAL:
-            recommendations.insert(
-                0, "URGENT: Assign dedicated CSM and schedule executive check-in within 48 hours."
-            )
+            recommendations.insert(0, "URGENT: Assign dedicated CSM and schedule executive check-in within 48 hours.")
         elif risk == RiskLevel.HIGH:
-            recommendations.insert(
-                0, "Schedule a customer health review with the account team this week."
-            )
+            recommendations.insert(0, "Schedule a customer health review with the account team this week.")
 
         return recommendations
 
@@ -391,6 +365,7 @@ class ChurnPredictor:
 # ---------------------------------------------------------------------------
 # Retention workflow engine
 # ---------------------------------------------------------------------------
+
 
 class WorkflowStepStatus(str, Enum):
     PENDING = "pending"
@@ -529,7 +504,10 @@ class RetentionWorkflow:
             wf.status = "in_progress"
 
         logger.info(
-            "Executed step %s/%s -> %s", workflow_id, step_id, step.status.value,
+            "Executed step %s/%s -> %s",
+            workflow_id,
+            step_id,
+            step.status.value,
         )
         return step
 
@@ -554,9 +532,7 @@ class RetentionWorkflow:
                     "status": s.status.value,
                     "outcome": s.outcome,
                     "duration_seconds": (
-                        round(s.completed_at - s.started_at, 2)
-                        if s.started_at and s.completed_at
-                        else None
+                        round(s.completed_at - s.started_at, 2) if s.started_at and s.completed_at else None
                     ),
                 }
                 for s in wf.steps

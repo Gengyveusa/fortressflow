@@ -30,10 +30,12 @@ def upgrade() -> None:
 
     # Change source from String(100) to Text to allow longer source descriptions
     # Safe to re-run: altering to the same type is a no-op in PostgreSQL
-    result = bind.execute(sa.text(
-        "SELECT data_type FROM information_schema.columns "
-        "WHERE table_schema = 'public' AND table_name = 'leads' AND column_name = 'source'"
-    ))
+    result = bind.execute(
+        sa.text(
+            "SELECT data_type FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = 'leads' AND column_name = 'source'"
+        )
+    )
     row = result.fetchone()
     if row and row[0] != "text":
         op.alter_column("leads", "source", type_=sa.Text(), existing_type=sa.String(100))

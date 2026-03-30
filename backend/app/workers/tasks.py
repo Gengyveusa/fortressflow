@@ -21,6 +21,7 @@ def process_lead_enrichment(self, lead_id: str) -> dict:
     Enrich a lead via ZoomInfo (primary) / Apollo (fallback).
     Stores the result in leads.enriched_data.
     """
+
     async def _enrich():
         from app.database import AsyncSessionLocal
         from app.services.enrichment import EnrichmentService
@@ -53,6 +54,7 @@ def bulk_enrich_task(self, lead_ids: list[str]) -> dict:
 
     Processes leads sequentially to respect external API rate limits.
     """
+
     async def _bulk_enrich():
         from app.database import AsyncSessionLocal
         from app.services.enrichment import EnrichmentService
@@ -87,6 +89,7 @@ def re_verify_stale_leads(self) -> dict:
 
     Runs as a periodic Celery Beat task.
     """
+
     async def _re_verify():
         from app.database import AsyncSessionLocal
         from app.models.lead import Lead
@@ -98,12 +101,16 @@ def re_verify_stale_leads(self) -> dict:
         results = {"re_enriched": 0, "failed": 0, "total_stale": 0}
 
         async with AsyncSessionLocal() as db:
-            stmt = select(Lead).where(
-                or_(
-                    Lead.last_enriched_at < cutoff,
-                    Lead.last_enriched_at.is_(None),
+            stmt = (
+                select(Lead)
+                .where(
+                    or_(
+                        Lead.last_enriched_at < cutoff,
+                        Lead.last_enriched_at.is_(None),
+                    )
                 )
-            ).limit(500)  # Process in batches to avoid overloading
+                .limit(500)
+            )  # Process in batches to avoid overloading
             result = await db.execute(stmt)
             stale_leads = result.scalars().all()
             results["total_stale"] = len(stale_leads)
@@ -142,6 +149,7 @@ def send_sequence_step(
     Send a single sequence step to a lead.
     Performs compliance check before dispatching.
     """
+
     async def _send():
         from app.database import AsyncSessionLocal
         from app.models.touch_log import TouchLog, TouchAction
@@ -152,7 +160,9 @@ def send_sequence_step(
             if not can_send:
                 logger.info(
                     "Sequence step blocked for lead %s on %s: %s",
-                    lead_id, channel, reason,
+                    lead_id,
+                    channel,
+                    reason,
                 )
                 return {"status": "blocked", "reason": reason}
 
@@ -184,6 +194,7 @@ def run_sequence_engine(self) -> dict:
     Finds all due enrollments and advances them through their sequence steps.
     Should be called by Celery Beat every 15 minutes.
     """
+
     async def _run():
         from app.database import AsyncSessionLocal
         from app.services.sequence_executor import run_sequence_engine as engine_run
@@ -206,6 +217,7 @@ def run_warmup_step(self, inbox_id: str) -> dict:
     Advance the warmup schedule for an inbox by one step.
     Increments emails_sent and evaluates health metrics.
     """
+
     async def _warmup():
         from datetime import date
         from app.database import AsyncSessionLocal
@@ -233,9 +245,7 @@ def run_warmup_step(self, inbox_id: str) -> dict:
                 warmup.status = "completed"
 
             # Update inbox daily counter
-            inbox_result = await db.execute(
-                select(SendingInbox).where(SendingInbox.id == inbox_id)
-            )
+            inbox_result = await db.execute(select(SendingInbox).where(SendingInbox.id == inbox_id))
             inbox = inbox_result.scalar_one_or_none()
             if inbox:
                 inbox.daily_sent = warmup.emails_sent
@@ -265,6 +275,7 @@ def run_warmup_cycle_task(self) -> dict:
     3. Creates warmup queue entries
     4. Checks health metrics and pauses unhealthy inboxes
     """
+
     async def _cycle():
         from app.database import AsyncSessionLocal
         from app.services.warmup_ai import run_warmup_cycle
@@ -291,6 +302,7 @@ def process_warmup_feedback_task(self) -> dict:
     - Pushes data back to HubSpot Breeze / ZoomInfo Copilot / Apollo AI
     - Closes the bi-directional learning loop
     """
+
     async def _feedback():
         from app.database import AsyncSessionLocal
         from app.services.warmup_ai import process_warmup_feedback
@@ -310,6 +322,7 @@ def process_warmup_feedback_task(self) -> dict:
 @celery_app.task(bind=True, max_retries=1, default_retry_delay=60)
 def reset_daily_counters_task(self) -> dict:
     """Reset daily_sent counters for all sending inboxes. Runs at midnight UTC."""
+
     async def _reset():
         from app.database import AsyncSessionLocal
         from app.services.deliverability_router import DeliverabilityRouter
@@ -330,6 +343,7 @@ def reset_daily_counters_task(self) -> dict:
 @celery_app.task(bind=True, max_retries=1, default_retry_delay=120)
 def update_domain_metrics_task(self) -> dict:
     """Aggregate inbox metrics to domain level. Runs hourly."""
+
     async def _update():
         from app.database import AsyncSessionLocal
         from app.services.deliverability_router import DeliverabilityRouter
@@ -350,6 +364,7 @@ def update_domain_metrics_task(self) -> dict:
 @celery_app.task(bind=True, max_retries=1, default_retry_delay=120)
 def recalculate_health_scores_task(self) -> dict:
     """Recalculate health scores for all inboxes. Runs every 6 hours."""
+
     async def _recalc():
         from app.database import AsyncSessionLocal
         from app.services.warmup_ai import recalculate_inbox_health_scores
@@ -370,15 +385,14 @@ def recalculate_health_scores_task(self) -> dict:
 
 
 @celery_app.task(bind=True, max_retries=1, default_retry_delay=60)
-def process_reply_signal_task(
-    self, lead_id: str, sequence_id: str
-) -> dict:
+def process_reply_signal_task(self, lead_id: str, sequence_id: str) -> dict:
     """
     Handle a reply signal for an enrollment.
 
     Transitions enrollment: sent/opened → replied → paused (auto-pause).
     Called by webhook or IMAP polling when a lead replies.
     """
+
     async def _process():
         from app.database import AsyncSessionLocal
         from app.services.sequence_executor import process_reply_signal
@@ -397,7 +411,8 @@ def process_reply_signal_task(
     except Exception as exc:
         logger.error(
             "process_reply_signal_task failed for lead %s: %s",
-            lead_id, exc,
+            lead_id,
+            exc,
         )
         raise self.retry(exc=exc)
 
@@ -415,6 +430,7 @@ def generate_ai_sequence_task(
     Uses HubSpot Breeze, ZoomInfo Copilot, and Apollo AI platforms.
     Returns the sequence ID and generation metadata.
     """
+
     async def _generate():
         from app.services.sequence_ai_service import SequenceAIService
 
@@ -453,6 +469,7 @@ def poll_imap_replies_task(self) -> dict:
     - Individual reply processing failures → logged, other replies still processed
     - Timeouts → caught and retried
     """
+
     async def _poll():
         import sentry_sdk
         from app.database import AsyncSessionLocal
@@ -466,9 +483,7 @@ def poll_imap_replies_task(self) -> dict:
                 signals = await svc.poll_imap_inbox()
             except (OSError, TimeoutError, ConnectionError) as exc:
                 # IMAP connection issues — retry without crashing the worker
-                logger.warning(
-                    "poll_imap_replies_task: IMAP connection error (will retry): %s", exc
-                )
+                logger.warning("poll_imap_replies_task: IMAP connection error (will retry): %s", exc)
                 sentry_sdk.capture_exception(exc)
                 raise
             except Exception as exc:
@@ -520,6 +535,7 @@ def process_reply_full_task(self, reply_data: dict) -> dict:
         reply_data: dict with keys: channel, body, sender_email, sender_phone,
                     subject, thread_id, message_id, raw_headers, received_at (ISO string)
     """
+
     async def _process():
         import sentry_sdk
         from datetime import datetime, UTC
@@ -529,11 +545,7 @@ def process_reply_full_task(self, reply_data: dict) -> dict:
         # Parse received_at from ISO string
         received_at_raw = reply_data.get("received_at")
         try:
-            received_at = (
-                datetime.fromisoformat(received_at_raw)
-                if received_at_raw
-                else datetime.now(UTC)
-            )
+            received_at = datetime.fromisoformat(received_at_raw) if received_at_raw else datetime.now(UTC)
         except (ValueError, TypeError):
             received_at = datetime.now(UTC)
 
@@ -572,12 +584,8 @@ def process_reply_full_task(self, reply_data: dict) -> dict:
             signal.channel,
         )
         return {
-            "matched_enrollment_id": str(result.matched_enrollment_id)
-            if result.matched_enrollment_id
-            else None,
-            "matched_sequence_id": str(result.matched_sequence_id)
-            if result.matched_sequence_id
-            else None,
+            "matched_enrollment_id": str(result.matched_enrollment_id) if result.matched_enrollment_id else None,
+            "matched_sequence_id": str(result.matched_sequence_id) if result.matched_sequence_id else None,
             "sentiment": result.sentiment,
             "confidence": result.confidence,
             "channel": signal.channel,
@@ -598,6 +606,7 @@ def execute_linkedin_queue_task(self) -> dict:
     Processes the LinkedIn action queue respecting the daily 25-action limit
     and human-like random delays (45-120s) between actions.
     """
+
     async def _execute():
         import sentry_sdk
         from app.database import AsyncSessionLocal
@@ -609,9 +618,7 @@ def execute_linkedin_queue_task(self) -> dict:
                 results = await svc.execute_queue()
                 await db.commit()
             except Exception as exc:
-                logger.error(
-                    "execute_linkedin_queue_task: queue execution failed: %s", exc
-                )
+                logger.error("execute_linkedin_queue_task: queue execution failed: %s", exc)
                 sentry_sdk.capture_exception(exc)
                 await db.rollback()
                 raise
@@ -645,6 +652,7 @@ def push_ai_feedback_task(self, sequence_id: str) -> dict:
     and pushes back to HubSpot Breeze, ZoomInfo Copilot, and Apollo AI
     to close the bi-directional learning loop.
     """
+
     async def _push():
         import sentry_sdk
         from uuid import UUID
@@ -688,6 +696,7 @@ def aggregate_channel_metrics_task(self) -> dict:
     Collects per-channel stats (sent/bounced/replied/delivered) over the last 24h
     and logs a consolidated health snapshot for dashboards and alerting.
     """
+
     async def _aggregate():
         import sentry_sdk
         from app.database import AsyncSessionLocal
@@ -700,9 +709,7 @@ def aggregate_channel_metrics_task(self) -> dict:
                 # Commit any metric writes (orchestrator may update counters)
                 await db.commit()
             except Exception as exc:
-                logger.error(
-                    "aggregate_channel_metrics_task: health aggregation failed: %s", exc
-                )
+                logger.error("aggregate_channel_metrics_task: health aggregation failed: %s", exc)
                 sentry_sdk.capture_exception(exc)
                 await db.rollback()
                 raise
@@ -756,6 +763,7 @@ def push_chat_feedback_task(
 
     Strips PII before sending — only sends topic categories and engagement patterns.
     """
+
     async def _push():
         from app.services.platform_ai_service import PlatformAIService
 

@@ -31,9 +31,7 @@ class WarmupQueue(Base):
 
     __tablename__ = "warmup_queue"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     inbox_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("sending_inboxes.id", ondelete="CASCADE"),
@@ -53,22 +51,14 @@ class WarmupQueue(Base):
     seed_selection_method: Mapped[str | None] = mapped_column(
         String(100), nullable=True
     )  # "hubspot_breeze", "zoominfo_copilot", "apollo_ai", "manual"
-    seed_criteria: Mapped[dict | None] = mapped_column(
-        JSONB, nullable=True
-    )  # AI criteria used for seed selection
-    seed_lead_ids: Mapped[dict | None] = mapped_column(
-        JSONB, nullable=True
-    )  # List of lead UUIDs used as seeds
+    seed_criteria: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # AI criteria used for seed selection
+    seed_lead_ids: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # List of lead UUIDs used as seeds
 
     # Health check result
-    health_check_passed: Mapped[bool] = mapped_column(
-        Boolean, default=True, nullable=False
-    )
+    health_check_passed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     health_check_details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -82,9 +72,7 @@ class WarmupConfig(Base):
 
     __tablename__ = "warmup_configs"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     inbox_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("sending_inboxes.id", ondelete="CASCADE"),
@@ -94,46 +82,26 @@ class WarmupConfig(Base):
 
     # Ramp schedule
     ramp_duration_weeks: Mapped[int] = mapped_column(Integer, default=6, nullable=False)
-    initial_daily_volume: Mapped[int] = mapped_column(
-        Integer, default=5, nullable=False
-    )
-    target_daily_volume: Mapped[int] = mapped_column(
-        Integer, default=50, nullable=False
-    )
-    ramp_multiplier: Mapped[float] = mapped_column(
-        Float, default=1.15, nullable=False
-    )  # 15% daily increase
+    initial_daily_volume: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    target_daily_volume: Mapped[int] = mapped_column(Integer, default=50, nullable=False)
+    ramp_multiplier: Mapped[float] = mapped_column(Float, default=1.15, nullable=False)  # 15% daily increase
 
     # AI tuning
     ai_tuned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    ai_ramp_adjustments: Mapped[dict | None] = mapped_column(
-        JSONB, nullable=True
-    )  # AI-recommended adjustments
-    ai_seed_profile: Mapped[dict | None] = mapped_column(
-        JSONB, nullable=True
-    )  # Ideal seed characteristics from AI
+    ai_ramp_adjustments: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # AI-recommended adjustments
+    ai_seed_profile: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # Ideal seed characteristics from AI
 
     # Safety thresholds
-    max_bounce_rate: Mapped[float] = mapped_column(
-        Float, default=0.05, nullable=False
-    )  # Pause at 5%
-    max_spam_rate: Mapped[float] = mapped_column(
-        Float, default=0.001, nullable=False
-    )  # Pause at 0.1%
-    min_open_rate: Mapped[float] = mapped_column(
-        Float, default=0.15, nullable=False
-    )  # Alert below 15%
+    max_bounce_rate: Mapped[float] = mapped_column(Float, default=0.05, nullable=False)  # Pause at 5%
+    max_spam_rate: Mapped[float] = mapped_column(Float, default=0.001, nullable=False)  # Pause at 0.1%
+    min_open_rate: Mapped[float] = mapped_column(Float, default=0.15, nullable=False)  # Alert below 15%
 
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     paused_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    last_ai_review: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    last_ai_review: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -147,9 +115,7 @@ class WarmupSeedLog(Base):
 
     __tablename__ = "warmup_seed_logs"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     inbox_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("sending_inboxes.id", ondelete="CASCADE"),
@@ -165,9 +131,7 @@ class WarmupSeedLog(Base):
     warmup_date: Mapped[date] = mapped_column(Date, nullable=False)
 
     # Selection metadata
-    selected_by: Mapped[str] = mapped_column(
-        String(100), nullable=False
-    )  # Platform that selected this seed
+    selected_by: Mapped[str] = mapped_column(String(100), nullable=False)  # Platform that selected this seed
     selection_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     selection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -181,6 +145,4 @@ class WarmupSeedLog(Base):
     feedback_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     feedback_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

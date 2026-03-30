@@ -9,8 +9,6 @@ Covers:
 - Role-based access control
 """
 
-
-
 from app.models.user import UserRole
 from app.services.auth_service import (
     create_access_token,

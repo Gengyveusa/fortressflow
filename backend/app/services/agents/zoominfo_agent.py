@@ -44,9 +44,7 @@ class ZoomInfoAgent:
                     return key
         if settings.ZOOMINFO_API_KEY:
             return settings.ZOOMINFO_API_KEY
-        raise ValueError(
-            "ZoomInfo API key not configured — set via Settings or ZOOMINFO_API_KEY env var"
-        )
+        raise ValueError("ZoomInfo API key not configured — set via Settings or ZOOMINFO_API_KEY env var")
 
     @staticmethod
     def _build_client_jwt() -> str:
@@ -115,9 +113,7 @@ class ZoomInfoAgent:
             )
         return self._client
 
-    async def _authed_request(
-        self, method: str, path: str, user_id: UUID | None = None, **kwargs
-    ) -> httpx.Response:
+    async def _authed_request(self, method: str, path: str, user_id: UUID | None = None, **kwargs) -> httpx.Response:
         """Make an authenticated, rate-limited request."""
         token = await self._authenticate(user_id)
         client = await self._get_client(user_id)
@@ -148,9 +144,18 @@ class ZoomInfoAgent:
         """Enrich a person by email, name, or company. Returns full profile."""
         search_body: dict = {
             "outputFields": [
-                "firstName", "lastName", "jobTitle", "companyName",
-                "phone", "email", "linkedInUrl", "companyDomain",
-                "city", "state", "country", "managementLevel",
+                "firstName",
+                "lastName",
+                "jobTitle",
+                "companyName",
+                "phone",
+                "email",
+                "linkedInUrl",
+                "companyDomain",
+                "city",
+                "state",
+                "country",
+                "managementLevel",
             ],
         }
         if email:
@@ -165,7 +170,10 @@ class ZoomInfoAgent:
 
         try:
             resp = await self._authed_request(
-                "POST", "/search/contact", user_id=user_id, json=search_body,
+                "POST",
+                "/search/contact",
+                user_id=user_id,
+                json=search_body,
             )
             results = resp.json().get("result", {}).get("data", [])
             if not results:
@@ -193,13 +201,14 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo enrich_person error: %s", exc)
             return {"error": str(exc)}
 
-    async def search_people(
-        self, filters: dict, user_id: UUID | None = None
-    ) -> list[dict]:
+    async def search_people(self, filters: dict, user_id: UUID | None = None) -> list[dict]:
         """Search for people using ZoomInfo filters."""
         try:
             resp = await self._authed_request(
-                "POST", "/search/contact", user_id=user_id, json=filters,
+                "POST",
+                "/search/contact",
+                user_id=user_id,
+                json=filters,
             )
             results = resp.json().get("result", {}).get("data", [])
             return [
@@ -219,13 +228,12 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo search_people error: %s", exc)
             return []
 
-    async def bulk_enrich_people(
-        self, identifiers: list[dict], user_id: UUID | None = None
-    ) -> list[dict]:
+    async def bulk_enrich_people(self, identifiers: list[dict], user_id: UUID | None = None) -> list[dict]:
         """Bulk enrich multiple people by their identifiers (email, name+company)."""
         try:
             resp = await self._authed_request(
-                "POST", "/enrich/contact",
+                "POST",
+                "/enrich/contact",
                 user_id=user_id,
                 json={"matchPersonInput": identifiers},
             )
@@ -256,9 +264,17 @@ class ZoomInfoAgent:
         """Enrich a company by domain, name, or ZoomInfo company ID."""
         body: dict = {
             "outputFields": [
-                "companyName", "website", "revenue", "employeeCount",
-                "industry", "city", "state", "country", "founded",
-                "description", "stockTicker",
+                "companyName",
+                "website",
+                "revenue",
+                "employeeCount",
+                "industry",
+                "city",
+                "state",
+                "country",
+                "founded",
+                "description",
+                "stockTicker",
             ],
         }
         if domain:
@@ -273,7 +289,10 @@ class ZoomInfoAgent:
 
         try:
             resp = await self._authed_request(
-                "POST", "/enrich/company", user_id=user_id, json=body,
+                "POST",
+                "/enrich/company",
+                user_id=user_id,
+                json=body,
             )
             results = resp.json().get("result", {}).get("data", [])
             if not results:
@@ -300,13 +319,14 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo enrich_company error: %s", exc)
             return {"error": str(exc)}
 
-    async def search_companies(
-        self, filters: dict, user_id: UUID | None = None
-    ) -> list[dict]:
+    async def search_companies(self, filters: dict, user_id: UUID | None = None) -> list[dict]:
         """Search companies using ZoomInfo filters."""
         try:
             resp = await self._authed_request(
-                "POST", "/search/company", user_id=user_id, json=filters,
+                "POST",
+                "/search/company",
+                user_id=user_id,
+                json=filters,
             )
             results = resp.json().get("result", {}).get("data", [])
             return [
@@ -324,13 +344,12 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo search_companies error: %s", exc)
             return []
 
-    async def get_company_hierarchy(
-        self, company_id: str, user_id: UUID | None = None
-    ) -> dict:
+    async def get_company_hierarchy(self, company_id: str, user_id: UUID | None = None) -> dict:
         """Get a company's organizational hierarchy."""
         try:
             resp = await self._authed_request(
-                "POST", "/lookup/companyHierarchy",
+                "POST",
+                "/lookup/companyHierarchy",
                 user_id=user_id,
                 json={"companyId": company_id},
             )
@@ -356,7 +375,10 @@ class ZoomInfoAgent:
 
         try:
             resp = await self._authed_request(
-                "POST", "/intent", user_id=user_id, json=body,
+                "POST",
+                "/intent",
+                user_id=user_id,
+                json=body,
             )
             results = resp.json().get("result", {}).get("data", [])
             return [
@@ -374,13 +396,12 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo get_intent_signals error: %s", exc)
             return []
 
-    async def get_surge_scores(
-        self, company_ids: list[str], user_id: UUID | None = None
-    ) -> list[dict]:
+    async def get_surge_scores(self, company_ids: list[str], user_id: UUID | None = None) -> list[dict]:
         """Get intent surge scores for a list of companies."""
         try:
             resp = await self._authed_request(
-                "POST", "/intent",
+                "POST",
+                "/intent",
                 user_id=user_id,
                 json={"companyIds": company_ids},
             )
@@ -415,7 +436,10 @@ class ZoomInfoAgent:
 
         try:
             resp = await self._authed_request(
-                "POST", "/scoops", user_id=user_id, json=body,
+                "POST",
+                "/scoops",
+                user_id=user_id,
+                json=body,
             )
             results = resp.json().get("result", {}).get("data", [])
             return [
@@ -432,13 +456,12 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo get_scoops error: %s", exc)
             return []
 
-    async def get_news(
-        self, company_id: str, user_id: UUID | None = None
-    ) -> list[dict]:
+    async def get_news(self, company_id: str, user_id: UUID | None = None) -> list[dict]:
         """Get recent news for a company."""
         try:
             resp = await self._authed_request(
-                "POST", "/news",
+                "POST",
+                "/news",
                 user_id=user_id,
                 json={"companyId": company_id},
             )
@@ -456,13 +479,12 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo get_news error: %s", exc)
             return []
 
-    async def get_tech_stack(
-        self, company_id: str, user_id: UUID | None = None
-    ) -> dict:
+    async def get_tech_stack(self, company_id: str, user_id: UUID | None = None) -> dict:
         """Get the technology stack for a company."""
         try:
             resp = await self._authed_request(
-                "POST", "/enrich/tech",
+                "POST",
+                "/enrich/tech",
                 user_id=user_id,
                 json={"companyId": company_id},
             )
@@ -483,13 +505,12 @@ class ZoomInfoAgent:
 
     # ── Verification ───────────────────────────────────────────────────────
 
-    async def verify_email(
-        self, email: str, user_id: UUID | None = None
-    ) -> dict:
+    async def verify_email(self, email: str, user_id: UUID | None = None) -> dict:
         """Verify an email address."""
         try:
             resp = await self._authed_request(
-                "POST", "/lookup/email/validate",
+                "POST",
+                "/lookup/email/validate",
                 user_id=user_id,
                 json={"emailAddress": email},
             )
@@ -504,13 +525,12 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo verify_email error: %s", exc)
             return {"email": email, "error": str(exc)}
 
-    async def verify_phone(
-        self, phone: str, user_id: UUID | None = None
-    ) -> dict:
+    async def verify_phone(self, phone: str, user_id: UUID | None = None) -> dict:
         """Verify a phone number."""
         try:
             resp = await self._authed_request(
-                "POST", "/lookup/phone/validate",
+                "POST",
+                "/lookup/phone/validate",
                 user_id=user_id,
                 json={"phoneNumber": phone},
             )
@@ -527,13 +547,12 @@ class ZoomInfoAgent:
 
     # ── Bulk ───────────────────────────────────────────────────────────────
 
-    async def bulk_enrich(
-        self, inputs: list[dict], match_type: str = "email", user_id: UUID | None = None
-    ) -> dict:
+    async def bulk_enrich(self, inputs: list[dict], match_type: str = "email", user_id: UUID | None = None) -> dict:
         """Start a bulk enrichment job. Returns job ID for status polling."""
         try:
             resp = await self._authed_request(
-                "POST", "/bulk/enrich",
+                "POST",
+                "/bulk/enrich",
                 user_id=user_id,
                 json={"inputData": inputs, "matchType": match_type},
             )
@@ -547,13 +566,13 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo bulk_enrich error: %s", exc)
             return {"error": str(exc)}
 
-    async def get_bulk_status(
-        self, job_id: str, user_id: UUID | None = None
-    ) -> dict:
+    async def get_bulk_status(self, job_id: str, user_id: UUID | None = None) -> dict:
         """Check the status of a bulk enrichment job."""
         try:
             resp = await self._authed_request(
-                "GET", f"/bulk/{job_id}/status", user_id=user_id,
+                "GET",
+                f"/bulk/{job_id}/status",
+                user_id=user_id,
             )
             data = resp.json()
             return {
@@ -567,13 +586,13 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo get_bulk_status error: %s", exc)
             return {"error": str(exc)}
 
-    async def get_bulk_results(
-        self, job_id: str, user_id: UUID | None = None
-    ) -> list[dict]:
+    async def get_bulk_results(self, job_id: str, user_id: UUID | None = None) -> list[dict]:
         """Download results from a completed bulk enrichment job."""
         try:
             resp = await self._authed_request(
-                "GET", f"/bulk/{job_id}/results", user_id=user_id,
+                "GET",
+                f"/bulk/{job_id}/results",
+                user_id=user_id,
             )
             return resp.json().get("result", {}).get("data", [])
         except httpx.HTTPStatusError as exc:
@@ -609,7 +628,10 @@ class ZoomInfoAgent:
 
         try:
             resp = await self._authed_request(
-                "POST", "/websights/v1/visitors", user_id=user_id, json=body,
+                "POST",
+                "/websights/v1/visitors",
+                user_id=user_id,
+                json=body,
             )
             data = resp.json()
             visitors = data.get("result", {}).get("data", [])
@@ -636,7 +658,6 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo get_website_visitors error: %s", exc)
             return {"error": str(exc)}
 
-
     async def get_visitor_companies(
         self,
         date_from: str | None = None,
@@ -652,7 +673,10 @@ class ZoomInfoAgent:
 
         try:
             resp = await self._authed_request(
-                "POST", "/websights/v1/companies", user_id=user_id, json=body,
+                "POST",
+                "/websights/v1/companies",
+                user_id=user_id,
+                json=body,
             )
             data = resp.json()
             companies = data.get("result", {}).get("data", [])
@@ -673,16 +697,18 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo get_visitor_companies error: %s", exc)
             return []
 
-
     # ── Compliance ────────────────────────────────────────────────────────────
 
     async def check_opt_out(
-        self, email: str, user_id: UUID | None = None,
+        self,
+        email: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Check if an email is opted out."""
         try:
             resp = await self._authed_request(
-                "POST", "/compliance/v1/optout/check",
+                "POST",
+                "/compliance/v1/optout/check",
                 user_id=user_id,
                 json={"emailAddress": email},
             )
@@ -697,9 +723,11 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo check_opt_out error: %s", exc)
             return {"email": email, "error": str(exc)}
 
-
     async def add_opt_out(
-        self, email: str, reason: str | None = None, user_id: UUID | None = None,
+        self,
+        email: str,
+        reason: str | None = None,
+        user_id: UUID | None = None,
     ) -> dict:
         """Add an email to the opt-out list."""
         body: dict = {"emailAddress": email}
@@ -708,7 +736,8 @@ class ZoomInfoAgent:
 
         try:
             resp = await self._authed_request(
-                "POST", "/compliance/v1/optout/add",
+                "POST",
+                "/compliance/v1/optout/add",
                 user_id=user_id,
                 json=body,
             )
@@ -722,14 +751,16 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo add_opt_out error: %s", exc)
             return {"email": email, "success": False, "error": str(exc)}
 
-
     async def remove_opt_out(
-        self, email: str, user_id: UUID | None = None,
+        self,
+        email: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Remove an email from the opt-out list."""
         try:
             resp = await self._authed_request(
-                "POST", "/compliance/v1/optout/remove",
+                "POST",
+                "/compliance/v1/optout/remove",
                 user_id=user_id,
                 json={"emailAddress": email},
             )
@@ -743,14 +774,16 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo remove_opt_out error: %s", exc)
             return {"email": email, "success": False, "error": str(exc)}
 
-
     async def check_gdpr_status(
-        self, email: str, user_id: UUID | None = None,
+        self,
+        email: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Check GDPR compliance status for an email."""
         try:
             resp = await self._authed_request(
-                "POST", "/compliance/v1/gdpr/check",
+                "POST",
+                "/compliance/v1/gdpr/check",
                 user_id=user_id,
                 json={"emailAddress": email},
             )
@@ -765,11 +798,13 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo check_gdpr_status error: %s", exc)
             return {"email": email, "error": str(exc)}
 
-
     # ── Enhanced Search ───────────────────────────────────────────────────────
 
     async def advanced_search_contacts(
-        self, query: str | None = None, filters: dict | None = None, user_id: UUID | None = None,
+        self,
+        query: str | None = None,
+        filters: dict | None = None,
+        user_id: UUID | None = None,
     ) -> list[dict]:
         """Advanced people search with granular filters.
 
@@ -778,10 +813,20 @@ class ZoomInfoAgent:
         """
         search_body: dict = {
             "outputFields": [
-                "firstName", "lastName", "jobTitle", "companyName",
-                "phone", "email", "linkedInUrl", "companyDomain",
-                "city", "state", "country", "managementLevel",
-                "education", "yearsOfExperience",
+                "firstName",
+                "lastName",
+                "jobTitle",
+                "companyName",
+                "phone",
+                "email",
+                "linkedInUrl",
+                "companyDomain",
+                "city",
+                "state",
+                "country",
+                "managementLevel",
+                "education",
+                "yearsOfExperience",
             ],
         }
         if query:
@@ -791,7 +836,10 @@ class ZoomInfoAgent:
 
         try:
             resp = await self._authed_request(
-                "POST", "/search/contact", user_id=user_id, json=search_body,
+                "POST",
+                "/search/contact",
+                user_id=user_id,
+                json=search_body,
             )
             results = resp.json().get("result", {}).get("data", [])
             return [
@@ -814,7 +862,6 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo advanced_search_contacts error: %s", exc)
             return []
 
-
     async def search_by_technology(
         self,
         technologies: list[str],
@@ -826,8 +873,14 @@ class ZoomInfoAgent:
         search_body: dict = {
             "technographics": [{"name": t} for t in technologies],
             "outputFields": [
-                "companyName", "website", "revenue", "employeeCount",
-                "industry", "city", "state", "country",
+                "companyName",
+                "website",
+                "revenue",
+                "employeeCount",
+                "industry",
+                "city",
+                "state",
+                "country",
             ],
         }
         if location:
@@ -837,7 +890,10 @@ class ZoomInfoAgent:
 
         try:
             resp = await self._authed_request(
-                "POST", "/search/company", user_id=user_id, json=search_body,
+                "POST",
+                "/search/company",
+                user_id=user_id,
+                json=search_body,
             )
             results = resp.json().get("result", {}).get("data", [])
             return [
@@ -855,16 +911,18 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo search_by_technology error: %s", exc)
             return []
 
-
     # ── Lookup ────────────────────────────────────────────────────────────────
 
     async def lookup_by_email(
-        self, email: str, user_id: UUID | None = None,
+        self,
+        email: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Lookup a person by email address."""
         try:
             resp = await self._authed_request(
-                "POST", "/lookup/v1/email",
+                "POST",
+                "/lookup/v1/email",
                 user_id=user_id,
                 json={"emailAddress": email},
             )
@@ -883,14 +941,16 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo lookup_by_email error: %s", exc)
             return {"email": email, "error": str(exc)}
 
-
     async def lookup_by_domain(
-        self, domain: str, user_id: UUID | None = None,
+        self,
+        domain: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Lookup a company by domain."""
         try:
             resp = await self._authed_request(
-                "POST", "/lookup/v1/domain",
+                "POST",
+                "/lookup/v1/domain",
                 user_id=user_id,
                 json={"companyDomain": domain},
             )
@@ -908,14 +968,16 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo lookup_by_domain error: %s", exc)
             return {"domain": domain, "error": str(exc)}
 
-
     async def lookup_by_phone(
-        self, phone: str, user_id: UUID | None = None,
+        self,
+        phone: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Lookup a person by phone number."""
         try:
             resp = await self._authed_request(
-                "POST", "/lookup/v1/phone",
+                "POST",
+                "/lookup/v1/phone",
                 user_id=user_id,
                 json={"phoneNumber": phone},
             )
@@ -933,7 +995,6 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo lookup_by_phone error: %s", exc)
             return {"phone": phone, "error": str(exc)}
 
-
     # ── Scaling / Bulk Jobs ───────────────────────────────────────────────────
 
     async def submit_bulk_job(
@@ -948,14 +1009,20 @@ class ZoomInfoAgent:
         """
         try:
             resp = await self._authed_request(
-                "POST", "/bulk/enrich",
+                "POST",
+                "/bulk/enrich",
                 user_id=user_id,
                 json={
                     "inputData": records,
                     "matchType": job_type,
                     "outputFields": [
-                        "firstName", "lastName", "email", "phone",
-                        "jobTitle", "companyName", "companyDomain",
+                        "firstName",
+                        "lastName",
+                        "email",
+                        "phone",
+                        "jobTitle",
+                        "companyName",
+                        "companyDomain",
                     ],
                 },
             )
@@ -970,14 +1037,17 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo submit_bulk_job error: %s", exc)
             return {"error": str(exc)}
 
-
     async def get_bulk_job_progress(
-        self, job_id: str, user_id: UUID | None = None,
+        self,
+        job_id: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Get detailed progress tracking for a bulk job."""
         try:
             resp = await self._authed_request(
-                "GET", f"/bulk/{job_id}/status", user_id=user_id,
+                "GET",
+                f"/bulk/{job_id}/status",
+                user_id=user_id,
             )
             data = resp.json()
             return {
@@ -993,14 +1063,17 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo get_bulk_job_progress error: %s", exc)
             return {"error": str(exc)}
 
-
     async def cancel_bulk_job(
-        self, job_id: str, user_id: UUID | None = None,
+        self,
+        job_id: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Cancel a running bulk job."""
         try:
             resp = await self._authed_request(
-                "POST", f"/bulk/{job_id}/cancel", user_id=user_id,
+                "POST",
+                f"/bulk/{job_id}/cancel",
+                user_id=user_id,
             )
             data = resp.json()
             return {
@@ -1012,22 +1085,28 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo cancel_bulk_job error: %s", exc)
             return {"error": str(exc)}
 
-
     # ── Company Intelligence ──────────────────────────────────────────────────
 
     async def get_funding_info(
-        self, company_id: str, user_id: UUID | None = None,
+        self,
+        company_id: str,
+        user_id: UUID | None = None,
     ) -> dict:
         """Get funding rounds, investors, and amounts for a company."""
         try:
             resp = await self._authed_request(
-                "POST", "/enrich/company",
+                "POST",
+                "/enrich/company",
                 user_id=user_id,
                 json={
                     "companyId": company_id,
                     "outputFields": [
-                        "companyName", "funding", "totalFundingAmount",
-                        "lastFundingDate", "lastFundingAmount", "lastFundingType",
+                        "companyName",
+                        "funding",
+                        "totalFundingAmount",
+                        "lastFundingDate",
+                        "lastFundingAmount",
+                        "lastFundingType",
                         "investors",
                     ],
                 },
@@ -1050,7 +1129,6 @@ class ZoomInfoAgent:
             logger.error("ZoomInfo get_funding_info error: %s", exc)
             return {"error": str(exc)}
 
-
     async def get_org_chart(
         self,
         company_id: str,
@@ -1061,8 +1139,14 @@ class ZoomInfoAgent:
         search_body: dict = {
             "companyId": company_id,
             "outputFields": [
-                "firstName", "lastName", "jobTitle", "managementLevel",
-                "department", "email", "phone", "linkedInUrl",
+                "firstName",
+                "lastName",
+                "jobTitle",
+                "managementLevel",
+                "department",
+                "email",
+                "phone",
+                "linkedInUrl",
             ],
         }
         if department:
@@ -1070,7 +1154,10 @@ class ZoomInfoAgent:
 
         try:
             resp = await self._authed_request(
-                "POST", "/search/contact", user_id=user_id, json=search_body,
+                "POST",
+                "/search/contact",
+                user_id=user_id,
+                json=search_body,
             )
             results = resp.json().get("result", {}).get("data", [])
             people = [
@@ -1103,4 +1190,3 @@ class ZoomInfoAgent:
         except httpx.HTTPStatusError as exc:
             logger.error("ZoomInfo get_org_chart error: %s", exc)
             return {"error": str(exc)}
-

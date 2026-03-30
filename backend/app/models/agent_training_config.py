@@ -14,8 +14,10 @@ class AgentTrainingConfig(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=func.gen_random_uuid())
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     agent_name = Column(String(50), nullable=False)
-    config_type = Column(String(30), nullable=False)  # system_prompt, few_shot, guardrails, tool_descriptions, field_mappings
-    config_key = Column(String(100), nullable=False)   # e.g. 'default', 'chat', 'generate_sequence_content'
+    config_type = Column(
+        String(30), nullable=False
+    )  # system_prompt, few_shot, guardrails, tool_descriptions, field_mappings
+    config_key = Column(String(100), nullable=False)  # e.g. 'default', 'chat', 'generate_sequence_content'
     config_value = Column(JSONB, nullable=False)
     is_active = Column(Boolean, server_default="true", nullable=False)
     priority = Column(Integer, server_default="0", nullable=False)

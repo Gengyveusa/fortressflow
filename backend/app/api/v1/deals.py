@@ -21,6 +21,7 @@ router = APIRouter(tags=["deals"])
 
 # ── Schemas ────────────────────────────────────────────────
 
+
 class DealCreate(BaseModel):
     deal_name: str
     pipeline: str = "default"
@@ -56,6 +57,7 @@ class PipelineResponse(BaseModel):
 
 # ── Helpers ────────────────────────────────────────────────
 
+
 def _deal_from_hs_props(props: dict) -> DealResponse:
     """Convert HubSpot deal properties to DealResponse."""
     amount_raw = props.get("amount")
@@ -82,6 +84,7 @@ async def _get_hs_contact_id(lead: Lead, hs: HubSpotService) -> str:
 
 
 # ── Endpoints ──────────────────────────────────────────────
+
 
 @router.get("/leads/{lead_id}/deals", response_model=list[DealResponse])
 async def list_deals_for_lead(

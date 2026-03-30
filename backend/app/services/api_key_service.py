@@ -47,9 +47,7 @@ def mask_key(key: str) -> str:
 
 async def list_api_keys(db: AsyncSession, user_id: UUID) -> list[dict]:
     """List all configured API keys for a user, with masked values."""
-    result = await db.execute(
-        select(ApiConfiguration).where(ApiConfiguration.user_id == user_id)
-    )
+    result = await db.execute(select(ApiConfiguration).where(ApiConfiguration.user_id == user_id))
     configs = result.scalars().all()
 
     keys = []
@@ -59,12 +57,14 @@ async def list_api_keys(db: AsyncSession, user_id: UUID) -> list[dict]:
             masked = mask_key(decrypted)
         except Exception:
             masked = "****"
-        keys.append({
-            "service_name": cfg.service_name,
-            "masked_key": masked,
-            "created_at": cfg.created_at.isoformat() if cfg.created_at else None,
-            "updated_at": cfg.updated_at.isoformat() if cfg.updated_at else None,
-        })
+        keys.append(
+            {
+                "service_name": cfg.service_name,
+                "masked_key": masked,
+                "created_at": cfg.created_at.isoformat() if cfg.created_at else None,
+                "updated_at": cfg.updated_at.isoformat() if cfg.updated_at else None,
+            }
+        )
 
     return keys
 

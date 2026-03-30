@@ -30,11 +30,13 @@ def client():
 
 def _override_db(mock_db):
     from app.database import get_db
+
     app.dependency_overrides[get_db] = lambda: mock_db
 
 
 def _override_auth(user=None):
     from app.auth import get_current_user
+
     mock_user = user or MagicMock()
     mock_user.id = uuid.uuid4()
     mock_user.email = "test@test.com"
@@ -148,9 +150,7 @@ class TestLogin:
     @patch("app.api.v1.auth.reset_attempts", new_callable=AsyncMock)
     @patch("app.api.v1.auth.authenticate_user", new_callable=AsyncMock)
     @patch("app.api.v1.auth.check_login_allowed", new_callable=AsyncMock)
-    def test_login_success(
-        self, mock_check, mock_auth, mock_reset, mock_register_token, client
-    ):
+    def test_login_success(self, mock_check, mock_auth, mock_reset, mock_register_token, client):
         mock_db = AsyncMock()
         mock_db.flush = AsyncMock()
         _override_db(mock_db)
@@ -181,9 +181,7 @@ class TestLogin:
     @patch("app.api.v1.auth.record_failed_attempt", new_callable=AsyncMock)
     @patch("app.api.v1.auth.authenticate_user", new_callable=AsyncMock)
     @patch("app.api.v1.auth.check_login_allowed", new_callable=AsyncMock)
-    def test_login_invalid_credentials(
-        self, mock_check, mock_auth, mock_record, client
-    ):
+    def test_login_invalid_credentials(self, mock_check, mock_auth, mock_record, client):
         mock_db = AsyncMock()
         _override_db(mock_db)
 
@@ -233,9 +231,7 @@ class TestRefreshToken:
     @patch("app.api.v1.auth.register_token", new_callable=AsyncMock)
     @patch("app.api.v1.auth.validate_and_rotate", new_callable=AsyncMock)
     @patch("app.services.auth_service.get_user_by_id", new_callable=AsyncMock)
-    def test_refresh_success(
-        self, mock_get_user, mock_rotate, mock_register_token, client
-    ):
+    def test_refresh_success(self, mock_get_user, mock_rotate, mock_register_token, client):
         mock_db = AsyncMock()
         _override_db(mock_db)
 

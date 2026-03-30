@@ -57,9 +57,7 @@ class TestReplySentimentAnalysis:
         db = AsyncMock()
         svc = ReplyService(db)
 
-        sentiment, confidence = await svc.analyze_sentiment(
-            "Please remove me from your list. I am not interested."
-        )
+        sentiment, confidence = await svc.analyze_sentiment("Please remove me from your list. I am not interested.")
 
         from app.services.reply_service import ReplySentiment
 
@@ -74,9 +72,7 @@ class TestReplySentimentAnalysis:
         db = AsyncMock()
         svc = ReplyService(db)
 
-        sentiment, confidence = await svc.analyze_sentiment(
-            "Can you send more information about your product?"
-        )
+        sentiment, confidence = await svc.analyze_sentiment("Can you send more information about your product?")
 
         from app.services.reply_service import ReplySentiment
 
@@ -92,8 +88,7 @@ class TestReplySentimentAnalysis:
         svc = ReplyService(db)
 
         sentiment, confidence = await svc.analyze_sentiment(
-            "I am out of office until March 25 with limited access to email. "
-            "I will respond upon my return."
+            "I am out of office until March 25 with limited access to email. I will respond upon my return."
         )
 
         from app.services.reply_service import ReplySentiment
@@ -109,9 +104,7 @@ class TestReplySentimentAnalysis:
         db = AsyncMock()
         svc = ReplyService(db)
 
-        sentiment, confidence = await svc.analyze_sentiment(
-            "Unsubscribe me immediately. No more emails please."
-        )
+        sentiment, confidence = await svc.analyze_sentiment("Unsubscribe me immediately. No more emails please.")
 
         from app.services.reply_service import ReplySentiment
 
@@ -153,9 +146,7 @@ class TestReplySentimentAnalysis:
         db = AsyncMock()
         svc = ReplyService(db)
 
-        sentiment, confidence = await svc.analyze_sentiment(
-            "Yes, let's schedule a call this week."
-        )
+        sentiment, confidence = await svc.analyze_sentiment("Yes, let's schedule a call this week.")
 
         assert sentiment == ReplySentiment.positive
         assert confidence > 0.5
@@ -168,9 +159,7 @@ class TestReplySentimentAnalysis:
         db = AsyncMock()
         svc = ReplyService(db)
 
-        sentiment, confidence = await svc.analyze_sentiment(
-            "What is the pricing for your platform?"
-        )
+        sentiment, confidence = await svc.analyze_sentiment("What is the pricing for your platform?")
 
         assert sentiment == ReplySentiment.positive
         assert confidence > 0.5
@@ -262,9 +251,7 @@ class TestReplyMatching:
         db.execute.side_effect = [lead_result, enr_result]
 
         svc = ReplyService(db)
-        matched_enrollment_id, matched_seq_id = await svc._match_by_sender_email(
-            sender_email
-        )
+        matched_enrollment_id, matched_seq_id = await svc._match_by_sender_email(sender_email)
 
         assert matched_enrollment_id == enrollment_id
         assert matched_seq_id == sequence_id
@@ -314,9 +301,7 @@ class TestReplyMatching:
         svc = ReplyService(db)
 
         # Patch internal methods
-        svc._match_by_thread_id = AsyncMock(
-            return_value=(enrollment_id, sequence_id)
-        )
+        svc._match_by_thread_id = AsyncMock(return_value=(enrollment_id, sequence_id))
         svc._match_by_sender_email = AsyncMock(return_value=(None, None))
         svc._match_by_subject = AsyncMock(return_value=(None, None))
 
@@ -356,14 +341,10 @@ class TestReplyFSMTransition:
         svc = ReplyService(db)
 
         # Patch sentiment analysis
-        svc.analyze_sentiment = AsyncMock(
-            return_value=(ReplySentiment.positive, 0.85)
-        )
+        svc.analyze_sentiment = AsyncMock(return_value=(ReplySentiment.positive, 0.85))
 
         # Patch match_to_enrollment
-        svc.match_to_enrollment = AsyncMock(
-            return_value=(enrollment_id, sequence_id)
-        )
+        svc.match_to_enrollment = AsyncMock(return_value=(enrollment_id, sequence_id))
 
         # Patch AI analysis
         svc.ai_analyze_reply = AsyncMock(
@@ -430,9 +411,7 @@ class TestReplyFSMTransition:
         db = AsyncMock()
         svc = ReplyService(db)
 
-        svc.analyze_sentiment = AsyncMock(
-            return_value=(ReplySentiment.neutral, 0.5)
-        )
+        svc.analyze_sentiment = AsyncMock(return_value=(ReplySentiment.neutral, 0.5))
         svc.match_to_enrollment = AsyncMock(return_value=(None, None))
         svc.log_reply = AsyncMock()
         db.commit = AsyncMock()
@@ -682,7 +661,9 @@ class TestTwilioWebhook:
         db = AsyncMock()
 
         # Mock DNC processing
-        db.execute = AsyncMock(return_value=MagicMock(scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[])))))
+        db.execute = AsyncMock(
+            return_value=MagicMock(scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[]))))
+        )
         db.add = MagicMock()
         db.commit = AsyncMock()
 
@@ -781,9 +762,7 @@ class TestTwilioWebhook:
             "MessageSid": "SMtest789",
         }
 
-        with patch(
-            "app.services.reply_service.ReplyService"
-        ) as mock_reply_svc_class:
+        with patch("app.services.reply_service.ReplyService") as mock_reply_svc_class:
             mock_reply_svc = AsyncMock()
             mock_reply_svc_class.return_value = mock_reply_svc
             mock_analysis = MagicMock()
@@ -862,9 +841,7 @@ class TestLinkedInQueue:
         # Test multiple draws to verify range
         for _ in range(20):
             delay = svc._generate_human_delay()
-            assert 45.0 <= delay <= 120.0, (
-                f"Human delay {delay}s outside 45-120s window"
-            )
+            assert 45.0 <= delay <= 120.0, f"Human delay {delay}s outside 45-120s window"
 
     @pytest.mark.asyncio
     async def test_linkedin_human_delay_distribution(self):
@@ -924,8 +901,10 @@ class TestLinkedInQueue:
 
         db = AsyncMock()
 
-        with patch("app.services.linkedin_service.compliance_svc") as mock_compliance, \
-             patch("app.services.linkedin_service.settings") as mock_settings:
+        with (
+            patch("app.services.linkedin_service.compliance_svc") as mock_compliance,
+            patch("app.services.linkedin_service.settings") as mock_settings,
+        ):
             mock_compliance.can_send_to_lead = AsyncMock(return_value=(True, "approved"))
             mock_settings.HUBSPOT_BREEZE_ENABLED = False
             mock_settings.HUBSPOT_API_KEY = ""
@@ -965,9 +944,7 @@ class TestLinkedInQueue:
         db = AsyncMock()
 
         with patch("app.services.linkedin_service.compliance_svc") as mock_compliance:
-            mock_compliance.can_send_to_lead = AsyncMock(
-                return_value=(False, "dnc_blocked")
-            )
+            mock_compliance.can_send_to_lead = AsyncMock(return_value=(False, "dnc_blocked"))
 
             svc = LinkedInService(db)
 
@@ -1010,9 +987,7 @@ class TestChannelOrchestrator:
             orch.check_global_limits = AsyncMock(return_value=(True, 350))
 
             # Mock _dispatch_email to succeed
-            orch._dispatch_email = AsyncMock(
-                return_value={"success": True, "message_id": "<test@ff>"}
-            )
+            orch._dispatch_email = AsyncMock(return_value={"success": True, "message_id": "<test@ff>"})
 
             mock_enrollment = MagicMock()
             mock_enrollment.id = uuid.uuid4()
@@ -1059,9 +1034,7 @@ class TestChannelOrchestrator:
             orch.check_global_limits = AsyncMock(return_value=(True, 50))
 
             # Email dispatch fails with soft error
-            orch._dispatch_email = AsyncMock(
-                return_value={"success": False, "error": "smtp_timeout"}
-            )
+            orch._dispatch_email = AsyncMock(return_value={"success": False, "error": "smtp_timeout"})
 
             # Mock attempt_failover to succeed via LinkedIn
             orch.attempt_failover = AsyncMock(
@@ -1151,9 +1124,7 @@ class TestChannelOrchestrator:
 
             orch = ChannelOrchestrator(db)
             orch.check_global_limits = AsyncMock(return_value=(True, 100))
-            orch._dispatch_email = AsyncMock(
-                return_value={"success": False, "error": "hard_bounce"}
-            )
+            orch._dispatch_email = AsyncMock(return_value={"success": False, "error": "hard_bounce"})
             orch.attempt_failover = AsyncMock()
 
             mock_enrollment = MagicMock()
@@ -1190,9 +1161,7 @@ class TestChannelOrchestrator:
         db = AsyncMock()
 
         with patch("app.services.channel_orchestrator.compliance_svc") as mock_compliance:
-            mock_compliance.can_send_to_lead = AsyncMock(
-                return_value=(False, "no_active_consent")
-            )
+            mock_compliance.can_send_to_lead = AsyncMock(return_value=(False, "no_active_consent"))
 
             orch = ChannelOrchestrator(db)
             orch.check_global_limits = AsyncMock(return_value=(True, 100))
@@ -1265,9 +1234,7 @@ class TestHoleFillerEscalation:
                 mock_li_result = MagicMock()
                 mock_li_result.success = True
                 mock_li_result.queue_item_id = str(uuid.uuid4())
-                mock_li_svc.queue_connection_request = AsyncMock(
-                    return_value=mock_li_result
-                )
+                mock_li_svc.queue_connection_request = AsyncMock(return_value=mock_li_result)
 
                 db.commit = AsyncMock()
 
@@ -1294,9 +1261,7 @@ class TestHoleFillerEscalation:
                     return (False, "no_linkedin_consent")
                 return (True, "approved")
 
-            mock_compliance.can_send_to_lead = AsyncMock(
-                side_effect=compliance_side_effect
-            )
+            mock_compliance.can_send_to_lead = AsyncMock(side_effect=compliance_side_effect)
 
             orch = ChannelOrchestrator(db)
             orch.check_global_limits = AsyncMock(return_value=(True, 10))
@@ -1534,9 +1499,7 @@ class TestAIFeedbackLoop:
 
         assert svc._ai.send_outcome_feedback.call_count == 3
 
-        platforms_called = {
-            call.args[0] for call in svc._ai.send_outcome_feedback.call_args_list
-        }
+        platforms_called = {call.args[0] for call in svc._ai.send_outcome_feedback.call_args_list}
         assert "hubspot_breeze_data_agent" in platforms_called
         assert "zoominfo_copilot" in platforms_called
         assert "apollo_ai" in platforms_called
@@ -1783,9 +1746,7 @@ class TestLinkedInContentValidation:
         from app.services.linkedin_service import LinkedInAction, validate_linkedin_content
 
         long_body = "Y" * 1901
-        issues = validate_linkedin_content(
-            LinkedInAction.inmail, subject="Test", body=long_body
-        )
+        issues = validate_linkedin_content(LinkedInAction.inmail, subject="Test", body=long_body)
 
         assert len(issues) > 0
         assert any("1900" in i or "char" in i.lower() for i in issues)

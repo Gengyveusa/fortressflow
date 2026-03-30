@@ -3,6 +3,7 @@ Compliance service unit tests.
 
 All tests run without a real database — AsyncSession is mocked.
 """
+
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
@@ -44,6 +45,7 @@ def _scalars_result(values):
 # can_send_to_lead
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_can_send_no_lead(mock_db, lead_id):
     """Returns False when lead does not exist."""
@@ -57,8 +59,8 @@ async def test_can_send_no_lead(mock_db, lead_id):
 async def test_can_send_no_consent(mock_db, lead_id, mock_lead):
     """Returns False when there is no active consent."""
     execute_calls = [
-        _scalar_result(mock_lead),   # Lead lookup
-        _scalar_result(None),         # Consent lookup
+        _scalar_result(mock_lead),  # Lead lookup
+        _scalar_result(None),  # Consent lookup
     ]
     mock_db.execute.side_effect = execute_calls
     ok, reason = await can_send_to_lead(lead_id, "email", mock_db)
@@ -70,10 +72,10 @@ async def test_can_send_no_consent(mock_db, lead_id, mock_lead):
 async def test_can_send_with_valid_consent(mock_db, lead_id, mock_lead, mock_consent):
     """Returns True when consent is active and no DNC or limit issues."""
     execute_calls = [
-        _scalar_result(mock_lead),    # Lead
-        _scalar_result(mock_consent), # Consent
-        _scalar_result(None),          # DNC
-        _scalar_one_result(0),         # Daily count
+        _scalar_result(mock_lead),  # Lead
+        _scalar_result(mock_consent),  # Consent
+        _scalar_result(None),  # DNC
+        _scalar_one_result(0),  # Daily count
     ]
     mock_db.execute.side_effect = execute_calls
     ok, reason = await can_send_to_lead(lead_id, "email", mock_db)
@@ -116,8 +118,8 @@ async def test_can_send_daily_limit_exceeded(mock_db, lead_id, mock_lead, mock_c
     execute_calls = [
         _scalar_result(mock_lead),
         _scalar_result(mock_consent),
-        _scalar_result(None),       # Not on DNC
-        _scalar_one_result(100),    # 100 emails sent today (== limit)
+        _scalar_result(None),  # Not on DNC
+        _scalar_one_result(100),  # 100 emails sent today (== limit)
     ]
     mock_db.execute.side_effect = execute_calls
     ok, reason = await can_send_to_lead(lead_id, "email", mock_db)
@@ -128,6 +130,7 @@ async def test_can_send_daily_limit_exceeded(mock_db, lead_id, mock_lead, mock_c
 # ---------------------------------------------------------------------------
 # record_consent / revoke_consent
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_record_consent(mock_db, lead_id):
@@ -167,6 +170,7 @@ async def test_revoke_consent_success(mock_db, lead_id, mock_consent):
 # ---------------------------------------------------------------------------
 # Audit trail
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_audit_trail_completeness(mock_db, lead_id, mock_lead, mock_consent):
@@ -226,6 +230,7 @@ async def test_audit_trail_no_lead(mock_db, lead_id):
 # Unsubscribe token
 # ---------------------------------------------------------------------------
 
+
 def test_generate_and_verify_token(lead_id):
     """Token round-trips correctly."""
     token = generate_unsubscribe_token(lead_id, "email")
@@ -245,6 +250,7 @@ def test_verify_tampered_token(lead_id):
     """Token with modified payload is rejected."""
     import base64
     import json
+
     token = generate_unsubscribe_token(lead_id, "email")
     decoded = json.loads(base64.urlsafe_b64decode(token.encode()).decode())
     # Tamper with the payload

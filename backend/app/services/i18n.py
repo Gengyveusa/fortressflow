@@ -1,4 +1,5 @@
 """Multi-lingual and localisation support for FortressFlow."""
+
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, UTC
@@ -20,6 +21,7 @@ SUPPORTED_LOCALES = {
     "hi": {"name": "हिन्दी", "direction": "ltr", "date_format": "%d/%m/%Y"},
 }
 
+
 @dataclass
 class TranslatedContent:
     id: str = field(default_factory=lambda: str(uuid4()))
@@ -31,6 +33,7 @@ class TranslatedContent:
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     quality_scores: dict[str, float] = field(default_factory=dict)
 
+
 @dataclass
 class LocaleConfig:
     locale: str = "en"
@@ -38,6 +41,7 @@ class LocaleConfig:
     currency: str = "USD"
     number_format: str = "#,###.##"
     date_format: str = "%m/%d/%Y"
+
 
 class I18nService:
     """Handles multi-lingual content and localisation."""
@@ -47,7 +51,14 @@ class I18nService:
         self._user_locales: dict[str, LocaleConfig] = {}
         self._translation_memory: dict[str, dict[str, str]] = {}  # source_hash -> {locale: translation}
 
-    async def translate_content(self, text: str, source_locale: str, target_locales: list[str], content_type: str = "email", api_key: Optional[str] = None) -> TranslatedContent:
+    async def translate_content(
+        self,
+        text: str,
+        source_locale: str,
+        target_locales: list[str],
+        content_type: str = "email",
+        api_key: Optional[str] = None,
+    ) -> TranslatedContent:
         """Translate content to multiple locales using AI."""
         content = TranslatedContent(original_locale=source_locale, original_text=text, content_type=content_type)
         for locale in target_locales:
@@ -61,12 +72,16 @@ class I18nService:
             try:
                 if api_key:
                     from groq import AsyncGroq
+
                     client = AsyncGroq(api_key=api_key)
                     locale_info = SUPPORTED_LOCALES[locale]
                     response = await client.chat.completions.create(
                         model="llama-3.3-70b-versatile",
                         messages=[
-                            {"role": "system", "content": f"You are a professional translator. Translate the following {content_type} content from {SUPPORTED_LOCALES[source_locale]['name']} to {locale_info['name']}. Preserve formatting, tone, and cultural nuances. Adapt idioms and references for the target culture. Return ONLY the translation."},
+                            {
+                                "role": "system",
+                                "content": f"You are a professional translator. Translate the following {content_type} content from {SUPPORTED_LOCALES[source_locale]['name']} to {locale_info['name']}. Preserve formatting, tone, and cultural nuances. Adapt idioms and references for the target culture. Return ONLY the translation.",
+                            },
                             {"role": "user", "content": text},
                         ],
                         temperature=0.3,
@@ -90,7 +105,9 @@ class I18nService:
     def set_user_locale(self, user_id: str, locale: str, timezone: str = "UTC", currency: str = "USD") -> LocaleConfig:
         if locale not in SUPPORTED_LOCALES:
             locale = "en"
-        config = LocaleConfig(locale=locale, timezone=timezone, currency=currency, date_format=SUPPORTED_LOCALES[locale]["date_format"])
+        config = LocaleConfig(
+            locale=locale, timezone=timezone, currency=currency, date_format=SUPPORTED_LOCALES[locale]["date_format"]
+        )
         self._user_locales[user_id] = config
         return config
 
@@ -116,6 +133,6 @@ class I18nService:
         return {
             "total_content_items": total,
             "translations_by_locale": locale_counts,
-            "avg_quality_by_locale": {k: round(sum(v)/len(v), 2) for k, v in avg_quality.items() if v},
+            "avg_quality_by_locale": {k: round(sum(v) / len(v), 2) for k, v in avg_quality.items() if v},
             "supported_locales": list(SUPPORTED_LOCALES.keys()),
         }

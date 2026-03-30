@@ -1,4 +1,5 @@
 """AI-powered call and meeting summarisation service."""
+
 import json
 import logging
 from dataclasses import dataclass, field
@@ -9,6 +10,7 @@ from uuid import uuid4
 
 logger = logging.getLogger(__name__)
 
+
 class CallType(str, Enum):
     SALES_CALL = "sales_call"
     DISCOVERY = "discovery"
@@ -18,12 +20,14 @@ class CallType(str, Enum):
     MEETING = "meeting"
     ONBOARDING = "onboarding"
 
+
 class Sentiment(str, Enum):
     VERY_POSITIVE = "very_positive"
     POSITIVE = "positive"
     NEUTRAL = "neutral"
     NEGATIVE = "negative"
     VERY_NEGATIVE = "very_negative"
+
 
 @dataclass
 class ActionItem:
@@ -32,6 +36,7 @@ class ActionItem:
     due_date: Optional[str] = None
     priority: str = "medium"
     status: str = "pending"
+
 
 @dataclass
 class CallSummary:
@@ -53,13 +58,21 @@ class CallSummary:
     crm_logged: bool = False
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
+
 class CallSummarizationService:
     """Transcribes and summarises sales calls and meetings using AI."""
 
     def __init__(self):
         self._summaries: dict[str, CallSummary] = {}
 
-    async def summarize_call(self, transcript: str, call_type: str = "sales_call", participants: list[str] = None, duration_minutes: float = 0.0, api_key: Optional[str] = None) -> CallSummary:
+    async def summarize_call(
+        self,
+        transcript: str,
+        call_type: str = "sales_call",
+        participants: list[str] = None,
+        duration_minutes: float = 0.0,
+        api_key: Optional[str] = None,
+    ) -> CallSummary:
         """Summarise a call transcript using AI."""
         summary = CallSummary(
             call_type=CallType(call_type) if call_type in [t.value for t in CallType] else CallType.SALES_CALL,
@@ -71,6 +84,7 @@ class CallSummarizationService:
         if api_key:
             try:
                 from groq import AsyncGroq
+
                 client = AsyncGroq(api_key=api_key)
 
                 prompt = f"""Analyse this {call_type} transcript and return JSON:
@@ -93,7 +107,10 @@ Transcript:
                 response = await client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=[
-                        {"role": "system", "content": "You are a sales call analysis expert. Extract insights, action items, and sentiment from call transcripts. Return valid JSON only."},
+                        {
+                            "role": "system",
+                            "content": "You are a sales call analysis expert. Extract insights, action items, and sentiment from call transcripts. Return valid JSON only.",
+                        },
                         {"role": "user", "content": prompt},
                     ],
                     response_format={"type": "json_object"},
@@ -142,7 +159,7 @@ Transcript:
                 "action_items_count": len(summary.action_items),
                 "key_topics": summary.key_topics,
                 "next_steps": summary.next_steps,
-            }
+            },
         }
 
         summary.crm_logged = True

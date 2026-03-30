@@ -117,14 +117,10 @@ class SmartQuestioner:
         gathered = session_state.get("gathered_params", {})
 
         # Merge entities from classification into gathered params
-        gathered.update(
-            {k: v for k, v in intent_result.entities.items() if v}
-        )
+        gathered.update({k: v for k, v in intent_result.entities.items() if v})
 
         # Determine what's still missing
-        missing_required = [
-            f for f in reqs["required"] if f not in gathered
-        ]
+        missing_required = [f for f in reqs["required"] if f not in gathered]
 
         if not missing_required:
             # All required fields are gathered — apply defaults and execute
@@ -279,11 +275,11 @@ class SmartQuestioner:
         prompt = (
             f"The user is answering questions about their '{intent}' request.\n"
             f"Pending fields: {pending_fields}\n"
-            f"User said: \"{message}\"\n\n"
+            f'User said: "{message}"\n\n'
             f"Extract values for the pending fields from the message.\n"
             f"Respond ONLY with valid JSON mapping field names to extracted values.\n"
             f"Only include fields that have clear answers in the message.\n"
-            f"Example: {{\"location\": \"Texas\", \"count\": 50}}"
+            f'Example: {{"location": "Texas", "count": 50}}'
         )
 
         raw = await self._call_llm(prompt)
@@ -312,9 +308,16 @@ class SmartQuestioner:
 
         if "specialty_or_criteria" in pending_fields or "target_description" in pending_fields:
             specialties = [
-                "periodontist", "oral surgeon", "endodontist", "orthodontist",
-                "prosthodontist", "pediatric dentist", "general dentist",
-                "dental hygienist", "office manager", "dso",
+                "periodontist",
+                "oral surgeon",
+                "endodontist",
+                "orthodontist",
+                "prosthodontist",
+                "pediatric dentist",
+                "general dentist",
+                "dental hygienist",
+                "office manager",
+                "dso",
             ]
             for s in specialties:
                 if s in msg_lower:
@@ -329,6 +332,7 @@ class SmartQuestioner:
 
         if "count" in pending_fields:
             import re
+
             numbers = re.findall(r"\d+", message)
             if numbers:
                 result["count"] = int(numbers[0])

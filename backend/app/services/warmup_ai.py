@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 # ── Ramp Schedule ──────────────────────────────────────────────────────
 
+
 def compute_daily_volume(
     warmup_day: int,
     initial_volume: int = 5,
@@ -43,7 +44,7 @@ def compute_daily_volume(
     Uses exponential ramp: volume = initial * multiplier^day, capped at target.
     Day 0 = initial_volume, Day N = min(target, initial * 1.15^N).
     """
-    raw = initial_volume * (ramp_multiplier ** warmup_day)
+    raw = initial_volume * (ramp_multiplier**warmup_day)
     return min(target_volume, max(initial_volume, int(math.ceil(raw))))
 
 
@@ -62,15 +63,18 @@ def compute_ramp_schedule(
     schedule = []
     for day in range(total_days):
         vol = compute_daily_volume(day, initial_volume, ramp_multiplier, target_volume)
-        schedule.append({
-            "day": day,
-            "week": day // 7 + 1,
-            "daily_volume": vol,
-        })
+        schedule.append(
+            {
+                "day": day,
+                "week": day // 7 + 1,
+                "daily_volume": vol,
+            }
+        )
     return schedule
 
 
 # ── Health Checks ──────────────────────────────────────────────────────
+
 
 async def check_inbox_health(
     inbox: SendingInbox,
@@ -84,22 +88,13 @@ async def check_inbox_health(
     issues: list[str] = []
 
     if inbox.bounce_rate_7d > config.max_bounce_rate:
-        issues.append(
-            f"Bounce rate {inbox.bounce_rate_7d:.3%} exceeds "
-            f"threshold {config.max_bounce_rate:.3%}"
-        )
+        issues.append(f"Bounce rate {inbox.bounce_rate_7d:.3%} exceeds threshold {config.max_bounce_rate:.3%}")
 
     if inbox.spam_rate_7d > config.max_spam_rate:
-        issues.append(
-            f"Spam rate {inbox.spam_rate_7d:.3%} exceeds "
-            f"threshold {config.max_spam_rate:.3%}"
-        )
+        issues.append(f"Spam rate {inbox.spam_rate_7d:.3%} exceeds threshold {config.max_spam_rate:.3%}")
 
     if inbox.total_sent > 50 and inbox.open_rate_7d < config.min_open_rate:
-        issues.append(
-            f"Open rate {inbox.open_rate_7d:.1%} below "
-            f"minimum {config.min_open_rate:.1%}"
-        )
+        issues.append(f"Open rate {inbox.open_rate_7d:.1%} below minimum {config.min_open_rate:.1%}")
 
     details = {
         "bounce_rate_7d": inbox.bounce_rate_7d,
@@ -115,6 +110,7 @@ async def check_inbox_health(
 
 
 # ── Seed Selection ─────────────────────────────────────────────────────
+
 
 async def select_seeds_for_inbox(
     inbox: SendingInbox,
@@ -179,14 +175,16 @@ async def select_seeds_for_inbox(
             logger.debug("Seed %s blocked: %s", seed.email, reason)
             continue
 
-        selected.append({
-            "lead_id": str(lead.id),
-            "email": seed.email,
-            "score": seed.score,
-            "reason": seed.reason,
-            "platform": seed.platform,
-            "engagement_likelihood": seed.engagement_likelihood,
-        })
+        selected.append(
+            {
+                "lead_id": str(lead.id),
+                "email": seed.email,
+                "score": seed.score,
+                "reason": seed.reason,
+                "platform": seed.platform,
+                "engagement_likelihood": seed.engagement_likelihood,
+            }
+        )
         used_emails.add(seed.email)
 
         if len(selected) >= target_count:
@@ -202,14 +200,16 @@ async def select_seeds_for_inbox(
             if not can_send:
                 continue
 
-            selected.append({
-                "lead_id": str(lead.id),
-                "email": lead.email,
-                "score": 30.0,
-                "reason": "Fallback random selection",
-                "platform": "fallback",
-                "engagement_likelihood": 0.3,
-            })
+            selected.append(
+                {
+                    "lead_id": str(lead.id),
+                    "email": lead.email,
+                    "score": 30.0,
+                    "reason": "Fallback random selection",
+                    "platform": "fallback",
+                    "engagement_likelihood": 0.3,
+                }
+            )
             used_emails.add(lead.email)
 
             if len(selected) >= target_count:
@@ -226,6 +226,7 @@ async def select_seeds_for_inbox(
 
 
 # ── Core Warmup Engine ─────────────────────────────────────────────────
+
 
 async def advance_warmup_for_inbox(
     inbox_id: UUID,
@@ -247,9 +248,7 @@ async def advance_warmup_for_inbox(
     Returns summary dict.
     """
     # Load inbox
-    result = await db.execute(
-        select(SendingInbox).where(SendingInbox.id == inbox_id)
-    )
+    result = await db.execute(select(SendingInbox).where(SendingInbox.id == inbox_id))
     inbox = result.scalar_one_or_none()
     if inbox is None:
         return {"status": "error", "reason": "inbox_not_found"}
@@ -258,9 +257,7 @@ async def advance_warmup_for_inbox(
         return {"status": "skipped", "reason": f"inbox_status_{inbox.status}"}
 
     # Load or create config
-    result = await db.execute(
-        select(WarmupConfig).where(WarmupConfig.inbox_id == inbox_id)
-    )
+    result = await db.execute(select(WarmupConfig).where(WarmupConfig.inbox_id == inbox_id))
     config = result.scalar_one_or_none()
     if config is None:
         config = WarmupConfig(
@@ -398,9 +395,7 @@ async def run_warmup_cycle(db: AsyncSession) -> dict[str, Any]:
     """
     # Load all warming/active inboxes
     result = await db.execute(
-        select(SendingInbox).where(
-            SendingInbox.status.in_([InboxStatus.warming, InboxStatus.active])
-        )
+        select(SendingInbox).where(SendingInbox.status.in_([InboxStatus.warming, InboxStatus.active]))
     )
     inboxes = result.scalars().all()
 
@@ -419,14 +414,14 @@ async def run_warmup_cycle(db: AsyncSession) -> dict[str, Any]:
             )
             results.append({"inbox": inbox.email_address, **result})
         except Exception as exc:
-            logger.error(
-                "Warmup failed for inbox %s: %s", inbox.email_address, exc
+            logger.error("Warmup failed for inbox %s: %s", inbox.email_address, exc)
+            results.append(
+                {
+                    "inbox": inbox.email_address,
+                    "status": "error",
+                    "error": str(exc),
+                }
             )
-            results.append({
-                "inbox": inbox.email_address,
-                "status": "error",
-                "error": str(exc),
-            })
 
     summary = {
         "total_inboxes": len(inboxes),
@@ -450,6 +445,7 @@ async def run_warmup_cycle(db: AsyncSession) -> dict[str, Any]:
 
 
 # ── Learning Loop Processor ────────────────────────────────────────────
+
 
 async def process_warmup_feedback(db: AsyncSession) -> dict[str, Any]:
     """
@@ -494,9 +490,7 @@ async def process_warmup_feedback(db: AsyncSession) -> dict[str, Any]:
         }
 
         # Load the lead to get email
-        lead_result = await db.execute(
-            select(Lead).where(Lead.id == seed_log.lead_id)
-        )
+        lead_result = await db.execute(select(Lead).where(Lead.id == seed_log.lead_id))
         lead = lead_result.scalar_one_or_none()
         if not lead:
             continue
@@ -532,6 +526,7 @@ async def process_warmup_feedback(db: AsyncSession) -> dict[str, Any]:
 
 
 # ── Reputation Score Calculator ────────────────────────────────────────
+
 
 async def recalculate_inbox_health_scores(db: AsyncSession) -> int:
     """

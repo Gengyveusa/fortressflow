@@ -1,4 +1,5 @@
 """Insights API — expanded endpoints for dashboard, RL, churn, dedup, i18n, calls."""
+
 import logging
 from datetime import datetime, UTC
 from typing import Optional
@@ -16,52 +17,66 @@ _call_service = None
 _community_service = None
 _plugin_registry = None
 
+
 def _get_rl():
     global _rl_engine
     if _rl_engine is None:
         from app.services.ml.reinforcement_learning import MultiArmedBandit
+
         _rl_engine = MultiArmedBandit(strategy="thompson_sampling")
     return _rl_engine
+
 
 def _get_churn():
     global _churn_predictor
     if _churn_predictor is None:
         from app.services.ml.churn_predictor import ChurnPredictor
+
         _churn_predictor = ChurnPredictor()
     return _churn_predictor
+
 
 def _get_dedup():
     global _dedup_engine
     if _dedup_engine is None:
         from app.services.ml.deduplication import DeduplicationEngine
+
         _dedup_engine = DeduplicationEngine()
     return _dedup_engine
+
 
 def _get_i18n():
     global _i18n_service
     if _i18n_service is None:
         from app.services.i18n import I18nService
+
         _i18n_service = I18nService()
     return _i18n_service
+
 
 def _get_calls():
     global _call_service
     if _call_service is None:
         from app.services.call_summarization import CallSummarizationService
+
         _call_service = CallSummarizationService()
     return _call_service
+
 
 def _get_community():
     global _community_service
     if _community_service is None:
         from app.services.community import CommunityService
+
         _community_service = CommunityService()
     return _community_service
+
 
 def _get_plugins():
     global _plugin_registry
     if _plugin_registry is None:
         from app.services.plugin_framework import PluginRegistry
+
         _plugin_registry = PluginRegistry()
     return _plugin_registry
 
@@ -71,11 +86,46 @@ def _get_plugins():
 async def get_proactive_insights():
     """Return proactive insights for the dashboard."""
     return [
-        {"id": "1", "type": "high_performer", "title": "Top Sequence Performing Well", "description": "Your 'Q1 Outreach' sequence has a 34% open rate, 12% above benchmark.", "action_label": "View Details", "action_value": "/sequences/1"},
-        {"id": "2", "type": "warning", "title": "Churn Risk Detected", "description": "3 accounts show declining engagement. Retention workflows recommended.", "action_label": "Review Accounts", "action_value": "/churn-detection"},
-        {"id": "3", "type": "action_needed", "title": "12 Duplicate Contacts Found", "description": "Deduplication scan found potential duplicates that may affect forecasting.", "action_label": "Review Duplicates", "action_value": "/deduplication"},
-        {"id": "4", "type": "milestone", "title": "Community Growing", "description": "Your exclusive community has 87% capacity filled. 23 members joined this month.", "action_label": "View Community", "action_value": "/community"},
-        {"id": "5", "type": "suggestion", "title": "A/B Test Ready", "description": "The RL engine recommends testing 3 new email variants based on recent performance.", "action_label": "Start Experiment", "action_value": "/experiments"},
+        {
+            "id": "1",
+            "type": "high_performer",
+            "title": "Top Sequence Performing Well",
+            "description": "Your 'Q1 Outreach' sequence has a 34% open rate, 12% above benchmark.",
+            "action_label": "View Details",
+            "action_value": "/sequences/1",
+        },
+        {
+            "id": "2",
+            "type": "warning",
+            "title": "Churn Risk Detected",
+            "description": "3 accounts show declining engagement. Retention workflows recommended.",
+            "action_label": "Review Accounts",
+            "action_value": "/churn-detection",
+        },
+        {
+            "id": "3",
+            "type": "action_needed",
+            "title": "12 Duplicate Contacts Found",
+            "description": "Deduplication scan found potential duplicates that may affect forecasting.",
+            "action_label": "Review Duplicates",
+            "action_value": "/deduplication",
+        },
+        {
+            "id": "4",
+            "type": "milestone",
+            "title": "Community Growing",
+            "description": "Your exclusive community has 87% capacity filled. 23 members joined this month.",
+            "action_label": "View Community",
+            "action_value": "/community",
+        },
+        {
+            "id": "5",
+            "type": "suggestion",
+            "title": "A/B Test Ready",
+            "description": "The RL engine recommends testing 3 new email variants based on recent performance.",
+            "action_label": "Start Experiment",
+            "action_value": "/experiments",
+        },
     ]
 
 
@@ -117,6 +167,7 @@ async def select_variant(experiment_id: str = "default"):
     """Let the RL engine select the next variant."""
     rl = _get_rl()
     from app.services.ml.reinforcement_learning import CampaignVariant
+
     # Simulated variants
     variants = [
         CampaignVariant(variant_id="v1", content="Professional tone email"),
@@ -138,11 +189,46 @@ async def get_churn_predictions():
         "critical": 2,
         "potential_revenue_at_risk": 142000,
         "predictions": [
-            {"customer_id": "c1", "company": "Acme Dental", "churn_probability": 0.87, "risk_level": "CRITICAL", "contributing_factors": ["No login in 30 days", "Support tickets up 200%", "Usage dropped 65%"], "recommended_actions": ["Executive outreach", "Custom success plan", "Renewal incentive"]},
-            {"customer_id": "c2", "company": "BrightSmile DSO", "churn_probability": 0.72, "risk_level": "HIGH", "contributing_factors": ["Email engagement dropped 40%", "Skipped last QBR"], "recommended_actions": ["Re-engagement campaign", "Product training session"]},
-            {"customer_id": "c3", "company": "DentalCorp", "churn_probability": 0.64, "risk_level": "HIGH", "contributing_factors": ["Contract renewal in 30 days", "Feature requests unresolved"], "recommended_actions": ["Feature roadmap review", "Early renewal offer"]},
-            {"customer_id": "c4", "company": "OralHealth Pro", "churn_probability": 0.58, "risk_level": "MEDIUM", "contributing_factors": ["Decreased API usage"], "recommended_actions": ["Usage review meeting"]},
-            {"customer_id": "c5", "company": "SmileCraft", "churn_probability": 0.51, "risk_level": "MEDIUM", "contributing_factors": ["Team member left"], "recommended_actions": ["New champion identification"]},
+            {
+                "customer_id": "c1",
+                "company": "Acme Dental",
+                "churn_probability": 0.87,
+                "risk_level": "CRITICAL",
+                "contributing_factors": ["No login in 30 days", "Support tickets up 200%", "Usage dropped 65%"],
+                "recommended_actions": ["Executive outreach", "Custom success plan", "Renewal incentive"],
+            },
+            {
+                "customer_id": "c2",
+                "company": "BrightSmile DSO",
+                "churn_probability": 0.72,
+                "risk_level": "HIGH",
+                "contributing_factors": ["Email engagement dropped 40%", "Skipped last QBR"],
+                "recommended_actions": ["Re-engagement campaign", "Product training session"],
+            },
+            {
+                "customer_id": "c3",
+                "company": "DentalCorp",
+                "churn_probability": 0.64,
+                "risk_level": "HIGH",
+                "contributing_factors": ["Contract renewal in 30 days", "Feature requests unresolved"],
+                "recommended_actions": ["Feature roadmap review", "Early renewal offer"],
+            },
+            {
+                "customer_id": "c4",
+                "company": "OralHealth Pro",
+                "churn_probability": 0.58,
+                "risk_level": "MEDIUM",
+                "contributing_factors": ["Decreased API usage"],
+                "recommended_actions": ["Usage review meeting"],
+            },
+            {
+                "customer_id": "c5",
+                "company": "SmileCraft",
+                "churn_probability": 0.51,
+                "risk_level": "MEDIUM",
+                "contributing_factors": ["Team member left"],
+                "recommended_actions": ["New champion identification"],
+            },
         ],
         "retention_impact": {
             "churn_reduction_5pct_profit_increase_min": 25,
@@ -150,10 +236,17 @@ async def get_churn_predictions():
         },
     }
 
+
 @router.post("/churn/trigger-retention")
 async def trigger_retention(customer_id: str):
     """Trigger a retention workflow for a specific customer."""
-    return {"success": True, "customer_id": customer_id, "workflow": "retention_v2", "steps": ["executive_email", "custom_offer", "success_call", "qbr_schedule"], "status": "initiated"}
+    return {
+        "success": True,
+        "customer_id": customer_id,
+        "workflow": "retention_v2",
+        "steps": ["executive_email", "custom_offer", "success_call", "qbr_schedule"],
+        "status": "initiated",
+    }
 
 
 # ── Deduplication ──
@@ -170,16 +263,35 @@ async def get_dedup_health():
         "last_scan": datetime.now(UTC).isoformat(),
         "golden_records": 12658,
         "crm_sync_status": {"hubspot": "synced", "apollo": "synced", "zoominfo": "pending"},
-        "savings": {"prevented_duplicate_outreach": 89, "pipeline_accuracy_improvement": "12%", "forecast_confidence_boost": "8%"},
+        "savings": {
+            "prevented_duplicate_outreach": 89,
+            "pipeline_accuracy_improvement": "12%",
+            "forecast_confidence_boost": "8%",
+        },
     }
+
 
 @router.get("/deduplication/candidates")
 async def get_dedup_candidates(limit: int = Query(default=10, le=50)):
     """Return duplicate candidates for review."""
     return {
         "candidates": [
-            {"id": "d1", "record_a": {"name": "John Smith", "email": "john@acme.com", "company": "Acme Inc"}, "record_b": {"name": "John D. Smith", "email": "jsmith@acme.com", "company": "Acme Inc."}, "score": 0.94, "field_scores": {"name": 0.92, "email": 0.78, "company": 0.96}, "suggested_action": "auto_merge"},
-            {"id": "d2", "record_a": {"name": "Sarah Connor", "email": "sarah@dental.co", "company": "Dental Co"}, "record_b": {"name": "S. Connor", "email": "sconnor@dentalco.com", "company": "DentalCo Inc"}, "score": 0.88, "field_scores": {"name": 0.75, "email": 0.65, "company": 0.91}, "suggested_action": "manual_review"},
+            {
+                "id": "d1",
+                "record_a": {"name": "John Smith", "email": "john@acme.com", "company": "Acme Inc"},
+                "record_b": {"name": "John D. Smith", "email": "jsmith@acme.com", "company": "Acme Inc."},
+                "score": 0.94,
+                "field_scores": {"name": 0.92, "email": 0.78, "company": 0.96},
+                "suggested_action": "auto_merge",
+            },
+            {
+                "id": "d2",
+                "record_a": {"name": "Sarah Connor", "email": "sarah@dental.co", "company": "Dental Co"},
+                "record_b": {"name": "S. Connor", "email": "sconnor@dentalco.com", "company": "DentalCo Inc"},
+                "score": 0.88,
+                "field_scores": {"name": 0.75, "email": 0.65, "company": 0.91},
+                "suggested_action": "manual_review",
+            },
         ],
         "total": 45,
     }
@@ -194,6 +306,7 @@ async def get_community_stats():
     stats.update(svc.get_fomo_metrics())
     return stats
 
+
 @router.post("/community/waitlist")
 async def join_waitlist(email: str, company: str, role: str, referral: Optional[str] = None):
     svc = _get_community()
@@ -207,10 +320,12 @@ async def get_locales():
     svc = _get_i18n()
     return svc.get_supported_locales()
 
+
 @router.get("/i18n/stats")
 async def get_translation_stats():
     svc = _get_i18n()
     return svc.get_translation_stats()
+
 
 @router.post("/i18n/translate")
 async def translate_content(text: str, source_locale: str = "en", target_locales: str = "es,fr,de"):
@@ -225,17 +340,26 @@ async def get_call_analytics():
     svc = _get_calls()
     return svc.get_analytics()
 
+
 @router.post("/calls/summarize")
 async def summarize_call(transcript: str, call_type: str = "sales_call", participants: str = ""):
     svc = _get_calls()
     parts = [p.strip() for p in participants.split(",") if p.strip()] if participants else []
     result = await svc.summarize_call(transcript, call_type, parts)
     return {
-        "id": result.id, "summary": result.summary, "key_topics": result.key_topics,
-        "sentiment": result.sentiment.value, "sentiment_score": result.sentiment_score,
-        "action_items": [{"description": ai.description, "assignee": ai.assignee, "priority": ai.priority} for ai in result.action_items],
-        "objections": result.objections_raised, "buying_signals": result.buying_signals,
-        "next_steps": result.next_steps, "deal_stage_suggestion": result.deal_stage_suggestion,
+        "id": result.id,
+        "summary": result.summary,
+        "key_topics": result.key_topics,
+        "sentiment": result.sentiment.value,
+        "sentiment_score": result.sentiment_score,
+        "action_items": [
+            {"description": ai.description, "assignee": ai.assignee, "priority": ai.priority}
+            for ai in result.action_items
+        ],
+        "objections": result.objections_raised,
+        "buying_signals": result.buying_signals,
+        "next_steps": result.next_steps,
+        "deal_stage_suggestion": result.deal_stage_suggestion,
     }
 
 
@@ -244,10 +368,22 @@ async def summarize_call(transcript: str, call_type: str = "sales_call", partici
 async def get_marketplace(plugin_type: Optional[str] = None, search: Optional[str] = None):
     reg = _get_plugins()
     from app.services.plugin_framework import PluginType as PT
+
     pt = PT(plugin_type) if plugin_type and plugin_type in [t.value for t in PT] else None
     plugins = reg.get_marketplace(pt, search)
     return {
-        "plugins": [{"id": p.id, "name": p.name, "description": p.description, "type": p.plugin_type.value, "author": p.author, "rating": p.rating, "installs": p.install_count} for p in plugins],
+        "plugins": [
+            {
+                "id": p.id,
+                "name": p.name,
+                "description": p.description,
+                "type": p.plugin_type.value,
+                "author": p.author,
+                "rating": p.rating,
+                "installs": p.install_count,
+            }
+            for p in plugins
+        ],
         "stats": reg.get_marketplace_stats(),
     }
 
@@ -257,11 +393,26 @@ async def get_marketplace(plugin_type: Optional[str] = None, search: Optional[st
 async def get_science_graph():
     """Return the oral-systemic knowledge graph."""
     from app.services.auth_framework.science_auth import build_oral_systemic_graph
+
     graph = build_oral_systemic_graph()
     return {
-        "nodes": [{"id": n.node_id, "name": n.label, "category": n.category, "description": n.description} for n in graph._nodes.values()],
-        "edges": [{"source": e.source_id, "target": e.target_id, "relationship": e.relationship, "strength": e.strength, "evidence": e.mechanism or "", "bidirectional": e.bidirectional} for e in graph._edges],
+        "nodes": [
+            {"id": n.node_id, "name": n.label, "category": n.category, "description": n.description}
+            for n in graph._nodes.values()
+        ],
+        "edges": [
+            {
+                "source": e.source_id,
+                "target": e.target_id,
+                "relationship": e.relationship,
+                "strength": e.strength,
+                "evidence": e.mechanism or "",
+                "bidirectional": e.bidirectional,
+            }
+            for e in graph._edges
+        ],
     }
+
 
 @router.get("/auth/packaging")
 async def get_connected_packaging():

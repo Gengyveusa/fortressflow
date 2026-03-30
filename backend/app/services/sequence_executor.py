@@ -77,11 +77,7 @@ async def get_due_enrollments(db: AsyncSession) -> list[SequenceEnrollment]:
         EnrollmentStatus.active,
         EnrollmentStatus.pending,
     ]
-    result = await db.execute(
-        select(SequenceEnrollment).where(
-            SequenceEnrollment.status.in_(sendable_statuses)
-        )
-    )
+    result = await db.execute(select(SequenceEnrollment).where(SequenceEnrollment.status.in_(sendable_statuses)))
     enrollments = result.scalars().all()
 
     due: list[SequenceEnrollment] = []
@@ -89,9 +85,7 @@ async def get_due_enrollments(db: AsyncSession) -> list[SequenceEnrollment]:
 
     for enrollment in enrollments:
         # Load sequence
-        seq_result = await db.execute(
-            select(Sequence).where(Sequence.id == enrollment.sequence_id)
-        )
+        seq_result = await db.execute(select(Sequence).where(Sequence.id == enrollment.sequence_id))
         sequence = seq_result.scalar_one_or_none()
         if not sequence or sequence.status != SequenceStatus.active:
             continue
@@ -348,9 +342,7 @@ async def _dispatch_linkedin(
 ) -> dict:
     """Dispatch LinkedIn action (connection request, InMail, etc.)."""
     note = render_template(template.plain_body, context)
-    linkedin_action = LinkedInAction(
-        template.linkedin_action or "connection_request"
-    )
+    linkedin_action = LinkedInAction(template.linkedin_action or "connection_request")
     li_result = await prepare_linkedin_outreach(
         action=linkedin_action,
         recipient_name=f"{lead.first_name} {lead.last_name}",
@@ -358,9 +350,7 @@ async def _dispatch_linkedin(
         recipient_company=lead.company,
         note=note if linkedin_action == LinkedInAction.connection_request else "",
         body=note if linkedin_action != LinkedInAction.connection_request else "",
-        subject=render_template(template.subject or "", context)
-        if template.subject
-        else "",
+        subject=render_template(template.subject or "", context) if template.subject else "",
     )
     result = {
         "status": "sent" if li_result.success else "failed",
@@ -402,14 +392,17 @@ async def execute_step(
     if enrollment.last_dispatch_id:
         # Verify the last dispatch was for a different step
         last_touch_result = await db.execute(
-            select(TouchLog).where(
+            select(TouchLog)
+            .where(
                 and_(
                     TouchLog.lead_id == enrollment.lead_id,
                     TouchLog.sequence_id == enrollment.sequence_id,
                     TouchLog.step_number == step.position,
                     TouchLog.action == TouchAction.sent,
                 )
-            ).order_by(TouchLog.created_at.desc()).limit(1)
+            )
+            .order_by(TouchLog.created_at.desc())
+            .limit(1)
         )
         last_touch = last_touch_result.scalar_one_or_none()
         if last_touch and (now - last_touch.created_at).total_seconds() < 300:
@@ -451,13 +444,7 @@ async def execute_step(
         ]
 
         steps = sorted(
-            (
-                await db.execute(
-                    select(SequenceStep).where(
-                        SequenceStep.sequence_id == enrollment.sequence_id
-                    )
-                )
-            )
+            (await db.execute(select(SequenceStep).where(SequenceStep.sequence_id == enrollment.sequence_id)))
             .scalars()
             .all(),
             key=lambda s: s.position,
@@ -492,22 +479,16 @@ async def execute_step(
 
     # ── Compliance gate ──
 
-    can_send, reason = await compliance_svc.can_send_to_lead(
-        lead.id, channel, db
-    )
+    can_send, reason = await compliance_svc.can_send_to_lead(lead.id, channel, db)
     if not can_send:
-        logger.info(
-            "Step blocked for lead %s: %s", lead.id, reason
-        )
+        logger.info("Step blocked for lead %s: %s", lead.id, reason)
         return {"status": "blocked", "reason": reason}
 
     # ── Load template ──
 
     template = None
     if template_id:
-        template_result = await db.execute(
-            select(Template).where(Template.id == UUID(template_id))
-        )
+        template_result = await db.execute(select(Template).where(Template.id == UUID(template_id)))
         template = template_result.scalar_one_or_none()
 
     if not template:
@@ -518,9 +499,7 @@ async def execute_step(
     unsubscribe_url = None
     if channel == "email":
         unsub_token = compliance_svc.generate_unsubscribe_token(lead.id, "email")
-        unsubscribe_url = (
-            f"https://app.gengyveusa.com/api/v1/unsubscribe/{unsub_token}"
-        )
+        unsubscribe_url = f"https://app.gengyveusa.com/api/v1/unsubscribe/{unsub_token}"
 
     context = build_lead_context(
         lead=lead,
@@ -531,17 +510,11 @@ async def execute_step(
     # ── Dispatch ──
 
     if channel == "email":
-        result = await _dispatch_email(
-            lead, template, enrollment, step, context, db
-        )
+        result = await _dispatch_email(lead, template, enrollment, step, context, db)
     elif channel == "sms":
-        result = await _dispatch_sms(
-            lead, template, enrollment, step, context
-        )
+        result = await _dispatch_sms(lead, template, enrollment, step, context)
     elif channel == "linkedin":
-        result = await _dispatch_linkedin(
-            lead, template, enrollment, step, context
-        )
+        result = await _dispatch_linkedin(lead, template, enrollment, step, context)
     else:
         result = {"status": "skipped", "reason": f"unknown_channel_{channel}"}
 
@@ -558,9 +531,7 @@ async def execute_step(
             extra_metadata={
                 **result,
                 "dispatch_id": dispatch_id,
-                "ab_variant": (enrollment.ab_variant_assignments or {}).get(
-                    str(step.position)
-                ),
+                "ab_variant": (enrollment.ab_variant_assignments or {}).get(str(step.position)),
             },
         )
         db.add(touch)
@@ -573,18 +544,14 @@ async def execute_step(
 
         # Transition FSM: active → sent
         try:
-            new_state = transition(
-                enrollment.status.value, EnrollmentState.sent
-            )
+            new_state = transition(enrollment.status.value, EnrollmentState.sent)
             enrollment.status = EnrollmentStatus(new_state)
         except Exception:
             # If transition fails, stay in current state
             pass
 
         # Check if sequence is complete
-        seq_result = await db.execute(
-            select(Sequence).where(Sequence.id == enrollment.sequence_id)
-        )
+        seq_result = await db.execute(select(Sequence).where(Sequence.id == enrollment.sequence_id))
         seq = seq_result.scalar_one_or_none()
         if seq and enrollment.current_step >= len(seq.steps):
             enrollment.status = EnrollmentStatus.completed
@@ -593,9 +560,7 @@ async def execute_step(
     elif result.get("status") == "failed":
         # Transition to failed state on hard failure
         try:
-            new_state = transition(
-                enrollment.status.value, EnrollmentState.failed
-            )
+            new_state = transition(enrollment.status.value, EnrollmentState.failed)
             enrollment.status = EnrollmentStatus(new_state)
             enrollment.last_state_change_at = now
         except Exception:
@@ -620,9 +585,7 @@ async def _execute_hole_filler(
     now = datetime.now(UTC)
 
     # Compliance gate on escalation channel
-    can_send, reason = await compliance_svc.can_send_to_lead(
-        lead.id, escalation_channel, db
-    )
+    can_send, reason = await compliance_svc.can_send_to_lead(lead.id, escalation_channel, db)
     if not can_send:
         return {"status": "blocked", "reason": reason, "channel": escalation_channel}
 
@@ -689,9 +652,7 @@ async def _execute_hole_filler(
 
         # Transition to escalated state
         try:
-            new_state = transition(
-                enrollment.status.value, EnrollmentState.escalated
-            )
+            new_state = transition(enrollment.status.value, EnrollmentState.escalated)
             enrollment.status = EnrollmentStatus(new_state)
             enrollment.last_state_change_at = now
         except Exception:
@@ -734,9 +695,7 @@ async def run_sequence_engine(db: AsyncSession) -> dict:
         stats["processed"] += 1
 
         # Load sequence and step
-        seq_result = await db.execute(
-            select(Sequence).where(Sequence.id == enrollment.sequence_id)
-        )
+        seq_result = await db.execute(select(Sequence).where(Sequence.id == enrollment.sequence_id))
         sequence = seq_result.scalar_one_or_none()
         if not sequence:
             continue
@@ -751,9 +710,7 @@ async def run_sequence_engine(db: AsyncSession) -> dict:
         step = steps[enrollment.current_step]
 
         # Load lead
-        lead_result = await db.execute(
-            select(Lead).where(Lead.id == enrollment.lead_id)
-        )
+        lead_result = await db.execute(select(Lead).where(Lead.id == enrollment.lead_id))
         lead = lead_result.scalar_one_or_none()
         if not lead:
             continue
@@ -761,9 +718,7 @@ async def run_sequence_engine(db: AsyncSession) -> dict:
         # Check hole-filler before executing normal step
         escalation = await _check_hole_filler(enrollment, lead, db)
         if escalation:
-            hf_result = await _execute_hole_filler(
-                enrollment, lead, escalation, db
-            )
+            hf_result = await _execute_hole_filler(enrollment, lead, escalation, db)
             if hf_result.get("status") == "sent":
                 stats["hole_filler"] += 1
                 continue  # Skip normal step, escalation sent
@@ -839,9 +794,7 @@ async def process_reply_signal(
 
     # Transition to replied
     try:
-        new_state = transition(
-            enrollment.status.value, EnrollmentState.replied
-        )
+        new_state = transition(enrollment.status.value, EnrollmentState.replied)
         enrollment.status = EnrollmentStatus(new_state)
         enrollment.last_state_change_at = now
     except Exception:
@@ -849,9 +802,7 @@ async def process_reply_signal(
 
     # Auto-pause on reply
     try:
-        new_state = transition(
-            enrollment.status.value, EnrollmentState.paused
-        )
+        new_state = transition(enrollment.status.value, EnrollmentState.paused)
         enrollment.status = EnrollmentStatus(new_state)
         enrollment.last_state_change_at = now
     except Exception:
