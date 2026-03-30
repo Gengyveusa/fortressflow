@@ -843,13 +843,36 @@ class CommandEngine:
         from app.models.lead import Lead
 
         async with AsyncSessionLocal() as session:
+            total_result = await session.execute(select(func.count(Lead.id)))
+            total_leads = total_result.scalar_one() or 0
+
             result = await session.execute(select(func.count(Lead.id)).where(Lead.last_enriched_at.is_(None)))
             unenriched = result.scalar_one() or 0
+
+        # If DB is empty, offer to find leads first
+        if total_leads == 0:
+            specialty = entities.get("specialty", entities.get("specialty_or_criteria", ""))
+            location = entities.get("location", "")
+            if (specialty or location) and db is not None:
+                apollo_result = await self._auto_search_apollo(specialty or "dentist", location, 25, user_id, db)
+                if apollo_result:
+                    return apollo_result
+            return {
+                "type": "text",
+                "content": (
+                    "Your lead database is empty — no leads to enrich yet.\n\n"
+                    "Let me help you get started:\n"
+                    "• **\"Find dentists in San Francisco\"** — I'll search Apollo's 210M+ contacts\n"
+                    '• **"Import leads from CSV"** — Upload your existing contacts\n'
+                    '• **"Connect HubSpot"** — Sync your CRM contacts\n\n'
+                    "Once you have leads, I can enrich them with ZoomInfo and Apollo data."
+                ),
+            }
 
         if unenriched == 0:
             return {
                 "type": "text",
-                "content": "All leads are already enriched! No action needed.",
+                "content": f"All **{total_leads}** leads are already enriched! No action needed.",
             }
 
         # If we have a db session, dispatch enrichment to ZoomInfo agent
