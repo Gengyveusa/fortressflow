@@ -95,6 +95,50 @@ designed for dental offices and DSOs (Dental Service Organizations).
 - Pipeline velocity and conversion metrics
 - LinkedIn post engagement analytics
 
+### v2.0: Marketing Agent (15 skills)
+- **Lead Scoring** — AI-powered scoring based on engagement, firmographics, ICP fit (hot/warm/cold)
+- **Outbound Sequences** — Multi-step email sequences with personalization tokens and delay timing
+- **Compliance Checks** — Audit content against CAN-SPAM, GDPR, TCPA, CCPA with severity grading
+- **A/B Variant Generation** — Generate test variants with hypotheses, sample sizes, and metrics
+- **Social Post Creation** — Platform-optimized posts (LinkedIn, Twitter) with hashtags and timing
+- **Analytics Summarization** — Executive summaries with trends, anomalies, and action items
+- **Chatbot Management** — Intent classification, BANT qualification, human routing decisions
+- **Multilingual Content** — AI translation to 10 locales (EN, ES, FR, DE, PT, JA, ZH, KO, AR, HI)
+- **Demand-Gen Sequences** — Multi-channel nurture campaigns with touchpoint timelines and KPIs
+- **Customer Segmentation** — Behavioral segmentation with messaging angles and quality metrics
+- **Upsell/Cross-Sell** — Revenue expansion recommendations with confidence scoring
+- **Event Promotion** — Multi-channel event marketing with pre/day-of/post timeline
+- **Send Time Optimization** — Timezone-aware sending with avoidance windows
+- **Landing Page Copy** — Full page sections (hero, problem, solution, CTA, FAQ, SEO metadata)
+- **Campaign Performance** — Grading, benchmark comparison, funnel analysis, ROI calculation
+
+### v2.0: Sales Agent (15 skills)
+- **Lead Enrichment** — Firmographic inference, ICP fit scoring, tech stack, talking points
+- **Advanced Lead Search** — Multi-filter search with AI query expansion and strategy suggestions
+- **Pipeline Management** — CRUD for deals plus AI deal health analysis with risk factors
+- **Automated Follow-ups** — AI-generated multi-step follow-up sequences with scheduling
+- **Task Scheduling** — Intelligent task creation with smart defaults by type
+- **Call Logging** — Transcript analysis with sentiment, objections, action items
+- **Sequence Enrollment** — Batch enrollment with validation and dedup
+- **Real-time Insights** — AI-generated alerts, trends, and recommended actions
+- **Meeting Scheduling** — AI-generated agendas, prep notes, and objection handling
+- **Quote Generation** — Line-item pricing with AI executive summaries
+- **Sales Analytics** — AI narrative with trends, anomalies, and recommendations
+- **Opportunity Scoring** — MEDDIC-based scoring with dimensional breakdown
+- **Account-Based Insights** — ABM account dossiers with buying committee mapping
+- **Renewal Recommendations** — Renewal risk analysis with upsell identification
+- **Revenue Forecasting** — Weighted forecast with best/worst/likely scenarios
+
+### v2.0: Platform Intelligence
+- **Churn Detection** — Logistic regression churn scoring (LOW/MEDIUM/HIGH/CRITICAL), automated retention workflows
+- **Deduplication** — Fuzzy matching (Levenshtein, Jaro-Winkler, Soundex), golden records, multi-CRM sync
+- **RL Experiments** — Thompson Sampling multi-armed bandit for campaign A/B optimization
+- **Community Portal** — Invitation-only B2B community with waitlist, events, and onboarding
+- **Call Summarization** — AI transcript analysis with sentiment, objections, buying signals, CRM logging
+- **Plugin Marketplace** — Extensible third-party integrations for agents, data sources, and visualizations
+- **Knowledge Graph** — Oral-systemic health condition mapping with citation verification
+- **Connected Packaging** — NFC/QR product authentication with provenance and rewards
+
 ## Compliance Rules (ALWAYS ENFORCE)
 - Never send to leads without verified consent
 - Always include unsubscribe mechanism in emails
@@ -167,6 +211,59 @@ designed for dental offices and DSOs (Dental Service Organizations).
             "default": (
                 "LinkedIn growth agent for dental B2B audience. AI post generation, personalized DMs, "
                 "carousel creation, lead database search, and engagement analytics."
+            ),
+        },
+        "marketing": {
+            "default": (
+                "You are FortressFlow's Marketing Agent — a comprehensive marketing automation AI "
+                "with 15 skills: lead scoring, outbound sequences, compliance auditing, A/B variant "
+                "generation, social post creation, analytics summarization, chatbot management, "
+                "multilingual content (10 locales), demand-gen sequences, customer segmentation, "
+                "upsell/cross-sell recommendations, event promotion, send time optimization, "
+                "landing page copy generation, and campaign performance analysis. "
+                "Specialize in dental and healthcare B2B marketing."
+            ),
+            "score_leads": (
+                "Score leads 0-100 based on engagement signals, firmographic fit with dental ICP, "
+                "buying intent, and behavioral data. Provide hot/warm/cold classification and reasoning."
+            ),
+            "create_outbound_sequence": (
+                "Create multi-step outbound email sequences for dental professionals. Include subject lines, "
+                "body copy with personalization tokens, CTAs, timing delays, and A/B test recommendations."
+            ),
+            "generate_multilingual_content": (
+                "Translate and culturally adapt marketing content for international markets. "
+                "Preserve tone, adapt idioms, and note cultural considerations. Supported locales: "
+                "EN, ES, FR, DE, PT, JA, ZH, KO, AR, HI."
+            ),
+            "segment_customers": (
+                "Segment customers into behavioral groups based on engagement patterns, deal stage, "
+                "industry vertical, practice size, and technology adoption. Provide messaging angles "
+                "and campaign strategies for each segment."
+            ),
+        },
+        "sales": {
+            "default": (
+                "You are FortressFlow's Sales Agent — a comprehensive sales automation AI "
+                "with 15 skills: lead enrichment, advanced search, pipeline/deal management, "
+                "automated follow-ups, task scheduling, call logging & transcription, "
+                "sequence enrollment, real-time insights, meeting scheduling, quote generation, "
+                "sales analytics, opportunity scoring (MEDDIC), account-based insights, "
+                "renewal recommendations, and revenue forecasting. "
+                "Specialize in dental and healthcare B2B sales."
+            ),
+            "score_opportunity": (
+                "Score opportunities using MEDDIC framework: Metrics, Economic Buyer, Decision Criteria, "
+                "Decision Process, Identify Pain, Champion. Provide dimensional breakdown and action items."
+            ),
+            "forecast_revenue": (
+                "Generate revenue forecasts using weighted pipeline analysis. Provide best/worst/likely "
+                "scenarios with confidence intervals. Factor in historical win rates by deal stage, "
+                "deal velocity, and seasonal patterns in dental purchasing."
+            ),
+            "get_account_insights": (
+                "Generate comprehensive account intelligence for ABM targeting. Map the buying committee, "
+                "identify champions, analyze org structure, and recommend engagement strategies."
             ),
         },
     }
