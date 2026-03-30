@@ -162,7 +162,7 @@ class PluginRegistry:
             plugins = [p for p in plugins if search_lower in p.name.lower() or search_lower in p.description.lower()]
         return sorted(plugins, key=lambda p: -p.rating)
 
-    def install_plugin(self, user_id: str, plugin_id: str, config: dict = None) -> Optional[PluginInstance]:
+    def install_plugin(self, user_id: str, plugin_id: str, config: dict | None = None) -> Optional[PluginInstance]:
         """Install a plugin for a user."""
         manifest = self._manifests.get(plugin_id)
         if not manifest or manifest.status != PluginStatus.PUBLISHED:

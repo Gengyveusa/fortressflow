@@ -87,7 +87,7 @@ class I18nService:
                         temperature=0.3,
                         max_tokens=4096,
                     )
-                    content.translations[locale] = response.choices[0].message.content.strip()
+                    content.translations[locale] = (response.choices[0].message.content or "").strip()
                     content.quality_scores[locale] = 0.85
                 else:
                     content.translations[locale] = f"[{locale}] {text}"
@@ -123,8 +123,8 @@ class I18nService:
 
     def get_translation_stats(self) -> dict:
         total = len(self._content_store)
-        locale_counts = {}
-        avg_quality = {}
+        locale_counts: dict[str, int] = {}
+        avg_quality: dict[str, list[float]] = {}
         for c in self._content_store.values():
             for locale, score in c.quality_scores.items():
                 locale_counts[locale] = locale_counts.get(locale, 0) + 1

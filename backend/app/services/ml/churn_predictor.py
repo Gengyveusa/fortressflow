@@ -323,7 +323,7 @@ class ChurnPredictor:
             }
             for name, c, rv in zip(self.FEATURE_NAMES, contributions, raw_values)
         ]
-        paired.sort(key=lambda f: abs(f["contribution"]), reverse=True)
+        paired.sort(key=lambda f: abs(float(f["contribution"])), reverse=True)
         return paired
 
     def _get_retention_recommendations_internal(

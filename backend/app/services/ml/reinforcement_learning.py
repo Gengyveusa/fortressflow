@@ -297,6 +297,7 @@ class MultiArmedBandit:
         self._log = ExperimentLog()
 
         # Instantiate the chosen strategy
+        self._strategy: ThompsonSampling | EpsilonGreedy
         if self.strategy_name == Strategy.THOMPSON_SAMPLING:
             self._strategy = ThompsonSampling()
         else:
@@ -433,7 +434,7 @@ class MultiArmedBandit:
             )
 
         # Sort by average reward descending
-        variant_stats.sort(key=lambda s: s["average_reward"], reverse=True)
+        variant_stats.sort(key=lambda s: float(s["average_reward"]), reverse=True)
 
         return {
             "strategy": self.strategy_name.value,

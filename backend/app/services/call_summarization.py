@@ -69,7 +69,7 @@ class CallSummarizationService:
         self,
         transcript: str,
         call_type: str = "sales_call",
-        participants: list[str] = None,
+        participants: list[str] | None = None,
         duration_minutes: float = 0.0,
         api_key: Optional[str] = None,
     ) -> CallSummary:
@@ -118,7 +118,7 @@ Transcript:
                     max_tokens=2048,
                 )
 
-                data = json.loads(response.choices[0].message.content)
+                data = json.loads(response.choices[0].message.content or "{}")
                 summary.summary = data.get("summary", "")
                 summary.key_topics = data.get("key_topics", [])
                 summary.action_items = [ActionItem(**ai) for ai in data.get("action_items", [])]
@@ -187,7 +187,7 @@ Transcript:
         }
 
     def _get_top_items(self, items: list[str], limit: int = 5) -> list[dict]:
-        counts = {}
+        counts: dict[str, int] = {}
         for item in items:
             counts[item] = counts.get(item, 0) + 1
         return [{"item": k, "count": v} for k, v in sorted(counts.items(), key=lambda x: -x[1])[:limit]]
