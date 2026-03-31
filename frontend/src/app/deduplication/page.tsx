@@ -338,7 +338,7 @@ export default function DeduplicationPage() {
     },
   });
 
-  const candidates = candidatesData?.candidates ?? [];
+  const candidates = Array.isArray(candidatesData?.candidates) ? candidatesData.candidates : [];
 
   return (
     <div className="space-y-6" role="main" aria-label="Deduplication Dashboard">

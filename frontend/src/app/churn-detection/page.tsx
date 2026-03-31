@@ -271,8 +271,8 @@ export default function ChurnDetectionPage() {
     },
   });
 
-  const predictions = data?.predictions ?? [];
-  const workflows = data?.retention_workflows ?? [];
+  const predictions = Array.isArray(data?.predictions) ? data.predictions : [];
+  const workflows = Array.isArray(data?.retention_workflows) ? data.retention_workflows : [];
 
   const pieData = data
     ? [
@@ -353,7 +353,7 @@ export default function ChurnDetectionPage() {
                 {data.at_risk_count}
               </p>
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                {((data.at_risk_count / data.total_customers) * 100).toFixed(1)}
+                {(data.total_customers > 0 ? (data.at_risk_count / data.total_customers) * 100 : 0).toFixed(1)}
                 % of total
               </p>
             </CardContent>
@@ -562,7 +562,7 @@ export default function ChurnDetectionPage() {
                     </span>
                   </div>
                   <Progress
-                    value={(wf.steps_completed / wf.steps_total) * 100}
+                    value={wf.steps_total > 0 ? (wf.steps_completed / wf.steps_total) * 100 : 0}
                     className="h-1.5"
                     aria-label={`Workflow progress: ${wf.steps_completed} of ${wf.steps_total} steps`}
                   />

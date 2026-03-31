@@ -128,13 +128,32 @@ interface WaitlistFormData {
   referral_code: string;
 }
 
+// ── Fallback ────────────────────────────────────────────────────────────────
+
+const FALLBACK_STATS: CommunityStats = {
+  total_members: 0,
+  spots_remaining: 100,
+  max_capacity: 500,
+  joined_this_week: 0,
+  waitlist_count: 0,
+  member: null,
+  upcoming_events: [],
+  exclusive_content: [],
+};
+
 // ── API Calls ───────────────────────────────────────────────────────────────
 
 function useCommunityStats() {
   return useQuery({
     queryKey: ["community-stats"],
-    queryFn: () =>
-      api.get<CommunityStats>("/insights/community/stats").then((r) => r.data),
+    queryFn: async () => {
+      try {
+        const r = await api.get<CommunityStats>("/insights/community/stats");
+        return r.data;
+      } catch {
+        return FALLBACK_STATS;
+      }
+    },
   });
 }
 

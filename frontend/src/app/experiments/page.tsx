@@ -301,6 +301,14 @@ export default function ExperimentsPage() {
     );
   }
 
+  if (error && !data) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4">
+        <p className="text-sm text-red-400">Failed to load experiment data. Please try again.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* ── Header ────────────────────────────────────────── */}
@@ -338,13 +346,13 @@ export default function ExperimentsPage() {
         <StatCard
           icon={BarChart3}
           label="Total Pulls"
-          value={exp.total_pulls.toLocaleString()}
+          value={(exp.total_pulls ?? 0).toLocaleString()}
           accent="bg-blue-500/10 text-blue-400"
         />
         <StatCard
           icon={Target}
           label="Best Variant"
-          value={exp.best_variant.length > 28 ? exp.best_variant.slice(0, 26) + "..." : exp.best_variant}
+          value={(exp.best_variant ?? "N/A").length > 28 ? (exp.best_variant ?? "N/A").slice(0, 26) + "..." : (exp.best_variant ?? "N/A")}
           accent="bg-amber-500/10 text-amber-400"
         />
       </div>
@@ -370,7 +378,7 @@ export default function ExperimentsPage() {
               <CardDescription>Exploitation vs exploration reward over time</CardDescription>
             </CardHeader>
             <CardContent>
-              {!exp.reward_history.length ? (
+              {!exp.reward_history?.length ? (
                 <div className="h-64 flex items-center justify-center text-sm text-gray-500">
                   No reward history available yet.
                 </div>
@@ -447,7 +455,7 @@ export default function ExperimentsPage() {
         {/* ── Variants Tab ────────────────────────────────── */}
         <TabsContent value="variants">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4" role="list" aria-label="Experiment variants">
-            {exp.variants.map((variant) => (
+            {(exp.variants ?? []).map((variant) => (
               <Card
                 key={variant.id}
                 role="listitem"
@@ -490,7 +498,7 @@ export default function ExperimentsPage() {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-400">Pulls</span>
                     <span className="font-semibold text-gray-200">
-                      {variant.pulls.toLocaleString()}
+                      {(variant.pulls ?? 0).toLocaleString()}
                     </span>
                   </div>
 
@@ -602,7 +610,7 @@ export default function ExperimentsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {exp.safety_alerts.length === 0 ? (
+              {(exp.safety_alerts ?? []).length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <CheckCircle2 className="w-10 h-10 text-emerald-500 mb-3" aria-hidden="true" />
                   <p className="text-sm font-medium text-gray-100">All Clear</p>
@@ -612,7 +620,7 @@ export default function ExperimentsPage() {
                   </p>
                 </div>
               ) : (
-                exp.safety_alerts.map((alert, i) => (
+                (exp.safety_alerts ?? []).map((alert, i) => (
                   <div
                     key={i}
                     className={`rounded-xl border p-4 space-y-3 ${
