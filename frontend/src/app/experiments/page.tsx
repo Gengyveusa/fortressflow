@@ -282,7 +282,11 @@ export default function ExperimentsPage() {
     queryFn: async () => {
       try {
         const res = await api.get("/insights/experiments/summary");
-        return res.data;
+        const d = res.data;
+        if (d && typeof d.total_pulls === "number" && Array.isArray(d.variants)) {
+          return d;
+        }
+        return MOCK_DATA;
       } catch {
         return MOCK_DATA;
       }
@@ -290,7 +294,7 @@ export default function ExperimentsPage() {
     staleTime: 1000 * 60 * 5,
   });
 
-  const exp = data ?? MOCK_DATA;
+  const exp = data && typeof data.total_pulls === "number" ? data : MOCK_DATA;
 
   if (isLoading) {
     return (
@@ -507,15 +511,15 @@ export default function ExperimentsPage() {
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-400">Avg Reward</span>
                       <span className="font-semibold text-gray-200">
-                        {(variant.avg_reward * 100).toFixed(2)}%
+                        {((variant.avg_reward ?? 0) * 100).toFixed(2)}%
                       </span>
                     </div>
                     <Progress
-                      value={variant.avg_reward * 100}
+                      value={(variant.avg_reward ?? 0) * 100}
                       max={10}
                       className="h-2"
                       aria-label={`Average reward for ${variant.name}`}
-                      aria-valuenow={Math.round(variant.avg_reward * 10000) / 100}
+                      aria-valuenow={Math.round((variant.avg_reward ?? 0) * 10000) / 100}
                       aria-valuemin={0}
                       aria-valuemax={10}
                     />
@@ -527,22 +531,22 @@ export default function ExperimentsPage() {
                       <span className="text-gray-400">Confidence</span>
                       <span
                         className={`font-semibold ${
-                          variant.confidence >= 0.9
+                          (variant.confidence ?? 0) >= 0.9
                             ? "text-emerald-400"
-                            : variant.confidence >= 0.7
+                            : (variant.confidence ?? 0) >= 0.7
                             ? "text-amber-400"
                             : "text-red-400"
                         }`}
                       >
-                        {(variant.confidence * 100).toFixed(0)}%
+                        {((variant.confidence ?? 0) * 100).toFixed(0)}%
                       </span>
                     </div>
                     <Progress
-                      value={variant.confidence * 100}
+                      value={(variant.confidence ?? 0) * 100}
                       max={100}
                       className="h-2"
                       aria-label={`Confidence level for ${variant.name}`}
-                      aria-valuenow={Math.round(variant.confidence * 100)}
+                      aria-valuenow={Math.round((variant.confidence ?? 0) * 100)}
                       aria-valuemin={0}
                       aria-valuemax={100}
                     />
@@ -552,7 +556,7 @@ export default function ExperimentsPage() {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-400">Conversion Rate</span>
                     <span className="font-semibold text-gray-200">
-                      {(variant.conversion_rate * 100).toFixed(2)}%
+                      {((variant.conversion_rate ?? 0) * 100).toFixed(2)}%
                     </span>
                   </div>
 

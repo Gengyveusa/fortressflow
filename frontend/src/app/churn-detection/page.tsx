@@ -257,31 +257,36 @@ function StatSkeleton() {
 export default function ChurnDetectionPage() {
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
-  const { data, isLoading, error } = useQuery({
+  const { data: rawData, isLoading, error } = useQuery({
     queryKey: ["churn-predictions"],
     queryFn: async () => {
       try {
         const res = await api.get<ChurnPredictionsResponse>(
           "/insights/churn/predictions"
         );
-        return res.data;
+        const d = res.data;
+        if (d && typeof d.total_customers === "number" && d.risk_distribution) {
+          return d;
+        }
+        return MOCK_DATA;
       } catch {
         return MOCK_DATA;
       }
     },
   });
 
+  const data = rawData && typeof rawData.total_customers === "number" && rawData.risk_distribution ? rawData : MOCK_DATA;
+
   const predictions = Array.isArray(data?.predictions) ? data.predictions : [];
   const workflows = Array.isArray(data?.retention_workflows) ? data.retention_workflows : [];
 
-  const pieData = data
-    ? [
-        { name: "Critical", value: data.risk_distribution.CRITICAL },
-        { name: "High", value: data.risk_distribution.HIGH },
-        { name: "Medium", value: data.risk_distribution.MEDIUM },
-        { name: "Low", value: data.risk_distribution.LOW },
-      ]
-    : [];
+  const riskDist = data?.risk_distribution ?? MOCK_DATA.risk_distribution;
+  const pieData = [
+    { name: "Critical", value: riskDist.CRITICAL ?? 0 },
+    { name: "High", value: riskDist.HIGH ?? 0 },
+    { name: "Medium", value: riskDist.MEDIUM ?? 0 },
+    { name: "Low", value: riskDist.LOW ?? 0 },
+  ];
 
   const pieColors = ["#ef4444", "#f97316", "#eab308", "#22c55e"];
 
@@ -334,7 +339,7 @@ export default function ChurnDetectionPage() {
                 </p>
               </div>
               <p className="text-2xl font-bold dark:text-gray-100">
-                {data.total_customers.toLocaleString()}
+                {(data.total_customers ?? 0).toLocaleString()}
               </p>
             </CardContent>
           </Card>
@@ -350,10 +355,10 @@ export default function ChurnDetectionPage() {
                 </p>
               </div>
               <p className="text-2xl font-bold text-orange-500">
-                {data.at_risk_count}
+                {data.at_risk_count ?? 0}
               </p>
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                {(data.total_customers > 0 ? (data.at_risk_count / data.total_customers) * 100 : 0).toFixed(1)}
+                {((data.total_customers ?? 0) > 0 ? ((data.at_risk_count ?? 0) / (data.total_customers ?? 1)) * 100 : 0).toFixed(1)}
                 % of total
               </p>
             </CardContent>
@@ -370,7 +375,7 @@ export default function ChurnDetectionPage() {
                 </p>
               </div>
               <p className="text-2xl font-bold text-red-500">
-                {data.high_risk_count}
+                {data.high_risk_count ?? 0}
               </p>
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                 Immediate attention needed
@@ -389,7 +394,7 @@ export default function ChurnDetectionPage() {
                 </p>
               </div>
               <p className="text-2xl font-bold dark:text-gray-100">
-                {formatCurrency(data.total_revenue_at_risk)}
+                {formatCurrency(data.total_revenue_at_risk ?? 0)}
               </p>
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                 Across at-risk accounts
@@ -617,7 +622,7 @@ export default function ChurnDetectionPage() {
                     Current revenue at risk
                   </span>
                   <span className="text-sm font-semibold text-red-400">
-                    {formatCurrency(data.total_revenue_at_risk)}
+                    {formatCurrency(data.total_revenue_at_risk ?? 0)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between p-3 rounded-lg border border-gray-700 bg-gray-800/50">
@@ -625,7 +630,7 @@ export default function ChurnDetectionPage() {
                     If 5% churn prevented
                   </span>
                   <span className="text-sm font-semibold text-green-400">
-                    {formatCurrency(data.total_revenue_at_risk * 0.05)} saved
+                    {formatCurrency((data.total_revenue_at_risk ?? 0) * 0.05)} saved
                   </span>
                 </div>
                 <div className="flex items-center justify-between p-3 rounded-lg border border-gray-700 bg-gray-800/50">
@@ -633,8 +638,8 @@ export default function ChurnDetectionPage() {
                     Potential profit impact
                   </span>
                   <span className="text-sm font-semibold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
-                    {formatCurrency(data.total_revenue_at_risk * 0.05 * 0.25)} -{" "}
-                    {formatCurrency(data.total_revenue_at_risk * 0.05 * 0.95)}
+                    {formatCurrency((data.total_revenue_at_risk ?? 0) * 0.05 * 0.25)} -{" "}
+                    {formatCurrency((data.total_revenue_at_risk ?? 0) * 0.05 * 0.95)}
                   </span>
                 </div>
               </div>

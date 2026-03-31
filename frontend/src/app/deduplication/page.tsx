@@ -303,7 +303,7 @@ export default function DeduplicationPage() {
   );
 
   const {
-    data: health,
+    data: rawHealth,
     isLoading: healthLoading,
     error: healthError,
   } = useQuery({
@@ -313,12 +313,18 @@ export default function DeduplicationPage() {
         const res = await api.get<DeduplicationHealth>(
           "/insights/deduplication/health"
         );
-        return res.data;
+        const d = res.data;
+        if (d && typeof d.duplicates_found === "number" && typeof d.merged_count === "number" && d.savings) {
+          return d;
+        }
+        return MOCK_HEALTH;
       } catch {
         return MOCK_HEALTH;
       }
     },
   });
+
+  const health = rawHealth && typeof rawHealth.duplicates_found === "number" && rawHealth.savings ? rawHealth : MOCK_HEALTH;
 
   const {
     data: candidatesData,
@@ -384,7 +390,7 @@ export default function DeduplicationPage() {
                 </p>
               </div>
               <p className="text-xl font-bold dark:text-gray-100">
-                {health.total_records.toLocaleString()}
+                {(health.total_records ?? 0).toLocaleString()}
               </p>
             </CardContent>
           </Card>
@@ -400,7 +406,7 @@ export default function DeduplicationPage() {
                 </p>
               </div>
               <p className="text-xl font-bold text-orange-400">
-                {health.duplicates_found.toLocaleString()}
+                {(health.duplicates_found ?? 0).toLocaleString()}
               </p>
             </CardContent>
           </Card>
@@ -416,7 +422,7 @@ export default function DeduplicationPage() {
                 </p>
               </div>
               <p className="text-xl font-bold text-green-400">
-                {health.merged_count.toLocaleString()}
+                {(health.merged_count ?? 0).toLocaleString()}
               </p>
             </CardContent>
           </Card>
@@ -432,7 +438,7 @@ export default function DeduplicationPage() {
                 </p>
               </div>
               <p className="text-xl font-bold text-yellow-400">
-                {health.pending_review}
+                {health.pending_review ?? 0}
               </p>
             </CardContent>
           </Card>
@@ -448,7 +454,7 @@ export default function DeduplicationPage() {
                 </p>
               </div>
               <p className="text-xl font-bold text-purple-400">
-                {health.duplicate_rate.toFixed(1)}%
+                {(health.duplicate_rate ?? 0).toFixed(1)}%
               </p>
             </CardContent>
           </Card>
@@ -464,7 +470,7 @@ export default function DeduplicationPage() {
                 </p>
               </div>
               <p className="text-xl font-bold text-emerald-400">
-                {health.merge_accuracy.toFixed(1)}%
+                {(health.merge_accuracy ?? 0).toFixed(1)}%
               </p>
             </CardContent>
           </Card>
@@ -487,7 +493,7 @@ export default function DeduplicationPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {health?.crm_sync.map((crm) => (
+            {(health?.crm_sync ?? []).map((crm) => (
               <div
                 key={crm.name}
                 className="flex items-center justify-between p-3 rounded-lg border border-gray-700 bg-gray-800/50"
@@ -504,7 +510,7 @@ export default function DeduplicationPage() {
                       {crm.name}
                     </p>
                     <p className="text-xs text-gray-500">
-                      {crm.records_synced.toLocaleString()} records
+                      {(crm.records_synced ?? 0).toLocaleString()} records
                     </p>
                   </div>
                 </div>
@@ -565,7 +571,7 @@ export default function DeduplicationPage() {
                         Prevented Duplicate Outreach
                       </p>
                       <p className="text-2xl font-bold text-green-400 mt-1">
-                        {health.savings.prevented_duplicate_outreach.toLocaleString()}
+                        {(health.savings?.prevented_duplicate_outreach ?? 0).toLocaleString()}
                       </p>
                       <p className="text-xs text-gray-400 mt-1">
                         Contacts saved from duplicate messaging
@@ -586,7 +592,7 @@ export default function DeduplicationPage() {
                       </span>
                     </div>
                     <span className="text-sm font-semibold text-blue-400">
-                      +{health.savings.pipeline_accuracy_improvement}%
+                      +{health.savings?.pipeline_accuracy_improvement ?? 0}%
                     </span>
                   </div>
                   <div className="flex items-center justify-between p-3 rounded-lg border border-gray-700 bg-gray-800/50">
@@ -600,7 +606,7 @@ export default function DeduplicationPage() {
                       </span>
                     </div>
                     <span className="text-sm font-semibold text-purple-400">
-                      +{health.savings.forecast_confidence_boost}%
+                      +{health.savings?.forecast_confidence_boost ?? 0}%
                     </span>
                   </div>
                 </div>
