@@ -1,7 +1,27 @@
 import CredentialsProvider from "next-auth/providers/credentials";
 import type { NextAuthOptions } from "next-auth";
 
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
+const DEFAULT_LOCAL_BACKEND_URL = "http://localhost:8000";
+const DEFAULT_PRODUCTION_BACKEND_URL = "https://fortressflow-api.vercel.app";
+
+function normalizeBaseUrl(url: string): string {
+  return url.replace(/\/+$/, "");
+}
+
+function getBackendUrl(): string {
+  const configuredUrl =
+    process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL;
+
+  if (configuredUrl) {
+    return normalizeBaseUrl(configuredUrl);
+  }
+
+  return process.env.NODE_ENV === "production"
+    ? DEFAULT_PRODUCTION_BACKEND_URL
+    : DEFAULT_LOCAL_BACKEND_URL;
+}
+
+const BACKEND_URL = getBackendUrl();
 
 export const authOptions: NextAuthOptions = {
   providers: [
