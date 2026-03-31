@@ -11,6 +11,29 @@ import {
 import { Toaster } from "@/components/ui/toaster";
 import { ChatPanelProvider } from "@/components/chat/ChatPanelContext";
 
+// ── QueryClient singleton ─────────────────────────────
+// Use a module-scoped singleton so the QueryClient is available
+// immediately during hydration. On the server a new instance is
+// created per request; in the browser the same instance is reused.
+// This avoids the race condition where page components that load
+// heavy async chunks (e.g. recharts) call useQuery() before the
+// layout's useState initialiser has run during streaming hydration.
+
+let browserQueryClient: QueryClient | undefined;
+
+function getQueryClient(): QueryClient {
+  const opts = { defaultOptions: { queries: { staleTime: 60 * 1000 } } };
+  if (typeof window === "undefined") {
+    // Server: always create a fresh client (no cross-request leakage)
+    return new QueryClient(opts);
+  }
+  // Browser: reuse the same singleton across renders
+  if (!browserQueryClient) {
+    browserQueryClient = new QueryClient(opts);
+  }
+  return browserQueryClient;
+}
+
 // ── Theme Context ──────────────────────────────────────
 
 type Theme = "light" | "dark";
@@ -88,14 +111,7 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
 // ── Root Providers ─────────────────────────────────────
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [queryClient] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: { staleTime: 60 * 1000 },
-        },
-      })
-  );
+  const queryClient = getQueryClient();
 
   return (
     <QueryClientProvider client={queryClient}>
