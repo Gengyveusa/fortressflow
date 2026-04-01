@@ -5,9 +5,11 @@ import logging
 import time
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent_action_log import AgentActionLog
+from app.models.api_configuration import ApiConfiguration
 from app.services import api_key_service
 from app.utils.sanitize import sanitize_error
 
@@ -340,6 +342,26 @@ def _sanitize_params(params: dict) -> dict:
     return {k: "[REDACTED]" if k.lower() in sensitive_keys else v for k, v in params.items()}
 
 
+def _derive_result_status(result: object) -> tuple[str, str | None]:
+    """Interpret structured agent return values as success/error."""
+    if not isinstance(result, dict):
+        return "success", None
+
+    error_value = result.get("error")
+    explicit_success = result.get("success")
+    explicit_status = str(result.get("status", "")).lower()
+
+    if explicit_status == "rate_limited":
+        return "rate_limited", sanitize_error(error_value or "Rate limit exceeded")
+
+    if explicit_success is False or (error_value and explicit_success is not True):
+        error_text = sanitize_error(str(error_value or f"Agent reported failure: {result}"))
+        status = "rate_limited" if "rate limit" in error_text.lower() else "error"
+        return status, error_text
+
+    return "success", None
+
+
 async def _log_action(
     db: AsyncSession,
     user_id: UUID,
@@ -449,8 +471,8 @@ class AgentOrchestrator:
                 call_params = {k: v for k, v in call_params.items() if k in accepted_params}
 
             result = await method(**call_params)
-
             latency_ms = int((time.time() - start) * 1000)
+            result_status, result_error = _derive_result_status(result)
 
             # Build a summary for logging (truncate large results)
             if isinstance(result, str):
@@ -460,9 +482,22 @@ class AgentOrchestrator:
             else:
                 summary = {"type": type(result).__name__}
 
-            await _log_action(db, user_id, agent_name, action, params, summary, "success", latency_ms, None)
+            await _log_action(
+                db,
+                user_id,
+                agent_name,
+                action,
+                params,
+                summary,
+                result_status,
+                latency_ms,
+                result_error,
+            )
 
-            return {"status": "success", "result": result, "latency_ms": latency_ms}
+            response = {"status": result_status, "result": result, "latency_ms": latency_ms}
+            if result_error:
+                response["error"] = result_error
+            return response
 
         except RuntimeError as exc:
             latency_ms = int((time.time() - start) * 1000)
@@ -555,21 +590,18 @@ class AgentOrchestrator:
 
         statuses = []
         for agent_name, service_name in all_agents.items():
-            # Check DB key
-            from app.models.api_configuration import ApiConfiguration
-            from sqlalchemy import select
+            candidates = api_key_service.resolve_service_aliases(service_name)
 
             result = await db.execute(
                 select(ApiConfiguration).where(
                     ApiConfiguration.user_id == user_id,
-                    ApiConfiguration.service_name == service_name,
+                    ApiConfiguration.service_name.in_(candidates),
                 )
             )
             has_db_key = result.scalar_one_or_none() is not None
 
             # Check env key
             env_key = await api_key_service.get_api_key(db, service_name)
-            bool(env_key) if not has_db_key else False  # Only check env if no DB key
 
             statuses.append(
                 {

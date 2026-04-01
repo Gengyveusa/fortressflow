@@ -64,8 +64,13 @@ const API_KEYS: ApiKeyEntry[] = [
   { name: "zoominfo_client_id", label: "ZoomInfo Client ID", description: "Client ID for ZoomInfo API (RSA private key set via env var)", placeholder: "725d72a6-8bab-4df6-b3aa-xxxxxxxxxxxx" },
   { name: "zoominfo", label: "ZoomInfo API Key", description: "Direct API key for ZoomInfo (alternative to Client ID + private key)", placeholder: "eyJhbGciOiJSUzI1NiJ9..." },
   { name: "apollo",   label: "Apollo.io", description: "Sales intelligence — 210M+ contacts, sequences, deals", placeholder: "apk_xxxxxxxxxxxxxxxxxxxxxxxx" },
-    { name: "twilio",   label: "Twilio",   description: "SMS sending via Twilio", placeholder: "SKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
-    { name: "taplio_webhook", label: "Taplio (Zapier)", description: "LinkedIn growth via Zapier webhook", placeholder: "https://hooks.zapier.com/hooks/catch/..." },
+  { name: "twilio_account_sid", label: "Twilio Account SID", description: "Primary Twilio account SID used for SMS, voice, and verification", placeholder: "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
+  { name: "twilio", label: "Twilio Auth Token", description: "Auth token for the Twilio account above", placeholder: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
+  { name: "twilio_phone_number", label: "Twilio Phone Number", description: "Default sending number in E.164 format", placeholder: "+15551234567" },
+  { name: "twilio_messaging_service_sid", label: "Twilio Messaging Service SID", description: "Required for scheduling and opt-out list management", placeholder: "MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
+  { name: "twilio_verify_service_sid", label: "Twilio Verify Service SID", description: "Required for OTP / verification flows", placeholder: "VAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
+  { name: "twilio_whatsapp_number", label: "Twilio WhatsApp Number", description: "WhatsApp-enabled sender, usually your Twilio sandbox or approved WA number", placeholder: "whatsapp:+14155238886" },
+  { name: "taplio_webhook", label: "Taplio (Zapier)", description: "Zapier webhook FortressFlow uses to schedule and execute Taplio LinkedIn actions", placeholder: "https://hooks.zapier.com/hooks/catch/..." },
   { name: "aws_ses",  label: "AWS SES",  description: "Email delivery via Amazon SES", placeholder: "AKIAIOSFODNN7EXAMPLE" },
 ];
 

@@ -234,6 +234,142 @@ const MOCK_INTEGRATION_TESTS: IntegrationTestResult[] = [
   },
 ];
 
+const EMPTY_INTEGRATION_TESTS: IntegrationTestResult[] = [];
+
+function normalizeAgentHealth(data: unknown): AgentHealth[] {
+  const agents = Array.isArray(data) ? data : (data as { agents?: unknown[] } | null)?.agents;
+  if (!Array.isArray(agents)) return [];
+
+  return agents.map((item) => {
+    const entry = (item ?? {}) as Record<string, unknown>;
+    const configured = Boolean(entry.configured);
+    const hasKey = Boolean(entry.has_db_key || entry.has_env_key);
+    return {
+      agent_name: String(entry.agent_name ?? ""),
+      status: configured ? "healthy" : "unconfigured",
+      action_count: Number(entry.action_count ?? entry.total_actions ?? 0),
+      configured,
+      last_check: String(entry.last_check ?? entry.timestamp ?? ""),
+      error_summary: configured ? undefined : hasKey ? "Partial configuration detected" : "API key not configured",
+    };
+  });
+}
+
+function normalizeFailureCategory(category: string | undefined): FailingAction["error_category"] {
+  switch (category) {
+    case "auth_error":
+      return "auth";
+    case "connection_error":
+      return "timeout";
+    case "validation_error":
+    case "type_error":
+      return "validation";
+    case "rate_limited":
+      return "rate_limit";
+    case "api_key_missing":
+    case "not_found":
+      return "config";
+    default:
+      return "unknown";
+  }
+}
+
+function normalizeFailures(data: unknown): FailingAction[] {
+  const payload = (data ?? {}) as { top_failing_actions?: unknown[] };
+  if (!Array.isArray(payload.top_failing_actions)) return [];
+
+  return payload.top_failing_actions.map((item) => {
+    const entry = (item ?? {}) as Record<string, unknown>;
+    const actionPath = String(entry.action ?? "");
+    const [agent = "unknown", action = actionPath] = actionPath.split(".", 2);
+    return {
+      agent,
+      action,
+      failure_count: Number(entry.count ?? 0),
+      error_category: normalizeFailureCategory(String(entry.category ?? "")),
+      latest_error: String(entry.latest_error ?? ""),
+      last_failure: "",
+    };
+  });
+}
+
+function normalizeRuns(data: unknown): DiagnosticRun[] {
+  if (!Array.isArray(data)) return [];
+
+  return data.map((item) => {
+    const entry = (item ?? {}) as Record<string, unknown>;
+    const summary = (entry.summary ?? {}) as Record<string, unknown>;
+    const passed = Number(summary.passed ?? 0);
+    const failed = Number(summary.failed ?? 0);
+    const skipped = Number(summary.skipped ?? 0);
+    const derivedStatus: DiagnosticRun["status"] =
+      entry.status === "running"
+        ? "running"
+        : failed > 0 && passed > 0
+          ? "partial"
+          : failed > 0
+            ? "failed"
+            : "passed";
+
+    return {
+      id: String(entry.id ?? ""),
+      run_type: String(entry.run_type ?? "full_diagnostic") as DiagnosticRun["run_type"],
+      status: derivedStatus,
+      total_checks: Number(summary.total ?? passed + failed + skipped),
+      passed_checks: passed,
+      failed_checks: failed,
+      started_at: String(entry.started_at ?? ""),
+      completed_at: entry.completed_at ? String(entry.completed_at) : null,
+      triggered_by: "manual",
+    };
+  });
+}
+
+function normalizeSuggestions(data: unknown): FixSuggestion[] {
+  if (!Array.isArray(data)) return [];
+
+  return data.map((item) => {
+    const entry = (item ?? {}) as Record<string, unknown>;
+    return {
+      id: String(entry.id ?? ""),
+      agent: String(entry.agent ?? entry.agent_name ?? ""),
+      action: String(entry.action ?? ""),
+      severity: String(entry.severity ?? "info") as FixSuggestion["severity"],
+      diagnosis: String(entry.diagnosis ?? ""),
+      suggested_fix: String(entry.suggested_fix ?? ""),
+      auto_fixable: String(entry.fix_type ?? "") === "code_patch",
+      status: String(entry.status ?? "pending") as FixSuggestion["status"],
+      created_at: String(entry.created_at ?? ""),
+    };
+  });
+}
+
+function normalizeIntegrationTestResult(data: unknown): IntegrationTestResult | null {
+  if (!data || typeof data !== "object") return null;
+  const payload = data as Record<string, unknown>;
+  const steps = Array.isArray(payload.steps) ? payload.steps : [];
+  const normalizedSteps = steps.map((item) => {
+    const entry = (item ?? {}) as Record<string, unknown>;
+    const rawStatus = String(entry.status ?? "failed");
+    return {
+      name: `${String(entry.agent_name ?? "agent")}.${String(entry.action ?? "action")}`,
+      status: rawStatus === "success" ? "passed" : rawStatus === "skipped" ? "skipped" : "failed",
+      duration_ms: 0,
+      error: entry.error ? String(entry.error) : undefined,
+    };
+  });
+
+  const overallStatus = normalizedSteps.some((step) => step.status === "failed") ? "failed" : "passed";
+
+  return {
+    workflow_name: String(payload.workflow_name ?? "integration"),
+    status: overallStatus,
+    steps: normalizedSteps,
+    duration_ms: 0,
+    tested_at: String(payload.timestamp ?? new Date().toISOString()),
+  };
+}
+
 // ── Agent Icon Map ─────────────────────────────────────────
 
 const AGENT_ICONS: Record<string, React.ElementType> = {
@@ -314,7 +450,9 @@ function runStatusBadge(status: DiagnosticRun["status"]) {
 }
 
 function formatTime(iso: string) {
+  if (!iso) return "--";
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "--";
   return d.toLocaleString("en-US", {
     month: "short",
     day: "numeric",
@@ -455,66 +593,82 @@ function IntegrationTestRow({ test }: { test: IntegrationTestResult }) {
 export default function TestingPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("health");
+  const [integrationResults, setIntegrationResults] = useState<IntegrationTestResult[]>([]);
 
-  // Fetch with mock fallbacks -- endpoints require auth, so we use mock data for now
-  const { data: agents } = useQuery<AgentHealth[]>({
+  const { data: agents, refetch: refetchHealth, isFetching: healthRefreshing } = useQuery<AgentHealth[]>({
     queryKey: ["testing", "health"],
     queryFn: async () => {
-      try {
-        const res = await api.get("/testing/health");
-        return res.data;
-      } catch {
-        return MOCK_AGENTS;
-      }
+      const res = await api.get("/testing/health");
+      return normalizeAgentHealth(res.data);
     },
-    initialData: MOCK_AGENTS,
   });
 
   const { data: failures } = useQuery<FailingAction[]>({
     queryKey: ["testing", "failures"],
     queryFn: async () => {
-      try {
-        const res = await api.get("/testing/failures");
-        return res.data;
-      } catch {
-        return MOCK_FAILURES;
-      }
+      const res = await api.get("/testing/failures");
+      return normalizeFailures(res.data);
     },
-    initialData: MOCK_FAILURES,
   });
 
   const { data: runs } = useQuery<DiagnosticRun[]>({
     queryKey: ["testing", "runs"],
     queryFn: async () => {
-      try {
-        const res = await api.get("/testing/runs");
-        return res.data;
-      } catch {
-        return MOCK_RUNS;
-      }
+      const res = await api.get("/testing/runs");
+      return normalizeRuns(res.data);
     },
-    initialData: MOCK_RUNS,
   });
 
   const { data: suggestions } = useQuery<FixSuggestion[]>({
     queryKey: ["testing", "suggestions"],
     queryFn: async () => {
-      try {
-        const res = await api.get("/testing/suggestions");
-        return res.data;
-      } catch {
-        return MOCK_SUGGESTIONS;
-      }
+      const res = await api.get("/testing/suggestions");
+      return normalizeSuggestions(res.data);
     },
-    initialData: MOCK_SUGGESTIONS,
   });
 
+  const runDiagnostic = useMutation({
+    mutationFn: async () => {
+      const res = await api.post("/testing/diagnostic", {});
+      return res.data;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["testing", "health"] }),
+        queryClient.invalidateQueries({ queryKey: ["testing", "failures"] }),
+        queryClient.invalidateQueries({ queryKey: ["testing", "runs"] }),
+        queryClient.invalidateQueries({ queryKey: ["testing", "suggestions"] }),
+      ]);
+      setActiveTab("runs");
+    },
+  });
+
+  const runIntegrationTest = useMutation({
+    mutationFn: async () => {
+      const res = await api.post("/testing/integration-test", {});
+      return normalizeIntegrationTestResult(res.data);
+    },
+    onSuccess: async (result) => {
+      if (result) {
+        setIntegrationResults((prev) => [result, ...prev]);
+      }
+      setActiveTab("integration");
+      await queryClient.invalidateQueries({ queryKey: ["testing", "runs"] });
+    },
+  });
+
+  const agentList = agents ?? [];
+  const failureList = failures ?? [];
+  const runList = runs ?? [];
+  const suggestionList = suggestions ?? [];
+  const testResults = integrationResults.length > 0 ? integrationResults : EMPTY_INTEGRATION_TESTS;
+
   // Derived stats
-  const healthyCount = agents.filter((a) => a.status === "healthy").length;
-  const failingCount = agents.filter((a) => a.status === "failing").length;
-  const unconfiguredCount = agents.filter((a) => a.status === "unconfigured").length;
-  const totalFailures = failures.reduce((sum, f) => sum + f.failure_count, 0);
-  const pendingSuggestions = suggestions.filter((s) => s.status === "pending").length;
+  const healthyCount = agentList.filter((a) => a.status === "healthy").length;
+  const failingCount = agentList.filter((a) => a.status === "failing").length;
+  const unconfiguredCount = agentList.filter((a) => a.status === "unconfigured").length;
+  const totalFailures = failureList.reduce((sum, f) => sum + f.failure_count, 0);
+  const pendingSuggestions = suggestionList.filter((s) => s.status === "pending").length;
 
   return (
     <div className="space-y-6" role="main" aria-label="Agent Testing and Diagnostics dashboard">
@@ -535,26 +689,32 @@ export default function TestingPage() {
             variant="outline"
             className="dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
             aria-label="Run health check on all agents"
+            onClick={() => void refetchHealth()}
+            disabled={healthRefreshing}
           >
             <HeartPulse className="w-4 h-4 mr-1.5" aria-hidden="true" />
-            Run Health Check
+            {healthRefreshing ? "Refreshing..." : "Run Health Check"}
           </Button>
           <Button
             size="sm"
             variant="outline"
             className="dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
             aria-label="Run full diagnostic on all agents"
+            onClick={() => runDiagnostic.mutate()}
+            disabled={runDiagnostic.isPending}
           >
             <Stethoscope className="w-4 h-4 mr-1.5" aria-hidden="true" />
-            Run Full Diagnostic
+            {runDiagnostic.isPending ? "Running..." : "Run Full Diagnostic"}
           </Button>
           <Button
             size="sm"
             className="bg-violet-600 hover:bg-violet-700 text-white"
             aria-label="Run integration tests"
+            onClick={() => runIntegrationTest.mutate()}
+            disabled={runIntegrationTest.isPending}
           >
             <Play className="w-4 h-4 mr-1.5" aria-hidden="true" />
-            Run Integration Test
+            {runIntegrationTest.isPending ? "Running..." : "Run Integration Test"}
           </Button>
         </div>
       </div>
@@ -568,18 +728,18 @@ export default function TestingPage() {
             </div>
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-wide">Healthy</p>
-              <p className="text-lg font-semibold text-gray-100">{healthyCount}/{agents.length}</p>
+              <p className="text-lg font-semibold text-gray-100">{healthyCount}/{agentList.length}</p>
             </div>
           </CardContent>
         </Card>
-        <Card className="dark:bg-gray-900 dark:border-gray-800" role="listitem" aria-label="Failing agents">
+        <Card className="dark:bg-gray-900 dark:border-gray-800" role="listitem" aria-label="Agents needing attention">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-red-900/30">
               <XCircle className="w-5 h-5 text-red-400" aria-hidden="true" />
             </div>
             <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide">Failing</p>
-              <p className="text-lg font-semibold text-gray-100">{failingCount}</p>
+              <p className="text-xs text-gray-400 uppercase tracking-wide">Needs Attention</p>
+              <p className="text-lg font-semibold text-gray-100">{failingCount + unconfiguredCount}</p>
             </div>
           </CardContent>
         </Card>
@@ -624,7 +784,7 @@ export default function TestingPage() {
             role="list"
             aria-label="Agent health matrix"
           >
-            {agents.map((agent) => (
+            {agentList.map((agent) => (
               <AgentCard key={agent.agent_name} agent={agent} />
             ))}
           </div>
@@ -654,7 +814,7 @@ export default function TestingPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {failures.map((f, i) => (
+                  {failureList.map((f, i) => (
                     <TableRow key={i} className="dark:border-gray-800">
                       <TableCell className="font-medium text-gray-200">
                         <span className="text-gray-500">{f.agent}.</span>{f.action}
@@ -711,7 +871,7 @@ export default function TestingPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {runs.map((run) => (
+                  {runList.map((run) => (
                     <TableRow key={run.id} className="dark:border-gray-800">
                       <TableCell className="font-mono text-xs text-gray-400">{run.id}</TableCell>
                       <TableCell className="text-gray-300 text-sm">{runTypeLabel(run.run_type)}</TableCell>
@@ -741,7 +901,7 @@ export default function TestingPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {suggestions.filter((s) => s.status === "pending").map((suggestion) => (
+              {suggestionList.filter((s) => s.status === "pending").map((suggestion) => (
                 <div
                   key={suggestion.id}
                   className="border border-gray-800 rounded-lg p-4 space-y-3"
@@ -795,7 +955,7 @@ export default function TestingPage() {
                   </div>
                 </div>
               ))}
-              {suggestions.filter((s) => s.status === "pending").length === 0 && (
+              {suggestionList.filter((s) => s.status === "pending").length === 0 && (
                 <div className="text-center py-8 text-gray-500 text-sm">
                   No pending fix suggestions. All systems are running smoothly.
                 </div>
@@ -821,19 +981,23 @@ export default function TestingPage() {
               <div className="flex items-center gap-4 text-xs text-gray-400 mb-2">
                 <span className="flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" aria-hidden="true" />
-                  {MOCK_INTEGRATION_TESTS.filter((t) => t.status === "passed").length} passed
+                  {testResults.filter((t) => t.status === "passed").length} passed
                 </span>
                 <span className="flex items-center gap-1">
                   <XCircle className="w-3.5 h-3.5 text-red-500" aria-hidden="true" />
-                  {MOCK_INTEGRATION_TESTS.filter((t) => t.status === "failed").length} failed
+                  {testResults.filter((t) => t.status === "failed").length} failed
                 </span>
                 <span className="flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5 text-gray-600" aria-hidden="true" />
-                  {MOCK_INTEGRATION_TESTS.filter((t) => t.status === "skipped").length} skipped
+                  {testResults.filter((t) => t.status === "skipped").length} skipped
                 </span>
               </div>
 
-              {MOCK_INTEGRATION_TESTS.map((test, i) => (
+              {testResults.length === 0 ? (
+                <div className="text-center py-8 text-gray-500 text-sm">
+                  No integration tests have been run yet.
+                </div>
+              ) : testResults.map((test, i) => (
                 <IntegrationTestRow key={i} test={test} />
               ))}
             </CardContent>

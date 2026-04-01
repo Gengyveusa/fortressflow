@@ -26,6 +26,20 @@ class TwilioAgent:
         self._auth_token: str | None = None
         self._client = None  # Lazy-loaded twilio.rest.Client
 
+    @staticmethod
+    def _extract_json_credential(raw_key: str | None, field: str) -> str | None:
+        """Extract a Twilio credential from a JSON blob if present."""
+        if not raw_key:
+            return None
+        try:
+            parsed = json.loads(raw_key)
+        except (TypeError, json.JSONDecodeError):
+            return None
+        if not isinstance(parsed, dict):
+            return None
+        value = parsed.get(field)
+        return value if isinstance(value, str) and value else None
+
     async def _resolve_api_key(self, user_id: UUID | None) -> tuple[str, str]:
         """Resolve Twilio credentials: DB first (JSON blob), then env fallback.
 
@@ -34,6 +48,8 @@ class TwilioAgent:
         if user_id:
             async with AsyncSessionLocal() as db:
                 raw_key = await get_api_key(db, "twilio", user_id)
+                sid_override = await get_api_key(db, "twilio_account_sid", user_id)
+                token_override = await get_api_key(db, "twilio_auth_token", user_id)
                 if raw_key:
                     # DB stores as JSON: {"account_sid": "...", "auth_token": "..."}
                     try:
@@ -44,8 +60,14 @@ class TwilioAgent:
                             return sid, token
                     except (json.JSONDecodeError, AttributeError):
                         # Treat plain string as auth_token paired with env SID
-                        if settings.TWILIO_ACCOUNT_SID:
-                            return settings.TWILIO_ACCOUNT_SID, raw_key
+                        sid = sid_override or settings.TWILIO_ACCOUNT_SID
+                        if sid:
+                            return sid, raw_key
+
+                sid = sid_override or self._extract_json_credential(raw_key, "account_sid") or settings.TWILIO_ACCOUNT_SID
+                token = token_override or self._extract_json_credential(raw_key, "auth_token")
+                if sid and token:
+                    return sid, token
 
         if settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN:
             return settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN
@@ -69,6 +91,26 @@ class TwilioAgent:
         sid, token = await self._resolve_api_key(user_id)
         return self._get_client(sid, token)
 
+    async def _resolve_runtime_value(
+        self,
+        service_name: str,
+        env_value: str | None,
+        user_id: UUID | None,
+        json_field: str | None = None,
+    ) -> str | None:
+        """Resolve supporting Twilio config from DB aliases, JSON payloads, or env."""
+        if user_id:
+            async with AsyncSessionLocal() as db:
+                stored = await get_api_key(db, service_name, user_id)
+                if stored:
+                    return stored
+                if json_field:
+                    raw_key = await get_api_key(db, "twilio", user_id)
+                    extracted = self._extract_json_credential(raw_key, json_field)
+                    if extracted:
+                        return extracted
+        return env_value or None
+
     # ── SMS ────────────────────────────────────────────────────────────────
 
     async def send_sms(
@@ -81,7 +123,12 @@ class TwilioAgent:
     ) -> dict:
         """Send a single SMS/MMS message."""
         client = await self._get_twilio(user_id)
-        from_number = from_ or settings.TWILIO_PHONE_NUMBER
+        from_number = from_ or await self._resolve_runtime_value(
+            "twilio_phone_number",
+            settings.TWILIO_PHONE_NUMBER,
+            user_id,
+            json_field="phone_number",
+        )
 
         if not from_number:
             return {"success": False, "error": "No from number configured"}
@@ -259,7 +306,12 @@ class TwilioAgent:
         """Send a verification code via SMS, call, or email."""
         client = await self._get_twilio(user_id)
 
-        verify_sid = getattr(settings, "TWILIO_VERIFY_SERVICE_SID", None)
+        verify_sid = await self._resolve_runtime_value(
+            "twilio_verify_service_sid",
+            getattr(settings, "TWILIO_VERIFY_SERVICE_SID", None),
+            user_id,
+            json_field="verify_service_sid",
+        )
         if not verify_sid:
             return {"success": False, "error": "TWILIO_VERIFY_SERVICE_SID not configured"}
 
@@ -284,7 +336,12 @@ class TwilioAgent:
         """Check a verification code."""
         client = await self._get_twilio(user_id)
 
-        verify_sid = getattr(settings, "TWILIO_VERIFY_SERVICE_SID", None)
+        verify_sid = await self._resolve_runtime_value(
+            "twilio_verify_service_sid",
+            getattr(settings, "TWILIO_VERIFY_SERVICE_SID", None),
+            user_id,
+            json_field="verify_service_sid",
+        )
         if not verify_sid:
             return {"success": False, "error": "TWILIO_VERIFY_SERVICE_SID not configured"}
 
@@ -593,7 +650,12 @@ class TwilioAgent:
         """Send a WhatsApp Business message."""
         client = await self._get_twilio(user_id)
 
-        whatsapp_from = getattr(settings, "TWILIO_WHATSAPP_NUMBER", None)
+        whatsapp_from = await self._resolve_runtime_value(
+            "twilio_whatsapp_number",
+            getattr(settings, "TWILIO_WHATSAPP_NUMBER", None),
+            user_id,
+            json_field="whatsapp_number",
+        )
         if not whatsapp_from:
             return {"success": False, "error": "TWILIO_WHATSAPP_NUMBER not configured"}
 
@@ -638,7 +700,12 @@ class TwilioAgent:
         """
         client = await self._get_twilio(user_id)
 
-        messaging_service_sid = getattr(settings, "TWILIO_MESSAGING_SERVICE_SID", None)
+        messaging_service_sid = await self._resolve_runtime_value(
+            "twilio_messaging_service_sid",
+            getattr(settings, "TWILIO_MESSAGING_SERVICE_SID", None),
+            user_id,
+            json_field="messaging_service_sid",
+        )
         if not messaging_service_sid:
             return {"success": False, "error": "TWILIO_MESSAGING_SERVICE_SID required for scheduling"}
 
@@ -720,7 +787,12 @@ class TwilioAgent:
     ) -> dict:
         """Check if a phone number has opted out."""
         client = await self._get_twilio(user_id)
-        ms_sid = messaging_service_sid or getattr(settings, "TWILIO_MESSAGING_SERVICE_SID", None)
+        ms_sid = messaging_service_sid or await self._resolve_runtime_value(
+            "twilio_messaging_service_sid",
+            getattr(settings, "TWILIO_MESSAGING_SERVICE_SID", None),
+            user_id,
+            json_field="messaging_service_sid",
+        )
 
         if not ms_sid:
             return {"error": "Messaging service SID required"}
@@ -747,7 +819,12 @@ class TwilioAgent:
     ) -> dict:
         """Process a STOP (opt-out) request for a phone number."""
         client = await self._get_twilio(user_id)
-        ms_sid = messaging_service_sid or getattr(settings, "TWILIO_MESSAGING_SERVICE_SID", None)
+        ms_sid = messaging_service_sid or await self._resolve_runtime_value(
+            "twilio_messaging_service_sid",
+            getattr(settings, "TWILIO_MESSAGING_SERVICE_SID", None),
+            user_id,
+            json_field="messaging_service_sid",
+        )
 
         if not ms_sid:
             return {"success": False, "error": "Messaging service SID required"}
@@ -775,7 +852,12 @@ class TwilioAgent:
     ) -> dict:
         """Process a START (opt-in) request for a phone number."""
         client = await self._get_twilio(user_id)
-        ms_sid = messaging_service_sid or getattr(settings, "TWILIO_MESSAGING_SERVICE_SID", None)
+        ms_sid = messaging_service_sid or await self._resolve_runtime_value(
+            "twilio_messaging_service_sid",
+            getattr(settings, "TWILIO_MESSAGING_SERVICE_SID", None),
+            user_id,
+            json_field="messaging_service_sid",
+        )
 
         if not ms_sid:
             return {"success": False, "error": "Messaging service SID required"}
@@ -803,7 +885,12 @@ class TwilioAgent:
     ) -> dict:
         """Create a conference call and dial participants."""
         client = await self._get_twilio(user_id)
-        from_number = settings.TWILIO_PHONE_NUMBER
+        from_number = await self._resolve_runtime_value(
+            "twilio_phone_number",
+            settings.TWILIO_PHONE_NUMBER,
+            user_id,
+            json_field="phone_number",
+        )
 
         if not from_number:
             return {"success": False, "error": "No from number configured"}
@@ -1026,8 +1113,15 @@ class TwilioAgent:
             kwargs["messaging_binding_address"] = identity_or_address
             if proxy_address:
                 kwargs["messaging_binding_proxy_address"] = proxy_address
-            elif settings.TWILIO_PHONE_NUMBER:
-                kwargs["messaging_binding_proxy_address"] = settings.TWILIO_PHONE_NUMBER
+            else:
+                proxy_number = await self._resolve_runtime_value(
+                    "twilio_phone_number",
+                    settings.TWILIO_PHONE_NUMBER,
+                    user_id,
+                    json_field="phone_number",
+                )
+                if proxy_number:
+                    kwargs["messaging_binding_proxy_address"] = proxy_number
         else:
             kwargs["identity"] = identity_or_address
 
@@ -1138,10 +1232,25 @@ class TwilioAgent:
         client = await self._get_twilio(user_id)
 
         try:
+            phone_sid = phone_number
+            if not phone_sid.startswith("PN"):
+                numbers = await asyncio.to_thread(
+                    client.incoming_phone_numbers.list,
+                    phone_number=phone_number,
+                    limit=1,
+                )
+                if not numbers:
+                    return {
+                        "phone_number": phone_number,
+                        "status": "not_found",
+                        "verified": False,
+                    }
+                phone_sid = numbers[0].sid
+
             # List toll-free verifications
             verifications = await asyncio.to_thread(
                 client.messaging.v1.tollfree_verifications.list,
-                tollfree_phone_number_sid=phone_number,
+                tollfree_phone_number_sid=phone_sid,
                 limit=1,
             )
             if not verifications:
@@ -1155,7 +1264,9 @@ class TwilioAgent:
             return {
                 "phone_number": phone_number,
                 "sid": v.sid,
+                "phone_number_sid": phone_sid,
                 "status": v.status,
+                "verified": v.status in {"approved", "verified"},
                 "date_created": str(v.date_created) if v.date_created else None,
                 "date_updated": str(v.date_updated) if v.date_updated else None,
             }

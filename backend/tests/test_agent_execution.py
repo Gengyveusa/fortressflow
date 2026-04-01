@@ -197,6 +197,24 @@ class TestDispatchParamFiltering:
         assert result["status"] == "error"
         assert "not available" in result["error"]
 
+    @pytest.mark.asyncio
+    async def test_dispatch_treats_structured_agent_failure_as_error(self):
+        mock_db = AsyncMock()
+        user_id = uuid.uuid4()
+
+        with patch("app.services.agents.twilio_agent.TwilioAgent.send_sms", new_callable=AsyncMock) as mock_method:
+            mock_method.return_value = {"success": False, "error": "No from number configured"}
+            result = await AgentOrchestrator.dispatch(
+                db=mock_db,
+                agent_name="twilio",
+                action="send_sms",
+                params={"to": "+15555550123", "body": "hello"},
+                user_id=user_id,
+            )
+
+        assert result["status"] == "error"
+        assert "No from number configured" in result["error"]
+
     def test_dispatch_builds_correct_params_for_hubspot(self):
         """Orchestrator should filter out db for HubSpotAgent instance methods."""
         cls = _get_agent_class("hubspot")

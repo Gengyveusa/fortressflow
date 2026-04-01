@@ -10,6 +10,7 @@ from app.database import get_db
 from app.models.user import User
 from app.services.api_key_service import (
     delete_api_key,
+    get_api_key,
     list_api_keys,
     store_api_key,
 )
@@ -82,14 +83,23 @@ class IntegrationStatusResponse(BaseModel):
 @router.get("/integration-status", response_model=IntegrationStatusResponse)
 async def get_integration_status(
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Return which integrations are configured and their mode."""
     integrations: list[IntegrationStatusEntry] = []
 
     # LinkedIn / Phantombuster
-    pb_key = getattr(app_settings, "PHANTOMBUSTER_API_KEY", "")
-    pb_connect = getattr(app_settings, "PHANTOMBUSTER_CONNECT_AGENT_ID", "")
-    pb_message = getattr(app_settings, "PHANTOMBUSTER_MESSAGE_AGENT_ID", "")
+    pb_key = await get_api_key(db, "phantombuster", current_user.id) or getattr(app_settings, "PHANTOMBUSTER_API_KEY", "")
+    pb_connect = await get_api_key(db, "phantombuster_connect_agent", current_user.id) or getattr(
+        app_settings,
+        "PHANTOMBUSTER_CONNECT_AGENT_ID",
+        "",
+    )
+    pb_message = await get_api_key(db, "phantombuster_message_agent", current_user.id) or getattr(
+        app_settings,
+        "PHANTOMBUSTER_MESSAGE_AGENT_ID",
+        "",
+    )
     if pb_key and (pb_connect or pb_message):
         integrations.append(
             IntegrationStatusEntry(
@@ -107,8 +117,18 @@ async def get_integration_status(
             )
         )
 
+    # Taplio / Zapier
+    taplio_webhook = await get_api_key(db, "taplio", current_user.id) or app_settings.TAPLIO_ZAPIER_WEBHOOK_URL
+    integrations.append(
+        IntegrationStatusEntry(
+            name="taplio",
+            configured=bool(taplio_webhook),
+            mode="active" if taplio_webhook else "not_configured",
+        )
+    )
+
     # HubSpot
-    hs_key = app_settings.HUBSPOT_API_KEY
+    hs_key = await get_api_key(db, "hubspot", current_user.id) or app_settings.HUBSPOT_API_KEY
     integrations.append(
         IntegrationStatusEntry(
             name="hubspot",
@@ -119,7 +139,9 @@ async def get_integration_status(
 
     # ZoomInfo — configured if API key, or client_id + private key are set
     zi_configured = bool(
-        app_settings.ZOOMINFO_API_KEY
+        await get_api_key(db, "zoominfo", current_user.id)
+        or ((await get_api_key(db, "zoominfo_client_id", current_user.id)) and app_settings.ZOOMINFO_PRIVATE_KEY)
+        or app_settings.ZOOMINFO_API_KEY
         or (app_settings.ZOOMINFO_CLIENT_ID and app_settings.ZOOMINFO_PRIVATE_KEY)
         or (app_settings.ZOOMINFO_CLIENT_ID and app_settings.ZOOMINFO_CLIENT_SECRET)
     )
@@ -132,7 +154,7 @@ async def get_integration_status(
     )
 
     # Apollo
-    ap_key = app_settings.APOLLO_API_KEY
+    ap_key = await get_api_key(db, "apollo", current_user.id) or app_settings.APOLLO_API_KEY
     integrations.append(
         IntegrationStatusEntry(
             name="apollo",
@@ -142,17 +164,19 @@ async def get_integration_status(
     )
 
     # Twilio SMS
-    tw_sid = app_settings.TWILIO_ACCOUNT_SID
+    tw_sid = await get_api_key(db, "twilio_account_sid", current_user.id) or app_settings.TWILIO_ACCOUNT_SID
+    tw_token = await get_api_key(db, "twilio", current_user.id) or app_settings.TWILIO_AUTH_TOKEN
+    tw_phone = await get_api_key(db, "twilio_phone_number", current_user.id) or app_settings.TWILIO_PHONE_NUMBER
     integrations.append(
         IntegrationStatusEntry(
             name="twilio",
-            configured=bool(tw_sid),
-            mode="active" if tw_sid else "not_configured",
+            configured=bool(tw_sid and tw_token and tw_phone),
+            mode="active" if (tw_sid and tw_token and tw_phone) else "not_configured",
         )
     )
 
     # AWS SES
-    ses_key = app_settings.AWS_ACCESS_KEY_ID
+    ses_key = await get_api_key(db, "aws_ses", current_user.id) or app_settings.AWS_ACCESS_KEY_ID
     integrations.append(
         IntegrationStatusEntry(
             name="aws_ses",
