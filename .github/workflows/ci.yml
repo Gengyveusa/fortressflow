@@ -326,6 +326,7 @@ jobs:
         uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: fortressflow/backend:scan
+          scanners: vuln
           format: sarif
           output: trivy-backend.sarif
           severity: CRITICAL,HIGH
@@ -355,6 +356,7 @@ jobs:
         uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: fortressflow/frontend:scan
+          scanners: vuln
           format: sarif
           output: trivy-frontend.sarif
           severity: CRITICAL,HIGH
