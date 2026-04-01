@@ -15,6 +15,25 @@ from app.models.api_configuration import ApiConfiguration
 logger = logging.getLogger(__name__)
 
 
+_SERVICE_ALIASES: dict[str, tuple[str, ...]] = {
+    "taplio": ("taplio", "taplio_webhook"),
+    "taplio_webhook": ("taplio_webhook", "taplio"),
+    "twilio": ("twilio", "twilio_auth_token"),
+    "twilio_auth_token": ("twilio_auth_token", "twilio"),
+    "phantombuster": ("phantombuster", "phantombuster_api_key"),
+    "phantombuster_api_key": ("phantombuster_api_key", "phantombuster"),
+    "phantombuster_connect_agent": ("phantombuster_connect_agent", "phantombuster_connect_agent_id"),
+    "phantombuster_connect_agent_id": ("phantombuster_connect_agent_id", "phantombuster_connect_agent"),
+    "phantombuster_message_agent": ("phantombuster_message_agent", "phantombuster_message_agent_id"),
+    "phantombuster_message_agent_id": ("phantombuster_message_agent_id", "phantombuster_message_agent"),
+}
+
+
+def resolve_service_aliases(service_name: str) -> tuple[str, ...]:
+    """Return candidate service names in lookup priority order."""
+    return _SERVICE_ALIASES.get(service_name, (service_name,))
+
+
 def _derive_fernet_key(secret: str) -> bytes:
     """Derive a Fernet-compatible 32-byte key from the app SECRET_KEY."""
     digest = hashlib.sha256(secret.encode()).digest()
@@ -116,19 +135,24 @@ async def get_api_key(db: AsyncSession, service_name: str, user_id: UUID | None 
     If user_id is provided, look up user-specific key.
     Falls back to environment variable if no DB key found.
     """
+    candidates = resolve_service_aliases(service_name)
+
     if user_id:
         result = await db.execute(
             select(ApiConfiguration).where(
                 ApiConfiguration.user_id == user_id,
-                ApiConfiguration.service_name == service_name,
+                ApiConfiguration.service_name.in_(candidates),
             )
         )
-        cfg = result.scalar_one_or_none()
-        if cfg:
+        configs = {cfg.service_name: cfg for cfg in result.scalars().all()}
+        for candidate in candidates:
+            cfg = configs.get(candidate)
+            if not cfg:
+                continue
             try:
                 return decrypt_value(cfg.encrypted_key)
             except Exception:
-                logger.warning("Failed to decrypt API key for service %s", service_name)
+                logger.warning("Failed to decrypt API key for service %s", candidate)
 
     # Fallback to environment variables
     env_mapping = {
@@ -137,9 +161,26 @@ async def get_api_key(db: AsyncSession, service_name: str, user_id: UUID | None 
         "zoominfo_client_id": settings.ZOOMINFO_CLIENT_ID,
         "apollo": settings.APOLLO_API_KEY,
         "twilio": settings.TWILIO_AUTH_TOKEN,
+        "twilio_auth_token": settings.TWILIO_AUTH_TOKEN,
+        "twilio_account_sid": settings.TWILIO_ACCOUNT_SID,
+        "twilio_phone_number": settings.TWILIO_PHONE_NUMBER,
+        "twilio_messaging_service_sid": getattr(settings, "TWILIO_MESSAGING_SERVICE_SID", ""),
+        "twilio_verify_service_sid": getattr(settings, "TWILIO_VERIFY_SERVICE_SID", ""),
+        "twilio_whatsapp_number": getattr(settings, "TWILIO_WHATSAPP_NUMBER", ""),
         "aws_ses": settings.AWS_SECRET_ACCESS_KEY,
         "groq": settings.GROQ_API_KEY,
         "openai": settings.OPENAI_API_KEY,
+        "taplio": settings.TAPLIO_ZAPIER_WEBHOOK_URL,
+        "taplio_webhook": settings.TAPLIO_ZAPIER_WEBHOOK_URL,
+        "phantombuster": getattr(settings, "PHANTOMBUSTER_API_KEY", ""),
+        "phantombuster_api_key": getattr(settings, "PHANTOMBUSTER_API_KEY", ""),
+        "phantombuster_connect_agent": getattr(settings, "PHANTOMBUSTER_CONNECT_AGENT_ID", ""),
+        "phantombuster_connect_agent_id": getattr(settings, "PHANTOMBUSTER_CONNECT_AGENT_ID", ""),
+        "phantombuster_message_agent": getattr(settings, "PHANTOMBUSTER_MESSAGE_AGENT_ID", ""),
+        "phantombuster_message_agent_id": getattr(settings, "PHANTOMBUSTER_MESSAGE_AGENT_ID", ""),
     }
-    env_val = env_mapping.get(service_name, "")
-    return env_val if env_val else None
+    for candidate in candidates:
+        env_val = env_mapping.get(candidate, "")
+        if env_val:
+            return env_val
+    return None

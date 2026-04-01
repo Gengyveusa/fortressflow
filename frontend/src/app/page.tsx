@@ -227,6 +227,138 @@ const AGENT_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>
   radio: Radio,
 };
 
+const AGENT_META: Record<string, { display_name: string; icon: string }> = {
+  groq: { display_name: "Groq LLM", icon: "zap" },
+  openai: { display_name: "OpenAI", icon: "brain" },
+  hubspot: { display_name: "HubSpot CRM", icon: "database" },
+  zoominfo: { display_name: "ZoomInfo", icon: "globe" },
+  twilio: { display_name: "Twilio", icon: "phone" },
+  apollo: { display_name: "Apollo", icon: "search" },
+  taplio: { display_name: "Taplio", icon: "sparkles" },
+  sendgrid: { display_name: "SendGrid", icon: "mail" },
+  linkedin: { display_name: "LinkedIn", icon: "radio" },
+  internal: { display_name: "Internal", icon: "bot" },
+};
+
+const SOURCE_COLORS = ["#6366f1", "#8b5cf6", "#14b8a6", "#f59e0b", "#ec4899", "#22c55e", "#a855f7", "#06b6d4"];
+
+const EMPTY_PROVENANCE: ProvenanceStats = {
+  sources: [],
+  enriched_pct: 0,
+  phone_verified_pct: 0,
+  email_verified_pct: 0,
+  crm_synced_pct: 0,
+  total_leads: 0,
+};
+
+const EMPTY_JOURNEY: JourneyData = {
+  funnel: [],
+  active_sequences: [],
+  positive_signals: [],
+};
+
+function normalizeHeatmap(data: unknown): AgentHeatmapEntry[] {
+  const items = Array.isArray(data) ? data : (data as { agents?: unknown[] } | null)?.agents;
+  if (!Array.isArray(items)) return [];
+
+  return items.map((item) => {
+    const entry = (item ?? {}) as Record<string, unknown>;
+    const agentName = String(entry.agent_name ?? entry.name ?? "");
+    const meta = AGENT_META[agentName] ?? {
+      display_name: agentName ? agentName.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "Unknown Agent",
+      icon: "bot",
+    };
+    const rawSuccessRate = Number(entry.success_rate ?? 0);
+    const successRate = rawSuccessRate <= 1 ? rawSuccessRate * 100 : rawSuccessRate;
+
+    return {
+      agent_name: agentName,
+      display_name: String(entry.display_name ?? meta.display_name),
+      icon: String(entry.icon ?? meta.icon),
+      success_rate: successRate,
+      total_executions: Number(entry.total_executions ?? entry.total ?? 0),
+      avg_latency_ms: Number(entry.avg_latency_ms ?? 0),
+      status: (entry.status as AgentHeatmapEntry["status"]) ?? "inactive",
+      errors_24h: Number(entry.errors_24h ?? entry.errors ?? 0),
+    };
+  });
+}
+
+function normalizeFeed(data: unknown): LiveFeedEntry[] {
+  const items = Array.isArray(data) ? data : (data as { items?: unknown[] } | null)?.items;
+  if (!Array.isArray(items)) return [];
+
+  return items.map((item) => {
+    const entry = (item ?? {}) as Record<string, unknown>;
+    return {
+      id: String(entry.id ?? crypto.randomUUID()),
+      agent: String(entry.agent ?? entry.agent_name ?? ""),
+      action: String(entry.action ?? ""),
+      status: (entry.status as LiveFeedEntry["status"]) ?? "error",
+      latency_ms: Number(entry.latency_ms ?? 0),
+      timestamp: String(entry.timestamp ?? entry.created_at ?? ""),
+      params_preview: typeof entry.params_preview === "string" ? entry.params_preview : undefined,
+    };
+  });
+}
+
+function normalizeProvenance(data: unknown): ProvenanceStats {
+  const payload = (data ?? {}) as {
+    source_breakdown?: Record<string, number>;
+    enrichment_coverage?: Record<string, number>;
+  };
+  const sourceBreakdown = payload.source_breakdown ?? {};
+  const coverage = payload.enrichment_coverage ?? {};
+  const totalLeads = Number(coverage.total_leads ?? 0);
+
+  const sources = Object.entries(sourceBreakdown)
+    .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0))
+    .map(([name, count], index) => ({
+      name: name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+      count: Number(count ?? 0),
+      color: SOURCE_COLORS[index % SOURCE_COLORS.length],
+    }));
+
+  const pct = (value: number) => (totalLeads > 0 ? (value / totalLeads) * 100 : 0);
+
+  return {
+    sources,
+    enriched_pct: Number(coverage.enriched_pct ?? pct(Number(coverage.enriched ?? 0))),
+    phone_verified_pct: pct(Number(coverage.verified_phone ?? 0)),
+    email_verified_pct: pct(Number(coverage.verified_email ?? 0)),
+    crm_synced_pct: pct(Number(coverage.crm_synced ?? 0)),
+    total_leads: totalLeads,
+  };
+}
+
+function normalizeJourney(data: unknown): JourneyData {
+  const stages = ((data as { stages?: unknown[] } | null)?.stages ?? []) as Array<Record<string, unknown>>;
+  return {
+    funnel: stages.map((stage) => ({
+      stage: String(stage.stage ?? stage.name ?? ""),
+      count: Number(stage.count ?? 0),
+      conversion_pct: Number(stage.conversion_pct ?? stage.pct ?? 0),
+    })),
+    active_sequences: [],
+    positive_signals: [],
+  };
+}
+
+function normalizeTimeline(data: unknown): ProvenanceTimelineEvent[] {
+  const items = Array.isArray(data) ? data : (data as { timeline?: unknown[]; provenance_chain?: unknown[] } | null)?.timeline ?? (data as { timeline?: unknown[]; provenance_chain?: unknown[] } | null)?.provenance_chain;
+  if (!Array.isArray(items)) return [];
+
+  return items.map((item) => {
+    const entry = (item ?? {}) as Record<string, unknown>;
+    return {
+      timestamp: String(entry.timestamp ?? ""),
+      event: String(entry.event ?? ""),
+      source: String(entry.source ?? entry.agent ?? "system"),
+      details: String(entry.details ?? ""),
+    };
+  });
+}
+
 // ── Utility (all null-safe) ─────────────────────────────────
 
 function safeFixed(value: number | null | undefined, digits: number = 1): string {
@@ -841,13 +973,8 @@ export default function MissionControlPage() {
   } = useQuery<AgentHeatmapEntry[]>({
     queryKey: ["mission-control", "agent-heatmap"],
     queryFn: async () => {
-      try {
-        const res = await api.get("/monitor/agent-heatmap");
-        const d = res.data;
-        return Array.isArray(d) ? d : d?.agents ?? MOCK_AGENTS;
-      } catch {
-        return MOCK_AGENTS;
-      }
+      const res = await api.get("/monitor/agent-heatmap");
+      return normalizeHeatmap(res.data);
     },
     refetchInterval: 30_000,
     staleTime: 15_000,
@@ -859,13 +986,8 @@ export default function MissionControlPage() {
   } = useQuery<LiveFeedEntry[]>({
     queryKey: ["mission-control", "live-feed"],
     queryFn: async () => {
-      try {
-        const res = await api.get("/monitor/agent-live-feed");
-        const d = res.data;
-        return Array.isArray(d) ? d : d?.items ?? MOCK_FEED;
-      } catch {
-        return MOCK_FEED;
-      }
+      const res = await api.get("/monitor/agent-live-feed");
+      return normalizeFeed(res.data);
     },
     refetchInterval: 5_000,
     staleTime: 3_000,
@@ -877,12 +999,8 @@ export default function MissionControlPage() {
   } = useQuery<ProvenanceStats>({
     queryKey: ["mission-control", "provenance"],
     queryFn: async () => {
-      try {
-        const res = await api.get("/monitor/provenance");
-        return res.data ?? MOCK_PROVENANCE;
-      } catch {
-        return MOCK_PROVENANCE;
-      }
+      const res = await api.get("/monitor/provenance");
+      return normalizeProvenance(res.data);
     },
     refetchInterval: 30_000,
     staleTime: 15_000,
@@ -894,12 +1012,8 @@ export default function MissionControlPage() {
   } = useQuery<JourneyData>({
     queryKey: ["mission-control", "journey-funnel"],
     queryFn: async () => {
-      try {
-        const res = await api.get("/monitor/journey-funnel");
-        return res.data ?? MOCK_JOURNEY;
-      } catch {
-        return MOCK_JOURNEY;
-      }
+      const res = await api.get("/monitor/journey-funnel");
+      return normalizeJourney(res.data);
     },
     refetchInterval: 30_000,
     staleTime: 15_000,
@@ -914,12 +1028,8 @@ export default function MissionControlPage() {
   } = useQuery<ProvenanceTimelineEvent[]>({
     queryKey: ["mission-control", "provenance-timeline", provenanceSearch],
     queryFn: async () => {
-      try {
-        const res = await api.get(`/monitor/provenance/timeline?email=${encodeURIComponent(provenanceSearch)}`);
-        return res.data;
-      } catch {
-        return MOCK_TIMELINE;
-      }
+      const res = await api.get(`/monitor/provenance/timeline?email=${encodeURIComponent(provenanceSearch)}`);
+      return normalizeTimeline(res.data);
     },
     enabled: searchSubmitted && provenanceSearch.length > 0,
     staleTime: 60_000,
@@ -933,10 +1043,10 @@ export default function MissionControlPage() {
 
   // ── Derived data (all with fallbacks) ──────────────────
 
-  const agents = agentHeatmap ?? MOCK_AGENTS;
-  const feed = liveFeed ?? MOCK_FEED;
-  const prov = provenance ?? MOCK_PROVENANCE;
-  const journeyData = journey ?? MOCK_JOURNEY;
+  const agents = agentHeatmap ?? [];
+  const feed = liveFeed ?? [];
+  const prov = provenance ?? EMPTY_PROVENANCE;
+  const journeyData = journey ?? EMPTY_JOURNEY;
 
   const healthyCount = useMemo(
     () => (agents ?? []).filter((a) => a?.status === "healthy").length,

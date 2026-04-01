@@ -5,6 +5,6 @@ export async function GET(req: NextRequest) {
   try {
     return await proxyToBackend(req, "/api/v1/testing/runs");
   } catch {
-    return NextResponse.json({ runs: [] });
+    return NextResponse.json([], { status: 502 });
   }
 }

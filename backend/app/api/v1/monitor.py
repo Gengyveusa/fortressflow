@@ -238,6 +238,33 @@ async def provenance(
         }
 
 
+@router.get("/provenance/timeline")
+async def provenance_timeline(
+    email: str = Query(..., min_length=3),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Look up a lead by email and return a Mission Control timeline payload."""
+    lead_result = await db.execute(select(Lead).where(Lead.email.ilike(email)))
+    lead = lead_result.scalars().first()
+    if not lead:
+        return {"timeline": []}
+
+    timeline_payload = await journey_timeline(lead.id, current_user, db)
+    timeline = timeline_payload.get("timeline", [])
+    return {
+        "timeline": [
+            {
+                "timestamp": item.get("timestamp"),
+                "event": item.get("event"),
+                "source": item.get("agent") or item.get("details") or "system",
+                "details": item.get("details") or "",
+            }
+            for item in timeline
+        ]
+    }
+
+
 async def _provenance_aggregate(current_user: User, db: AsyncSession) -> dict:
     """Source breakdown + enrichment coverage across all leads."""
     # Source breakdown

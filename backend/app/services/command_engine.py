@@ -12,6 +12,7 @@ from typing import Any
 from uuid import UUID
 
 from app.config import settings
+from app.services import api_key_service
 from app.services.agents.orchestrator import AgentOrchestrator
 from app.utils.sanitize import sanitize_error
 
@@ -1051,6 +1052,34 @@ class CommandEngine:
     async def _handle_check_integrations(self, user_id: str = "", db=None) -> dict[str, Any]:
         """Show current integration status including AI agent status."""
         integrations = []
+        twilio_sid = settings.TWILIO_ACCOUNT_SID
+        twilio_token = settings.TWILIO_AUTH_TOKEN
+        twilio_number = settings.TWILIO_PHONE_NUMBER
+        taplio_webhook = settings.TAPLIO_ZAPIER_WEBHOOK_URL
+        linkedin_active = bool(
+            settings.PHANTOMBUSTER_API_KEY
+            and (settings.PHANTOMBUSTER_CONNECT_AGENT_ID or settings.PHANTOMBUSTER_MESSAGE_AGENT_ID)
+        )
+
+        if db is not None and user_id:
+            try:
+                uid = UUID(user_id) if isinstance(user_id, str) else user_id
+                twilio_sid = await api_key_service.get_api_key(db, "twilio_account_sid", uid) or twilio_sid
+                twilio_token = await api_key_service.get_api_key(db, "twilio", uid) or twilio_token
+                twilio_number = await api_key_service.get_api_key(db, "twilio_phone_number", uid) or twilio_number
+                taplio_webhook = await api_key_service.get_api_key(db, "taplio", uid) or taplio_webhook
+                pb_key = await api_key_service.get_api_key(db, "phantombuster", uid) or settings.PHANTOMBUSTER_API_KEY
+                pb_connect = (
+                    await api_key_service.get_api_key(db, "phantombuster_connect_agent", uid)
+                    or settings.PHANTOMBUSTER_CONNECT_AGENT_ID
+                )
+                pb_message = (
+                    await api_key_service.get_api_key(db, "phantombuster_message_agent", uid)
+                    or settings.PHANTOMBUSTER_MESSAGE_AGENT_ID
+                )
+                linkedin_active = bool(pb_key and (pb_connect or pb_message))
+            except Exception as exc:
+                logger.warning("Failed to resolve integration settings from DB: %s", sanitize_error(exc))
 
         def _status(enabled: bool, has_key: bool) -> str:
             if enabled and has_key:
@@ -1067,10 +1096,11 @@ class CommandEngine:
         )
         integrations.append(f"- **Apollo AI**: {_status(settings.APOLLO_AI_ENABLED, bool(settings.APOLLO_API_KEY))}")
         integrations.append(f"- **AWS SES**: {'Configured' if settings.AWS_ACCESS_KEY_ID else 'Not configured'}")
-        integrations.append(f"- **Twilio SMS**: {'Configured' if settings.TWILIO_ACCOUNT_SID else 'Not configured'}")
         integrations.append(
-            f"- **LinkedIn**: {'Configured' if settings.LINKEDIN_OAUTH_CLIENT_ID else 'Not configured'}"
+            f"- **Twilio SMS**: {'Configured' if (twilio_sid and twilio_token and twilio_number) else 'Not configured'}"
         )
+        integrations.append(f"- **Taplio**: {'Configured' if taplio_webhook else 'Not configured'}")
+        integrations.append(f"- **LinkedIn Automation**: {'Configured' if linkedin_active else 'Manual mode'}")
 
         # Add AI agent status if db session is available
         agent_section = ""
@@ -1436,10 +1466,15 @@ class CommandEngine:
         )
 
         if result.get("status") == "success":
-            content = result.get("result", "")
+            payload = result.get("result") or {}
+            content = payload.get("content", "") if isinstance(payload, dict) else str(payload)
+            char_count = payload.get("character_count") if isinstance(payload, dict) else None
+            metadata = f"\n\nCharacters: {char_count}" if char_count else ""
             return {
                 "type": "text",
-                "content": f"**Generated LinkedIn Post:**\n\n{content}\n\nWant me to schedule this or make changes?",
+                "content": (
+                    f"**Generated LinkedIn Post:**\n\n{content}{metadata}\n\nWant me to schedule this or make changes?"
+                ),
             }
         return {"type": "text", "content": f"Post generation failed: {result.get('error', 'Unknown error')}"}
 
@@ -1471,7 +1506,8 @@ class CommandEngine:
         )
 
         if result.get("status") == "success":
-            dm = result.get("result", "")
+            payload = result.get("result") or {}
+            dm = payload.get("dm_content", "") if isinstance(payload, dict) else str(payload)
             return {
                 "type": "text",
                 "content": f"**Draft LinkedIn DM for {recipient}:**\n\n{dm}\n\nWant me to send this or make changes?",

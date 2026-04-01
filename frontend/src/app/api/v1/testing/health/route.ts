@@ -5,6 +5,6 @@ export async function GET(req: NextRequest) {
   try {
     return await proxyToBackend(req, "/api/v1/testing/health");
   } catch {
-    return NextResponse.json({ status: "unknown", agents: [] });
+    return NextResponse.json({ agents: [], error: "Backend unavailable" }, { status: 502 });
   }
 }

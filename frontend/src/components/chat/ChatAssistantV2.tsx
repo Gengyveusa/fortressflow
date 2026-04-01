@@ -533,6 +533,7 @@ export function ChatAssistantV2() {
         role="dialog"
         aria-label="FortressFlow Chat Assistant"
         aria-modal={isExpanded}
+        aria-hidden={!isOpen}
         className={cn(
           "fixed z-40 flex flex-col",
           "bg-white dark:bg-gray-900",
@@ -556,7 +557,7 @@ export function ChatAssistantV2() {
           // Visibility
           isOpen
             ? "opacity-100 translate-x-0 pointer-events-auto"
-            : "opacity-0 translate-x-4 pointer-events-none"
+            : "invisible opacity-0 translate-x-4 pointer-events-none"
         )}
       >
         {/* Header */}

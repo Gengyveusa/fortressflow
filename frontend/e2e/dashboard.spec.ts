@@ -1,289 +1,306 @@
 import { test, expect, Page } from "@playwright/test";
 
-/**
- * Dashboard E2E Tests — FortressFlow Phase 6
- *
- * All API calls are intercepted via page.route() so tests run
- * without a live backend. Tests verify UI behaviour in response to
- * happy-path data, error states, and user interactions.
- */
-
-// ── Shared Mock Payloads ──────────────────────────────────────────────────
-
-const MOCK_DASHBOARD_STATS = {
-  total_leads: 1_247,
-  active_consents: 1_052,
-  touches_sent: 8_340,
-  response_rate: 12.5,
+const MOCK_HEATMAP = {
+  agents: [
+    {
+      agent_name: "groq",
+      success_rate: 97.2,
+      total_executions: 14832,
+      avg_latency_ms: 89,
+      status: "healthy",
+      errors_24h: 3,
+    },
+    {
+      agent_name: "twilio",
+      success_rate: 82.4,
+      total_executions: 3200,
+      avg_latency_ms: 1200,
+      status: "degraded",
+      errors_24h: 12,
+    },
+  ],
 };
 
-const MOCK_DELIVERABILITY_STATS = {
-  total_sent: 8_340,
-  total_bounced: 42,
-  bounce_rate: 0.50,
-  spam_complaints: 3,
-  spam_rate: 0.04,
-  warmup_active: 3,
-  warmup_completed: 7,
+const MOCK_LIVE_FEED = {
+  items: [
+    {
+      id: "feed-1",
+      agent: "groq",
+      action: "generate_email",
+      status: "success",
+      latency_ms: 87,
+      timestamp: "2026-03-31T10:00:00Z",
+      params_preview: '{"lead_id":"L-4821"}',
+    },
+    {
+      id: "feed-2",
+      agent: "twilio",
+      action: "send_sms",
+      status: "error",
+      latency_ms: 3100,
+      timestamp: "2026-03-31T09:59:00Z",
+      params_preview: '{"phone":"+15551234567"}',
+    },
+  ],
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────
+const MOCK_PROVENANCE = {
+  source_breakdown: {
+    csv_import: 4200,
+    apollo: 3100,
+    zoominfo: 2800,
+    hubspot: 1900,
+    manual: 600,
+  },
+  enrichment_coverage: {
+    total_leads: 12600,
+    enriched: 9880,
+    verified_phone: 7824,
+    verified_email: 11554,
+    crm_synced: 10748,
+  },
+};
 
-async function mockDashboardAPIs(page: Page) {
-  await page.route("**/api/v1/analytics/dashboard", (route) =>
+const MOCK_JOURNEY = {
+  stages: [
+    { stage: "Discovered", count: 12600, conversion_pct: 100 },
+    { stage: "Enriched", count: 9880, conversion_pct: 78.4 },
+    { stage: "Contacted", count: 7210, conversion_pct: 73.0 },
+    { stage: "Engaged", count: 3840, conversion_pct: 53.3 },
+    { stage: "Replied", count: 1920, conversion_pct: 50.0 },
+    { stage: "Meeting", count: 640, conversion_pct: 33.3 },
+    { stage: "Won", count: 185, conversion_pct: 28.9 },
+  ],
+};
+
+const MOCK_TIMELINE = {
+  timeline: [
+    {
+      timestamp: "2026-03-29T10:00:00Z",
+      event: "Lead Created",
+      source: "CSV Import",
+      details: "Imported from Q1 prospect list",
+    },
+    {
+      timestamp: "2026-03-29T10:12:00Z",
+      event: "Enriched",
+      source: "Apollo",
+      details: "Added title, company size, LinkedIn URL",
+    },
+  ],
+};
+
+async function mockMissionControlAPIs(page: Page) {
+  await page.route("**/api/v1/monitor/agent-heatmap", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(MOCK_DASHBOARD_STATS),
+      body: JSON.stringify(MOCK_HEATMAP),
     })
   );
-  await page.route("**/api/v1/analytics/deliverability", (route) =>
+
+  await page.route("**/api/v1/monitor/agent-live-feed", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(MOCK_DELIVERABILITY_STATS),
+      body: JSON.stringify(MOCK_LIVE_FEED),
+    })
+  );
+
+  await page.route("**/api/v1/monitor/provenance/timeline?email=**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(MOCK_TIMELINE),
+    })
+  );
+
+  await page.route("**/api/v1/monitor/provenance", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(MOCK_PROVENANCE),
+    })
+  );
+
+  await page.route("**/api/v1/monitor/journey-funnel", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(MOCK_JOURNEY),
     })
   );
 }
 
-async function mockDashboardAPIError(page: Page) {
-  await page.route("**/api/v1/analytics/dashboard", (route) =>
-    route.fulfill({ status: 500, body: "Internal Server Error" })
+async function mockMissionControlEmpty(page: Page) {
+  await page.route("**/api/v1/monitor/agent-heatmap", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ agents: [] }),
+    })
   );
-  await page.route("**/api/v1/analytics/deliverability", (route) =>
-    route.fulfill({ status: 500, body: "Internal Server Error" })
+
+  await page.route("**/api/v1/monitor/agent-live-feed", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ items: [] }),
+    })
+  );
+
+  await page.route("**/api/v1/monitor/provenance", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        source_breakdown: {},
+        enrichment_coverage: { total_leads: 0 },
+      }),
+    })
+  );
+
+  await page.route("**/api/v1/monitor/journey-funnel", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ stages: [] }),
+    })
   );
 }
 
-// ── Test Suite ────────────────────────────────────────────────────────────
-
-test.describe("Dashboard Page", () => {
+test.describe("Mission Control Dashboard", () => {
   test("loads the dashboard and shows the page title", async ({ page }) => {
-    await mockDashboardAPIs(page);
+    await mockMissionControlAPIs(page);
     await page.goto("/");
 
-    // The page title is set in layout metadata
     await expect(page).toHaveTitle(/FortressFlow/i);
+    await expect(page.getByRole("heading", { name: "Mission Control" })).toBeVisible();
   });
 
-  test("shows four stat cards after data loads", async ({ page }) => {
-    await mockDashboardAPIs(page);
+  test("shows live operations data from monitor APIs", async ({ page }) => {
+    await mockMissionControlAPIs(page);
     await page.goto("/");
 
-    // Wait for loading skeletons to disappear
-    await page.waitForSelector("text=Total Leads", { timeout: 10_000 });
-
-    await expect(page.getByText("Total Leads")).toBeVisible();
-    await expect(page.getByText("Active Consents")).toBeVisible();
-    await expect(page.getByText("Touches Sent")).toBeVisible();
-    await expect(page.getByText("Response Rate")).toBeVisible();
+    await expect(page.getByRole("tab", { name: /Live Operations/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Agent Heatmap" })).toBeVisible();
+    await expect(page.getByLabel(/Agent Groq LLM:/)).toBeVisible();
+    await expect(page.getByLabel(/Agent Twilio:/)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Live Activity Feed" })).toBeVisible();
+    await expect(page.getByText("generate_email")).toBeVisible();
+    await expect(page.getByText("send_sms")).toBeVisible();
   });
 
-  test("stat cards display correct values from API", async ({ page }) => {
-    await mockDashboardAPIs(page);
-    await page.goto("/");
-
-    await page.waitForSelector("text=1,247", { timeout: 10_000 });
-
-    // Total Leads value
-    await expect(page.getByText("1,247")).toBeVisible();
-    // Active Consents value
-    await expect(page.getByText("1,052")).toBeVisible();
-    // Touches Sent value
-    await expect(page.getByText("8,340")).toBeVisible();
-  });
-
-  test("shows loading skeleton while stats are fetching", async ({ page }) => {
-    // Delay API response so we can catch the loading state
-    await page.route("**/api/v1/analytics/dashboard", async (route) => {
+  test("shows loading skeletons while monitor data is fetching", async ({ page }) => {
+    await page.route("**/api/v1/monitor/agent-heatmap", async (route) => {
       await new Promise((resolve) => setTimeout(resolve, 300));
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(MOCK_DASHBOARD_STATS),
+        body: JSON.stringify(MOCK_HEATMAP),
       });
     });
-    await page.route("**/api/v1/analytics/deliverability", (route) =>
+    await page.route("**/api/v1/monitor/agent-live-feed", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(MOCK_DELIVERABILITY_STATS),
+        body: JSON.stringify(MOCK_LIVE_FEED),
+      })
+    );
+    await page.route("**/api/v1/monitor/provenance", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(MOCK_PROVENANCE),
+      })
+    );
+    await page.route("**/api/v1/monitor/journey-funnel", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(MOCK_JOURNEY),
       })
     );
 
     await page.goto("/");
 
-    // Pulse animation skeleton should be present immediately
-    const skeleton = page.locator(".animate-pulse").first();
-    await expect(skeleton).toBeVisible();
+    await expect(page.locator(".animate-pulse").first()).toBeVisible();
   });
 
-  test("handles API error gracefully — shows dash placeholder", async ({
-    page,
-  }) => {
-    await mockDashboardAPIError(page);
+  test("shows empty live activity state gracefully", async ({ page }) => {
+    await mockMissionControlEmpty(page);
     await page.goto("/");
 
-    // Dashboard should show "—" placeholder for failed values
-    await page.waitForSelector("text=Total Leads", { timeout: 10_000 });
-    const dashPlaceholders = page.getByText("—");
-    await expect(dashPlaceholders.first()).toBeVisible();
+    await expect(page.getByText("0 agents monitored")).toBeVisible();
+    await expect(page.getByText("No recent activity")).toBeVisible();
   });
 
-  test("deliverability health card shows bounce rate", async ({ page }) => {
-    await mockDashboardAPIs(page);
+  test("data provenance tab shows source breakdown and coverage metrics", async ({ page }) => {
+    await mockMissionControlAPIs(page);
     await page.goto("/");
 
-    await page.waitForSelector("text=Deliverability Health", { timeout: 10_000 });
+    await page.getByRole("tab", { name: /Data Provenance/i }).click();
 
-    await expect(page.getByText("Deliverability Health")).toBeVisible();
-    await expect(page.getByText("Bounce Rate")).toBeVisible();
-    await expect(page.getByText("Spam Rate")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Source Breakdown" })).toBeVisible();
+    await expect(page.getByText("Enrichment Coverage")).toBeVisible();
+    await expect(page.getByText("Data Enrichment")).toBeVisible();
+    await expect(page.getByText("Phone Verification")).toBeVisible();
+    await expect(page.getByText("12.6K", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("CSV Import")).toBeVisible();
   });
 
-  test("deliverability health error shows failure message", async ({ page }) => {
-    await page.route("**/api/v1/analytics/dashboard", (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(MOCK_DASHBOARD_STATS),
-      })
-    );
-    await page.route("**/api/v1/analytics/deliverability", (route) =>
-      route.fulfill({ status: 500, body: "Error" })
-    );
-
+  test("provenance search loads a lead timeline", async ({ page }) => {
+    await mockMissionControlAPIs(page);
     await page.goto("/");
 
-    await page.waitForSelector("text=Failed to load deliverability", {
-      timeout: 10_000,
-    });
-    await expect(
-      page.getByText("Failed to load deliverability data.")
-    ).toBeVisible();
+    await page.getByRole("tab", { name: /Data Provenance/i }).click();
+    await page.getByLabel("Search lead by email").fill("jane@acme.com");
+    await page.getByRole("button", { name: /Search provenance/i }).click();
+
+    await expect(page.getByText(/Provenance Timeline for/i)).toBeVisible();
+    const timeline = page.getByLabel("Lead provenance timeline");
+    await expect(timeline.getByText("Lead Created")).toBeVisible();
+    await expect(timeline.getByText("Enriched")).toBeVisible();
   });
 
-  test("shows Recent Activity section with entries", async ({ page }) => {
-    await mockDashboardAPIs(page);
+  test("lead journey tab shows funnel and summary stats", async ({ page }) => {
+    await mockMissionControlAPIs(page);
     await page.goto("/");
 
-    await page.waitForSelector("text=Recent Activity", { timeout: 10_000 });
-    await expect(page.getByText("Recent Activity")).toBeVisible();
+    await page.getByRole("tab", { name: /Lead Journey/i }).click();
 
-    // The hardcoded recent activity list should be visible
-    await expect(
-      page.getByText("New lead imported: jane@acme.com")
-    ).toBeVisible();
-  });
-
-  test("Quick Actions section contains Import Leads button", async ({
-    page,
-  }) => {
-    await mockDashboardAPIs(page);
-    await page.goto("/");
-
-    await page.waitForSelector("text=Quick Actions", { timeout: 10_000 });
-    await expect(page.getByText("Quick Actions")).toBeVisible();
-    await expect(page.getByRole("link", { name: /Import Leads/i })).toBeVisible();
-  });
-
-  test("Import Leads quick action navigates to import page", async ({
-    page,
-  }) => {
-    await mockDashboardAPIs(page);
-    await page.route("**/api/v1/**", (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: "{}",
-      })
-    );
-
-    await page.goto("/");
-    await page.waitForSelector("text=Quick Actions", { timeout: 10_000 });
-
-    const importLink = page.getByRole("link", { name: /Import Leads/i });
-    await expect(importLink).toHaveAttribute("href", "/leads/import");
-  });
-
-  test("Create Sequence quick action navigates to sequences page", async ({
-    page,
-  }) => {
-    await mockDashboardAPIs(page);
-    await page.goto("/");
-
-    await page.waitForSelector("text=Quick Actions", { timeout: 10_000 });
-
-    const seqLink = page.getByRole("link", { name: /Create Sequence/i });
-    await expect(seqLink).toHaveAttribute("href", "/sequences");
-  });
-
-  test("Compliance Check quick action navigates to compliance page", async ({
-    page,
-  }) => {
-    await mockDashboardAPIs(page);
-    await page.goto("/");
-
-    await page.waitForSelector("text=Quick Actions", { timeout: 10_000 });
-
-    const complianceLink = page.getByRole("link", { name: /Compliance Check/i });
-    await expect(complianceLink).toHaveAttribute("href", "/compliance");
+    await expect(page.getByRole("heading", { name: "Lead Journey Funnel" })).toBeVisible();
+    await expect(page.getByText("Active Sequences")).toBeVisible();
+    await expect(page.getByText("Recent Positive Signals")).toBeVisible();
+    await expect(page.getByText("Total Discovered")).toBeVisible();
+    await expect(page.getByText("12.6K", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("No positive signals yet")).toBeVisible();
   });
 
   test("sidebar navigation is visible on desktop", async ({ page }) => {
-    await mockDashboardAPIs(page);
+    await mockMissionControlAPIs(page);
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/");
 
-    // Sidebar should be rendered
-    const sidebar = page.locator("aside, nav").first();
-    await expect(sidebar).toBeVisible();
+    await expect(page.locator("aside, nav").first()).toBeVisible();
   });
 
   test("navigation links exist in sidebar", async ({ page }) => {
-    await mockDashboardAPIs(page);
+    await mockMissionControlAPIs(page);
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/");
 
-    // Sidebar should contain key navigation links
     await expect(page.getByRole("link", { name: /Sequences/i }).first()).toBeVisible();
     await expect(page.getByRole("link", { name: /Leads/i }).first()).toBeVisible();
-  });
-
-  test("FortressFlow brand name is visible in the header", async ({ page }) => {
-    await mockDashboardAPIs(page);
-    await page.goto("/");
-
-    await expect(page.getByText(/FortressFlow/i).first()).toBeVisible();
-  });
-
-  test("warmup badge shows active and completed counts", async ({ page }) => {
-    await mockDashboardAPIs(page);
-    await page.goto("/");
-
-    await page.waitForSelector("text=warming up", { timeout: 10_000 });
-
-    // warmup_active = 3
-    await expect(page.getByText("3 warming up")).toBeVisible();
-    // warmup_completed = 7
-    await expect(page.getByText("7 completed")).toBeVisible();
-  });
-
-  test("page renders correctly at tablet viewport", async ({ page }) => {
-    await mockDashboardAPIs(page);
-    await page.setViewportSize({ width: 768, height: 1024 });
-    await page.goto("/");
-
-    await page.waitForSelector("text=Total Leads", { timeout: 10_000 });
-    await expect(page.getByText("Total Leads")).toBeVisible();
+    await expect(page.getByRole("link", { name: /Settings/i }).first()).toBeVisible();
   });
 
   test("page renders correctly at mobile viewport", async ({ page }) => {
-    await mockDashboardAPIs(page);
+    await mockMissionControlAPIs(page);
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/");
 
-    // Content should be present even on mobile
     await expect(page).toHaveTitle(/FortressFlow/i);
+    await expect(page.getByRole("heading", { name: "Mission Control" })).toBeVisible();
   });
 });

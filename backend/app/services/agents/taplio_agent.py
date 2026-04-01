@@ -16,6 +16,8 @@ from uuid import UUID
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
+from app.services.api_key_service import get_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +51,22 @@ class TaplioAgent:
         if self._http_client is None or self._http_client.is_closed:
             self._http_client = httpx.AsyncClient(timeout=_ZAPIER_TIMEOUT)
         return self._http_client
+
+    async def _resolve_webhook_url(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        explicit_webhook_url: str | None = None,
+    ) -> str | None:
+        """Resolve the Taplio webhook from params, stored settings, or env."""
+        if explicit_webhook_url:
+            return explicit_webhook_url
+
+        stored = await get_api_key(db, "taplio", user_id)
+        if stored:
+            return stored
+
+        return settings.TAPLIO_ZAPIER_WEBHOOK_URL or None
 
     async def _call_groq(
         self,
@@ -120,9 +138,13 @@ class TaplioAgent:
         user_id: UUID,
         content: str,
         scheduled_time: str,
-        zapier_webhook_url: str,
+        zapier_webhook_url: str | None = None,
     ) -> dict:
         """Schedule a LinkedIn post via Zapier webhook to Taplio."""
+        webhook_url = await self._resolve_webhook_url(db, user_id, zapier_webhook_url)
+        if not webhook_url:
+            return {"success": False, "error": "Taplio Zapier webhook URL is not configured"}
+
         payload = {
             "action": "schedule_post",
             "content": content,
@@ -133,7 +155,7 @@ class TaplioAgent:
 
         try:
             client = await self._get_http_client()
-            resp = await client.post(zapier_webhook_url, json=payload)
+            resp = await client.post(webhook_url, json=payload)
             resp.raise_for_status()
             return {
                 "success": True,
@@ -382,13 +404,17 @@ class TaplioAgent:
         self,
         db: AsyncSession,
         user_id: UUID,
-        zapier_webhook_url: str,
+        zapier_webhook_url: str | None = None,
     ) -> dict:
         """Request post analytics via Zapier webhook."""
+        webhook_url = await self._resolve_webhook_url(db, user_id, zapier_webhook_url)
+        if not webhook_url:
+            return {"success": False, "error": "Taplio Zapier webhook URL is not configured"}
+
         return await self.trigger_zapier_action(
             db=db,
             user_id=user_id,
-            webhook_url=zapier_webhook_url,
+            webhook_url=webhook_url,
             action="get_analytics",
             payload={"request_type": "post_analytics"},
         )
@@ -402,10 +428,11 @@ class TaplioAgent:
         zapier_webhook_url: str | None = None,
     ) -> dict:
         """Trigger a LinkedIn connection request via Zapier."""
-        if not zapier_webhook_url:
+        webhook_url = await self._resolve_webhook_url(db, user_id, zapier_webhook_url)
+        if not webhook_url:
             return {
                 "success": False,
-                "error": "Zapier webhook URL required for connection requests",
+                "error": "Taplio Zapier webhook URL is not configured",
             }
 
         payload = {
@@ -417,7 +444,7 @@ class TaplioAgent:
         return await self.trigger_zapier_action(
             db=db,
             user_id=user_id,
-            webhook_url=zapier_webhook_url,
+            webhook_url=webhook_url,
             action="connection_request",
             payload=payload,
         )

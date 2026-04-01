@@ -517,6 +517,7 @@ export function ChatAssistant() {
         role="dialog"
         aria-label="FortressFlow Chat Assistant"
         aria-modal="true"
+        aria-hidden={!isOpen}
         className={cn(
           "fixed z-40",
           // Desktop positioning
@@ -532,7 +533,7 @@ export function ChatAssistant() {
           "transition-all duration-300 ease-in-out",
           isOpen
             ? "opacity-100 translate-y-0 pointer-events-auto"
-            : "opacity-0 translate-y-4 pointer-events-none"
+            : "invisible opacity-0 translate-y-4 pointer-events-none"
         )}
       >
         {/* Header */}

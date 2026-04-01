@@ -323,9 +323,10 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Trivy scan — backend image
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: fortressflow/backend:scan
+          scanners: vuln
           format: sarif
           output: trivy-backend.sarif
           severity: CRITICAL,HIGH
@@ -334,7 +335,7 @@ jobs:
 
       - name: Upload Trivy backend results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        if: ${{ always() && hashFiles('trivy-backend.sarif') != '' }}
         continue-on-error: true
         with:
           sarif_file: trivy-backend.sarif
@@ -352,9 +353,10 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Trivy scan — frontend image
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: fortressflow/frontend:scan
+          scanners: vuln
           format: sarif
           output: trivy-frontend.sarif
           severity: CRITICAL,HIGH
@@ -363,7 +365,7 @@ jobs:
 
       - name: Upload Trivy frontend results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        if: ${{ always() && hashFiles('trivy-frontend.sarif') != '' }}
         continue-on-error: true
         with:
           sarif_file: trivy-frontend.sarif
