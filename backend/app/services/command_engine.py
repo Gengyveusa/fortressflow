@@ -12,6 +12,7 @@ from typing import Any
 from uuid import UUID
 
 from app.config import settings
+from app.services import api_key_service
 from app.services.agents.orchestrator import AgentOrchestrator
 from app.utils.sanitize import sanitize_error
 
