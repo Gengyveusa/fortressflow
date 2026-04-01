@@ -30,7 +30,6 @@ WORKDIR /app
 # Install only the runtime shared library (libpq5), not the dev headers
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user and group for running the application
@@ -55,9 +54,9 @@ RUN chmod +x /app/start.sh
 # Ensure the appuser owns the application directory
 RUN chown -R appuser:appgroup /app
 
-# Healthcheck — calls the /health endpoint; requires curl (installed above)
+# Healthcheck — calls the /health endpoint using the Python stdlib
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).read()" || exit 1
 
 EXPOSE 8000
 
