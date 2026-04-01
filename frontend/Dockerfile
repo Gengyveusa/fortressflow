@@ -2,6 +2,10 @@
 FROM node:20-alpine@sha256:5bac2112f1a27db4775ce6ead86db9e0cbc087f0dbddfe3cbc11ecea122d5294 AS base
 
 WORKDIR /app
+ARG NPM_VERSION=11.12.1
+
+RUN apk upgrade --no-cache \
+    && npm install -g "npm@${NPM_VERSION}"
 
 FROM base AS deps
 COPY package.json package-lock.json* ./
