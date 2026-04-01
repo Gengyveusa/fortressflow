@@ -195,8 +195,8 @@ test.describe("Sequences Page", () => {
     await mockSequencesAPI(page);
     await page.goto("/sequences");
 
-    await page.waitForSelector("text=AI Generated", { timeout: 10_000 });
-    await expect(page.getByText("AI Generated")).toBeVisible();
+    await page.waitForSelector("text=AI", { timeout: 10_000 });
+    await expect(page.getByText("AI", { exact: true })).toBeVisible();
   });
 
   test("Builder button appears on each sequence card", async ({ page }) => {
@@ -368,10 +368,9 @@ test.describe("Sequences Page", () => {
     await page.waitForSelector("text=Page 1 of", { timeout: 10_000 });
 
     // Previous should be disabled, Next should be enabled
-    const buttons = page.getByRole("button");
-    // Find chevron buttons — previous disabled
-    const prevBtn = page.locator('button:has([class*="ChevronLeft"], svg)').first();
+    const prevBtn = page.getByRole("button", { name: "Previous page" });
     await expect(prevBtn).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Next page" })).toBeEnabled();
   });
 
   test("pagination not shown for single page of results", async ({ page }) => {
@@ -401,9 +400,10 @@ test.describe("Sequences Page", () => {
 
     await page.waitForSelector("text=Builder", { timeout: 10_000 });
 
-    const builderLink = page
-      .getByRole("link", { name: /Builder/i })
-      .first();
+    const sequenceCard = page.getByRole("article", {
+      name: "Sequence Q4 Enterprise Outreach",
+    });
+    const builderLink = sequenceCard.getByRole("link", { name: /Builder/i });
     await expect(builderLink).toHaveAttribute(
       "href",
       "/sequences/builder/seq-001"

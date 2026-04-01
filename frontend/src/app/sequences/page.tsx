@@ -102,7 +102,11 @@ interface SequenceCardProps {
 function SequenceCard({ seq, perf, onAction }: SequenceCardProps) {
 
   return (
-    <Card className="hover:shadow-md transition-shadow h-full relative group dark:bg-gray-900 dark:border-gray-800 dark:hover:border-gray-700">
+    <Card
+      role="article"
+      aria-label={`Sequence ${seq.name}`}
+      className="hover:shadow-md transition-shadow h-full relative group dark:bg-gray-900 dark:border-gray-800 dark:hover:border-gray-700"
+    >
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
           <Link href={`/sequences/${seq.id}`} className="flex-1 min-w-0">
@@ -482,13 +486,14 @@ export default function SequencesPage() {
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Page {page} of {totalPages}
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2" role="navigation" aria-label="Sequences pagination">
                 <Button
                   variant="outline"
                   size="sm"
                   disabled={page <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   className="dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                  aria-label="Previous page"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -498,6 +503,7 @@ export default function SequencesPage() {
                   disabled={page >= totalPages}
                   onClick={() => setPage((p) => p + 1)}
                   className="dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                  aria-label="Next page"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
