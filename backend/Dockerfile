@@ -29,11 +29,9 @@ FROM python:3.12-slim@sha256:0bbd3d5f3abb2024c1b92ce69e8bdfefa17c248999827c34e2e
 
 WORKDIR /app
 
-# Refresh base packages and install only the runtime shared library (libpq5).
+# Refresh base packages in the runtime image.
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user and group for running the application
