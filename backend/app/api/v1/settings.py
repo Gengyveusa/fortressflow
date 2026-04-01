@@ -89,7 +89,9 @@ async def get_integration_status(
     integrations: list[IntegrationStatusEntry] = []
 
     # LinkedIn / Phantombuster
-    pb_key = await get_api_key(db, "phantombuster", current_user.id) or getattr(app_settings, "PHANTOMBUSTER_API_KEY", "")
+    pb_key = await get_api_key(db, "phantombuster", current_user.id) or getattr(
+        app_settings, "PHANTOMBUSTER_API_KEY", ""
+    )
     pb_connect = await get_api_key(db, "phantombuster_connect_agent", current_user.id) or getattr(
         app_settings,
         "PHANTOMBUSTER_CONNECT_AGENT_ID",

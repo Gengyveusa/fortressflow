@@ -22,6 +22,7 @@ import {
   Phone,
   Building2,
   Search,
+  Telescope,
 } from "lucide-react";
 import {
   Card,

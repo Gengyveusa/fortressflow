@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.services.api_key_service import get_api_key
+
 logger = logging.getLogger(__name__)
 
 _ZAPIER_TIMEOUT = 30

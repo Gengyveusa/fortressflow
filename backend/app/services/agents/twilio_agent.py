@@ -64,7 +64,9 @@ class TwilioAgent:
                         if sid:
                             return sid, raw_key
 
-                sid = sid_override or self._extract_json_credential(raw_key, "account_sid") or settings.TWILIO_ACCOUNT_SID
+                sid = (
+                    sid_override or self._extract_json_credential(raw_key, "account_sid") or settings.TWILIO_ACCOUNT_SID
+                )
                 token = token_override or self._extract_json_credential(raw_key, "auth_token")
                 if sid and token:
                     return sid, token
